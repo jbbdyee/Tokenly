@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# Xcode per-user state and build output (contain local paths / user names)
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.xcresult
+*.profraw
+*.profdata
+
+# Locally built app bundles (not published; no signed release yet)
+dist/
+
+# Python
+__pycache__/
+*.pyc
+
+# Signing material and local secrets: never commit
+*.p12
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile
+.env
+*.secret

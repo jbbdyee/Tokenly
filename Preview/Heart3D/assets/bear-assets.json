@@ -1,0 +1,40 @@
+{
+  "fillRows" : {
+    "1" : [
+      2,
+      15
+    ],
+    "2" : [
+      4,
+      31
+    ],
+    "3" : [
+      6,
+      46
+    ]
+  },
+  "layers" : [
+    "empty",
+    "full"
+  ],
+  "numberCenter" : [
+    9,
+    8.865384615384615
+  ],
+  "numberCoveredAt" : 0.7,
+  "pointSize" : [
+    18,
+    16
+  ],
+  "scales" : [
+    1,
+    2,
+    3
+  ],
+  "services" : [
+    "codex",
+    "claude",
+    "antigravity",
+    "stale"
+  ]
+}
