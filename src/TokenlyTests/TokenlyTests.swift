@@ -385,6 +385,89 @@ final class TokenlyTests: XCTestCase {
         XCTAssertNotNil(manager.errorMessage)
     }
 
+    @MainActor
+    func testLoginItemNotFoundOnInstalledAppAllowsRegisterAttempt() {
+        let fake = FakeLoginItemController()
+        fake.state = .unavailable                      // SMAppService.mainApp.status == .notFound
+        let manager = LoginItemManager(controller: fake, bundleURL: URL(fileURLWithPath: "/Applications/Tokenly.app"))
+        XCTAssertEqual(manager.state, .unavailable)    // not silently treated as .off
+        XCTAssertTrue(manager.canChange)
+        XCTAssertFalse(manager.isEnabled)
+        XCTAssertTrue(manager.statusMessage.contains("켜면 등록을 시도합니다"))
+        manager.setEnabled(true)
+        XCTAssertEqual(fake.registerCalls, 1)
+        XCTAssertEqual(manager.state, .on)
+        XCTAssertTrue(manager.isEnabled)
+        XCTAssertNil(manager.errorMessage)
+        XCTAssertEqual(manager.statusMessage, "켜짐 · 다음 로그인부터 실행됩니다.")
+    }
+
+    @MainActor
+    func testLoginItemNotFoundRegisterFailureKeepsToggleOffAndShowsError() {
+        let fake = FakeLoginItemController()
+        fake.state = .unavailable
+        fake.fail = true
+        let manager = LoginItemManager(controller: fake, bundleURL: URL(fileURLWithPath: "/Applications/Tokenly.app"))
+        manager.setEnabled(true)
+        XCTAssertEqual(fake.registerCalls, 1)
+        XCTAssertEqual(manager.state, .unavailable)
+        XCTAssertFalse(manager.isEnabled)              // the toggle reads isEnabled, so it snaps back to off
+        let message = try? XCTUnwrap(manager.errorMessage)
+        XCTAssertTrue(message?.contains("등록에 실패했습니다") == true)
+        XCTAssertTrue(message?.contains("fake register error") == true)
+        XCTAssertEqual(manager.statusMessage, message)
+    }
+
+    @MainActor
+    func testLoginItemRegisterWithoutErrorButNotConfirmedIsNotShownAsOn() {
+        let fake = FakeLoginItemController()
+        fake.state = .unavailable
+        fake.stateAfterRegister = .unavailable         // call returned, status still .notFound
+        let manager = LoginItemManager(controller: fake, bundleURL: URL(fileURLWithPath: "/Applications/Tokenly.app"))
+        manager.setEnabled(true)
+        XCTAssertEqual(fake.registerCalls, 1)
+        XCTAssertFalse(manager.isEnabled)
+        XCTAssertTrue(manager.errorMessage?.contains("켜짐 상태가 확인되지 않았습니다") == true)
+        XCTAssertFalse(manager.statusMessage.hasPrefix("켜짐"))
+    }
+
+    @MainActor
+    func testLoginItemRequiresApprovalAfterRegister() {
+        let fake = FakeLoginItemController()
+        fake.state = .unavailable
+        fake.stateAfterRegister = .requiresApproval
+        let manager = LoginItemManager(controller: fake, bundleURL: URL(fileURLWithPath: "/Applications/Tokenly.app"))
+        manager.setEnabled(true)
+        XCTAssertEqual(manager.state, .requiresApproval)
+        XCTAssertNil(manager.errorMessage)
+        XCTAssertEqual(manager.statusMessage, "시스템 설정의 로그인 항목에서 승인이 필요합니다.")
+    }
+
+    @MainActor
+    func testLoginItemUnregisterFailureKeepsOnAndShowsError() {
+        let fake = FakeLoginItemController()
+        fake.state = .on
+        fake.failUnregister = true
+        let manager = LoginItemManager(controller: fake, bundleURL: URL(fileURLWithPath: "/Applications/Tokenly.app"))
+        manager.setEnabled(false)
+        XCTAssertEqual(fake.unregisterCalls, 1)
+        XCTAssertTrue(manager.isEnabled)
+        XCTAssertTrue(manager.errorMessage?.contains("해제에 실패했습니다") == true)
+    }
+
+    @MainActor
+    func testLoginItemNotFoundStillBlockedOutsideApplications() {
+        let fake = FakeLoginItemController()
+        fake.state = .unavailable
+        for path in ["/private/tmp/Tokenly.app", NSHomeDirectory() + "/Library/Developer/Xcode/DerivedData/X/Build/Products/Debug/Tokenly.app"] {
+            let manager = LoginItemManager(controller: fake, bundleURL: URL(fileURLWithPath: path))
+            XCTAssertFalse(manager.canChange, path)
+            manager.setEnabled(true)
+            XCTAssertNotNil(manager.errorMessage, path)
+        }
+        XCTAssertEqual(fake.registerCalls, 0)
+    }
+
     func testRemainingLevelsAtBoundaries() {
         XCTAssertEqual(RemainingLevel(percent: 50.1), .healthy)
         XCTAssertEqual(RemainingLevel(percent: 50), .caution)
@@ -1010,15 +1093,19 @@ private final class FakeLoginItemController: LoginItemControlling {
     var registerCalls = 0
     var unregisterCalls = 0
     var fail = false
+    var failUnregister = false
+    /// What `status` reports after a register call that did not throw (the system may still say otherwise).
+    var stateAfterRegister: LoginItemState = .on
 
     func register() throws {
         registerCalls += 1
-        if fail { throw NSError(domain: "test", code: 1) }
-        state = .on
+        if fail { throw NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "fake register error"]) }
+        state = stateAfterRegister
     }
 
     func unregister() throws {
         unregisterCalls += 1
+        if failUnregister { throw NSError(domain: "test", code: 2, userInfo: [NSLocalizedDescriptionKey: "fake unregister error"]) }
         state = .off
     }
 }

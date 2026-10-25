@@ -45,7 +45,7 @@ struct TokenlySettingsView: View {
                 get: { loginItem.isEnabled },
                 set: { loginItem.setEnabled($0) }
             ))
-            .disabled(!loginItem.isInstalled || loginItem.state == .unavailable)
+            .disabled(!loginItem.canChange)
             Text(loginItem.statusMessage)
                 .font(.caption)
                 .foregroundStyle(.secondary)
