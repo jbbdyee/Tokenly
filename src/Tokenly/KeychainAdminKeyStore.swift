@@ -8,7 +8,8 @@ protocol AdminKeyStoring {
 }
 
 struct KeychainAdminKeyStore: AdminKeyStoring {
-    private let service = "com.tokenly.app.openai.admin"
+    // Follows the bundle ID (changed from com.tokenly.app before the first public release; no item was ever stored).
+    private let service = "io.github.jbbdyee.tokenly.openai.admin"
     private let account = "organization-usage"
 
     private var query: [String: Any] {

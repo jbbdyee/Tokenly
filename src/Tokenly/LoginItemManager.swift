@@ -75,7 +75,7 @@ final class LoginItemManager: ObservableObject {
         refresh()
     }
 
-    static func isStableInstallLocation(_ bundleURL: URL, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Bool {
+    nonisolated static func isStableInstallLocation(_ bundleURL: URL, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Bool {
         let path = bundleURL.standardizedFileURL.path
         guard path.hasSuffix(".app") else { return false }
         return path.hasPrefix("/Applications/") ||

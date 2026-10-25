@@ -88,14 +88,7 @@ struct TokenlySettingsView: View {
                     if form.agyFeedExists { _ = externalStore.refresh(.antigravity) }
                 }
             }
-            if let bridge = Bundle.main.path(forResource: "AGYStatusLineBridge", ofType: "py") {
-                Button("상태줄 명령 복사") {
-                    let escaped = bridge.replacingOccurrences(of: "'", with: "'\\''")
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString("/usr/bin/python3 '\(escaped)'", forType: .string)
-                }
-                .help("AGY CLI /statusline에 직접 지정합니다. 기존 상태줄 명령을 대체할 수 있습니다.")
-            }
+            connectCommandButton(.agy)
             externalStatus(.antigravity)
             Divider()
             Text("Claude Code · 구독 한도").font(.subheadline.weight(.semibold))
@@ -110,12 +103,28 @@ struct TokenlySettingsView: View {
             }
             Text(form.claudeFeedExists ? "상태줄 수신 파일 있음" : "상태줄 수신 파일 없음 · Claude Code 설정 필요")
                 .font(.caption).foregroundStyle(.secondary)
+            connectCommandButton(.claude)
             externalStatus(.claude)
             Divider()
             Text("Gemini · 연동 검증 예정").font(.subheadline)
           }
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(20)
+        }
+    }
+
+    /// Copies the Terminal command that connects this CLI. The settings window itself never edits the
+    /// Claude/AGY settings files; the command previews the change and asks before writing.
+    private func connectCommandButton(_ source: StatusLineSource) -> some View {
+        HStack {
+            Button("연결 명령 복사") {
+                let command = StatusLineConnector.shellQuote(BridgeCommand.executablePath()) + " --connect " + source.rawValue
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(command, forType: .string)
+            }
+            .help("터미널에 붙여 넣어 실행하면 변경 내용을 먼저 보여 주고, 확인한 뒤 백업과 함께 연결합니다. 기존 상태줄 출력은 유지됩니다.")
+            Text("터미널에서 실행 · 해제는 --disconnect \(source.rawValue)")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 

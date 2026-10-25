@@ -32,10 +32,11 @@
 - 두 CLI는 상태줄을 그릴 때 사용량을 포함한 JSON을 표준 입력으로 넘긴다. 브리지는 그중 한도 필드만 골라 `~/Library/Application Support/Tokenly/`에 저장한다.
   - Claude: `rate_limits.five_hour/seven_day`의 `used_percentage`, `resets_at`
   - AGY: 버킷별 `remaining_fraction`
-- 폴더 0700, 파일 0600, 임시 파일 후 `os.replace`로 원자적 교체. 세션·계정·경로 등 원본 JSON은 저장하지 않는다.
-- 설정 스크립트는 기존 `statusLine`이 있으면 중단하고, 변경 전 0600 백업을 만든다(`scripts/enable_claude_statusline.py`, `enable_agy_statusline.py`).
+- 폴더 0700, 파일 0600, 같은 폴더의 임시 파일을 이름 바꾸기로 원자적 교체. 세션·계정·경로 등 원본 JSON은 저장하지 않는다.
+- **0.1.0 개발 빌드(첫 커밋):** Python 브리지(`ClaudeStatusLineBridge.py`, `AGYStatusLineBridge.py`)와 설정 스크립트(`scripts/enable_claude_statusline.py`, `enable_agy_statusline.py`). 스크립트는 기존 `statusLine`이 있으면 중단했다.
+- **현재 소스:** 앱 실행 파일이 브리지를 겸한다(`Tokenly --statusline claude|agy`, `TokenlyMain.swift` → `BridgeCommand.swift` → `StatusLineBridge.swift`). 연결·해제는 `--connect`/`--disconnect`(`StatusLineConnector.swift`)로 미리 보기·확인·백업 후 `statusLine` 값만 제자리 편집하고, 기존 statusLine이 있으면 보존해 같은 입력으로 실행한 출력을 그대로 보여 준다. Python 파일은 호환용으로 남아 있다. 근거: IMP-PLAN §47–48, `StatusLineTests.swift`
 - **이벤트 기반 갱신의 한계:** CLI를 쓰지 않으면 새 값이 오지 않는다. Tokenly의 새로고침은 파일 재읽기일 뿐이다.
-- 근거: IMP-PLAN §13, §16, §19–21
+- 근거: IMP-PLAN §13, §16, §19–21, §47–48
 
 ## 5. 3D 곰돌이 게이지와 메뉴 막대 렌더링
 
@@ -65,14 +66,14 @@
 
 ## 7. 테스트와 검증 방식
 
-- XCTest 58개(호스트 앱 테스트): 파싱, 만료, 표시 규칙, 재설정 권한, 스타일 저장·이전, 렌더 결과의 크기·정렬·잘림(픽셀 단위). `src/TokenlyTests/TokenlyTests.swift`
+- XCTest 91개(호스트 앱 테스트, 2026-10-25 실행 전부 통과): 파싱, 만료, 표시 규칙, 재설정 권한, 스타일 저장·이전, 렌더 결과의 크기·정렬·잘림(픽셀 단위), statusLine 브리지·연결·해제(임시 홈). `src/TokenlyTests/TokenlyTests.swift`, `StatusLineTests.swift`
 - 디자인 결정은 **실제 Retina 픽셀(2배율)과 보간 없는 확대**로 비교했다. 확대에서만 좋아 보이는 시안을 걸러내기 위해서다. `Preview/*/`
 - GUI 자동화 권한이 없어 메뉴 막대 실화면은 개발자가 직접 확인했다. 자동 GUI 테스트는 없다.
 
 ## 8. 아직 해결하지 못한 한계
 
 - 서명·공증된 설치 파일 없음(코드 서명 인증서 없음, Hardened Runtime 꺼짐) — IMP-PLAN §39
-- 브리지가 `/usr/bin/python3`에 의존(Command Line Tools 필요 가능), 설정 스크립트가 저장소 경로를 등록
+- (해결) 0.1.0 개발 빌드의 브리지는 `/usr/bin/python3`에 의존했고 설정 스크립트가 저장소 경로를 등록했다 → 현재 소스는 네이티브 브리지와 `--connect`로 대체. 실제 Claude Code·AGY 설정을 새 명령으로 바꾸는 전환은 아직 하지 않았다
 - Claude·AGY는 이벤트 기반이라 CLI를 쓰지 않으면 값이 멈춤, stale 15분 기준은 임시값
 - Codex app-server는 experimental
 - 메뉴 막대 비트맵의 이름 색은 라벨의 `colorScheme`에 의존하며, 바탕화면에 따라 바뀌는 메뉴 막대에서의 동작은 충분히 검증되지 않음

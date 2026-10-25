@@ -2,8 +2,87 @@
 
 macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다.
 
-> **현재 상태: v0.1.0 개발 버전(소스 공개 단계)**
-> 일반 사용자용 설치 파일(서명·공증된 앱)은 아직 배포하지 않습니다. 직접 빌드해야 하며, 개발자 Mac 밖에서의 동작은 충분히 검증되지 않았습니다. 자세한 제약은 [현재 지원 범위와 제약](#현재-지원-범위와-제약)을 참고하세요.
+> **v0.1.0 개발자 미리보기(Pre-release)**
+> Apple Developer ID 서명과 공증(notarization)을 받지 않은 **ad-hoc 서명** 빌드입니다. 첫 실행 때 macOS가 확인을 요구하며, 아래 [설치](#설치) 절차로 이 앱만 허용하면 됩니다. 개발자 Mac 밖에서의 동작은 아직 충분히 검증되지 않았습니다([알려진 제한](#알려진-제한)).
+>
+> **현재 GitHub Release는 아직 발행하지 않았습니다.** 지금은 [소스에서 빌드](#빌드와-테스트)해 실행할 수 있고, 아래 ZIP 설치 절차는 Release 발행 후 기준입니다.
+
+## 요구 사항
+
+- macOS 14 Sonoma 이상
+- Apple silicon(arm64) 또는 Intel(x86_64) Mac — 하나의 universal 앱
+- 표시하려는 서비스의 CLI(아래 [사전 준비](#사전-준비)). Python은 필요 없습니다.
+
+## 설치
+
+Release ZIP 기준입니다(발행 전에는 `scripts/release.sh`가 만드는 같은 형식의 ZIP으로 확인할 수 있습니다).
+
+1. [Releases](https://github.com/jbbdyee/Tokenly/releases)에서 `Tokenly-0.1.0-macOS-universal.zip`과 `Tokenly-0.1.0-macOS-universal.zip.sha256`을 받습니다.
+2. (권장) 무결성 확인: 두 파일이 있는 폴더에서 `shasum -a 256 -c Tokenly-0.1.0-macOS-universal.zip.sha256` → `OK`가 나와야 합니다.
+3. ZIP을 열어 나온 `Tokenly.app`을 **응용 프로그램(`/Applications`) 폴더로 옮깁니다.** 다운로드 폴더에서 바로 실행하면 macOS가 임시 위치에서 실행해 자동 실행·CLI 연결이 동작하지 않습니다.
+4. `Tokenly.app`을 엽니다. 처음에는 "확인되지 않은 개발자" 또는 "Apple이 악성 소프트웨어가 없음을 확인할 수 없음" 경고가 나오고 열리지 않습니다. **완료**(또는 취소)를 누릅니다.
+5. **시스템 설정 → 개인정보 보호 및 보안**의 아래쪽 **보안** 항목에 Tokenly가 차단되었다는 안내와 함께 나타나는 **그래도 열기**를 누르고, 암호(또는 Touch ID)로 확인한 뒤 한 번 더 **열기**를 누릅니다. macOS 14에서는 Finder에서 앱을 Control-클릭 → **열기**로도 허용할 수 있습니다.
+6. 메뉴 막대에 Tokenly가 나타납니다. Dock에는 나타나지 않는 메뉴 막대 전용 앱입니다.
+
+허용은 이 앱 하나에만 적용됩니다. Gatekeeper를 끄거나(`spctl --master-disable`) 격리 속성을 일괄 제거하는 등 시스템 보안 설정을 바꿀 필요는 없으며, 권장하지 않습니다. 새 버전으로 교체하면 다시 허용해야 할 수 있습니다.
+
+## 사전 준비
+
+| 서비스 | 필요한 것 |
+|---|---|
+| Codex | [Codex CLI](https://github.com/openai/codex) 설치와 로그인(`codex login`). Tokenly는 `PATH`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `~/.npm-global/bin`에서 `codex`를 찾습니다. 별도 연결 작업은 없습니다. |
+| Claude Code | Claude Code 설치와 **Pro·Max 구독** 로그인. 한도 값은 Claude Code가 statusLine에 넘겨 줄 때만 오며, 세션의 첫 응답 이후부터 들어옵니다. 아래 CLI 연결이 필요합니다. |
+| Google Antigravity | AGY CLI 설치와 로그인. 설정 파일 `~/.gemini/antigravity-cli/settings.json`을 씁니다. 아래 CLI 연결이 필요합니다. |
+
+## Claude Code·AGY 연결
+
+Claude·AGY는 각 CLI의 **statusLine 명령**으로 한도 값을 받습니다. 연결은 터미널에서 직접 실행하며, 앱의 설정 화면은 CLI 설정 파일을 바꾸지 않습니다(설정 → **AI 서비스**의 **연결 명령 복사**로 아래 명령을 복사할 수 있습니다).
+
+```sh
+T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
+
+"$T" --status                          # 연결 상태와 마지막 수신 시각(아무것도 바꾸지 않음)
+"$T" --connect claude --dry-run        # 바뀔 내용만 미리 보기
+"$T" --connect claude                  # 미리 보기 → 확인(y) → 백업 → 연결
+"$T" --connect claude --yes            # 확인 질문 없이 연결(터미널이 아닌 곳에서 실행할 때, 내용 확인 후)
+"$T" --connect agy
+"$T" --disconnect claude               # Tokenly가 바꾼 부분만 원래대로
+"$T" --disconnect agy
+```
+
+- 연결 대상은 Claude Code `~/.claude/settings.json`, AGY `~/.gemini/antigravity-cli/settings.json`의 최상위 `statusLine` 값 하나뿐입니다. 다른 설정은 바꾸지 않고, 바꾼 뒤 그대로인지 검사합니다.
+- **기존 statusLine 보존:** 이미 쓰던 statusLine이 있으면 지우지 않습니다. Tokenly가 한도 값을 먼저 저장한 뒤 원래 명령을 같은 입력으로 실행해 그 출력을 그대로 보여 줍니다(원래 명령 시간 제한 10초).
+- **백업:** 바꾸기 전에 원본 파일을 `~/Library/Application Support/Tokenly/backups/`에 권한 0600으로 복사하고, 연결 기록(원래 값과 원문)을 `…/Tokenly/statusline/`에 남깁니다. 명령이 끝나면 되돌리는 `cp -p` 명령을 출력합니다.
+- **해제:** 현재 statusLine이 Tokenly가 넣은 값 그대로일 때만 원래 값(원문 서식 그대로)을 복원하거나, 원래 없었다면 제거합니다. 연결 후 직접 바꾼 statusLine은 건드리지 않습니다.
+- 다른 statusLine 명령을 쓰던 경우에도 그 내용은 `--status`에 출력하지 않습니다.
+- 프로젝트 폴더의 `.claude/settings.json`에 statusLine이 있으면 Claude Code는 그 값을 우선 사용하므로 그 프로젝트에서는 Tokenly가 값을 받지 못합니다.
+- 연결은 `/Applications` 또는 `~/Applications`에 설치한 앱에서만 실행됩니다. 앱을 옮기면 `--connect`를 다시 실행하세요.
+- 다음 경우에는 아무것도 바꾸지 않고 중단합니다: 설정 파일이 심볼릭 링크·일반 파일이 아님·올바른 JSON 객체가 아님·5MB 초과, `statusLine` 키가 여러 개, 미리 보기 후 쓰기 직전에 파일이 바뀜, 터미널이 아닌데 `--yes`가 없음. 종료 코드: 0 완료·취소·변경 없음, 2 설치 위치 아님, 3 계획 단계 중단, 4 확인 필요, 5 쓰기 실패, 64 잘못된 사용법.
+- 0.1.0 개발 빌드의 Python 브리지(`…/Resources/ClaudeStatusLineBridge.py`, `AGYStatusLineBridge.py`)로 연결해 두었다면, `--connect`가 네이티브 명령으로 바꿉니다. 호환을 위해 Python 브리지는 앱 안에 남아 있습니다.
+
+## 자동 실행
+
+팝오버의 설정(톱니바퀴) → **일반** → **로그인 시 자동 실행**을 켭니다. `/Applications` 또는 `~/Applications`에 설치한 앱에서만 켤 수 있고, macOS가 승인을 요구하면 **로그인 항목 설정 열기**에서 Tokenly를 허용합니다. 끄면 등록이 해제됩니다.
+
+## 삭제와 설정 복원
+
+1. Claude·AGY를 연결했다면 먼저 해제합니다: `/Applications/Tokenly.app/Contents/MacOS/Tokenly --disconnect claude`(AGY는 `agy`).
+2. 설정 → **일반**에서 자동 실행을 끄고, 팝오버의 **종료**로 앱을 끕니다.
+3. `/Applications/Tokenly.app`을 휴지통으로 옮깁니다.
+4. (선택) 로컬 데이터 삭제: `~/Library/Application Support/Tokenly/`(수신 값·백업·연결 기록)와 앱 설정(`defaults delete io.github.jbbdyee.tokenly`).
+
+앱을 먼저 지웠다면 CLI의 statusLine이 없는 실행 파일을 가리키게 됩니다. `~/Library/Application Support/Tokenly/backups/`의 가장 최근 `claude-settings-…json`(AGY는 `agy-settings-…json`)이 연결 직전 원본이므로 `cp -p <백업 파일> ~/.claude/settings.json`처럼 되돌리거나, 설정 파일의 `statusLine` 항목을 직접 고치세요. 백업은 연결 이후 다른 설정 변경을 담고 있지 않으니 덮어쓰기 전에 내용을 확인하세요.
+
+## 알려진 제한
+
+- **공증 없음:** ad-hoc 서명이라 첫 실행에 Gatekeeper 허용이 필요하고, 다운로드한 ZIP에서의 첫 실행·CLI가 앱 실행 파일을 호출하는 경로는 아직 다른 Mac에서 검증하지 않았습니다.
+- **이벤트 기반 갱신:** Claude·AGY 값은 CLI가 상태줄을 그릴 때만 갱신됩니다. CLI를 쓰지 않으면 값이 멈추고, 수신 후 15분이 지나면 회색(이전 데이터)으로 표시합니다.
+- **Codex app-server**는 Codex CLI에서 experimental로 표시된 기능이라 CLI 업데이트에 따라 바뀔 수 있습니다.
+- **AGY**는 5시간·7일 창이 아니라 버킷별 잔여 비율을 제공합니다. IDE·Gemini API 사용량과는 다릅니다.
+- **macOS 앱 목록:** 개발자 Mac(macOS 27)에서 앱 목록(Apps) 전체 보기에서 사라졌다가 다시 표시된 사례가 있었습니다. 테스트 앱으로는 같은 번들 ID의 다른 사본(빌드 결과물·백업 등)이 등록 해제될 때 빠지는 현상을 재현했지만, Tokenly가 언제 어떤 계기로 다시 표시됐는지는 확인되지 않았습니다. 보이지 않으면 Spotlight나 Finder의 응용 프로그램 폴더에서 실행하세요(`Doc/IMP-PLAN.md` 46·51–53절).
+- 메뉴 막대에 아이콘이 보이지 않으면 메뉴 막대 공간이 부족하거나, macOS 버전에 따라 시스템 설정의 메뉴 막대 항목에서 허용이 필요할 수 있습니다(새 번들 ID 설치본에서는 아직 확인하지 않음).
+- Gemini 자동 조회는 지원하지 않습니다. OpenAI API 사용량 연동 코드는 있으나 보류 상태입니다.
+- 공개 전 개발 빌드(번들 ID `com.tokenly.app`)를 쓰던 경우, 그 설정과 로그인 항목은 새 앱으로 이어지지 않습니다. 옛 앱에서 자동 실행을 끈 뒤 교체하세요.
 
 ## 개발 동기
 
@@ -33,13 +112,13 @@ macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** �
 
 - Swift 5 · SwiftUI `MenuBarExtra` · AppKit(`NSImage`, `NSStatusItem` 라벨) · Core Graphics · Core Text
 - ServiceManagement(`SMAppService`, 로그인 항목) · Security(Keychain, 보류 중인 OpenAI API 연동용)
-- SceneKit(3D 곰돌이 에셋 제작, **앱 런타임에는 사용하지 않음**) · Python 3 표준 라이브러리(상태줄 브리지)
+- SceneKit(3D 곰돌이 에셋 제작, **앱 런타임에는 사용하지 않음**) · POSIX(`posix_spawn`, 명령줄 statusLine 브리지)
 - XCTest(호스트 앱 테스트)
 
 ```
 Codex CLI ──(app-server JSON-RPC, 5분마다)──▶ CodexUsageProvider ─▶ UsageStore ─┐
-Claude Code ─statusLine─▶ ClaudeStatusLineBridge.py ─▶ claude-quota.json ─┐      │
-AGY CLI ─────statusLine─▶ AGYStatusLineBridge.py ────▶ agy-quota.json ────┴▶ ExternalProviderStore
+Claude Code ─statusLine─▶ Tokenly --statusline claude ─▶ claude-quota.json ─┐    │
+AGY CLI ─────statusLine─▶ Tokenly --statusline agy ────▶ agy-quota.json ────┴▶ ExternalProviderStore
                                                                                  │
                      HeartGauge / NumericGauge (표시·숨김·stale 규칙, 대표값) ◀──┘
                                   │
@@ -49,13 +128,14 @@ AGY CLI ─────statusLine─▶ AGYStatusLineBridge.py ────▶ a
 
 | 영역 | 주요 파일 |
 |---|---|
-| 앱 진입·메뉴 막대 라벨 | `src/Tokenly/TokenlyApp.swift` |
+| 앱 진입·메뉴 막대 라벨 | `src/Tokenly/TokenlyMain.swift`(명령줄 모드 분기), `TokenlyApp.swift` |
 | Codex 조회 | `src/Tokenly/Providers/CodexUsageProvider.swift` |
 | Claude·AGY 조회 | `src/Tokenly/Providers/ClaudeSubscriptionProvider.swift`, `AGYStatusLineProvider.swift`, `ExternalProviderStore.swift` |
-| 상태줄 브리지 | `src/Tokenly/ClaudeStatusLineBridge.py`, `AGYStatusLineBridge.py` |
+| 상태줄 브리지·연결 | `src/Tokenly/BridgeCommand.swift`, `StatusLineBridge.swift`, `StatusLineConnector.swift`(호환용 0.1.0 Python 브리지 `ClaudeStatusLineBridge.py`, `AGYStatusLineBridge.py`) |
 | 표시 규칙 | `src/Tokenly/Models/HeartGauge.swift`(이름은 초기 하트 시안에서 유래, 현재 숫자형·곰돌이형 공용), `NumericGauge.swift` |
 | 렌더링 | `src/Tokenly/Views/MenuBarNumericRow.swift`, `MenuBarGaugeRow.swift`, `BearGaugeView.swift`, `UsageMenuView.swift` |
 | 곰돌이 3D 에셋 제작 | `Preview/Heart3D/`(`HeartMesh.swift`, `BearModel.swift`, `BearExportB.swift`, `run-bear-b.sh`) → `src/Tokenly/Resources/BearGauge/` |
+| 앱 아이콘 | `src/Tokenly/Assets.xcassets/AppIcon.appiconset/` ← 콘셉트 보드 D안에서 추출한 `Preview/AppIconConcepts/D-original-extracted/`(추출·검증 스크립트 `source/`) |
 
 ## 서비스별 연동 방식
 
@@ -72,46 +152,43 @@ AGY CLI ─────statusLine─▶ AGYStatusLineBridge.py ────▶ a
 
 ## 개인정보와 로컬 데이터
 
-- 브리지는 한도 수치·초기화 시각·수신 시각만 `~/Library/Application Support/Tokenly/`에 권한 0600으로 저장합니다. 세션·계정·경로·대화·인증정보와 원본 JSON은 저장하지 않습니다.
+- statusLine 브리지는 한도 수치·초기화 시각·수신 시각만 `~/Library/Application Support/Tokenly/`에 권한 0600으로 저장합니다. 세션·계정·경로·대화·인증정보와 원본 JSON은 저장하지 않습니다.
 - Codex CLI 출력의 진단 메시지(stderr)는 버립니다. 수집한 데이터를 외부 서버로 보내지 않습니다.
-- Claude·AGY 상태줄 설정 스크립트(`scripts/enable_claude_statusline.py`, `enable_agy_statusline.py`)는 기존 `statusLine`이 있으면 덮어쓰지 않고 중단하며, 변경 전 권한 0600 백업을 만듭니다.
+- CLI 설정 백업과 연결 기록은 `~/Library/Application Support/Tokenly/backups/`, `…/statusline/`에 0600으로 저장됩니다.
+- 저장소의 옛 설정 스크립트(`scripts/enable_claude_statusline.py`, 최상위 `enable_agy_statusline.py`)는 0.1.0 개발 빌드용으로 남겨 둔 것입니다. 새 설치에서는 `Tokenly --connect`를 쓰세요.
 
 ## 빌드와 테스트
 
 ```sh
 open src/Tokenly.xcodeproj          # Tokenly 스킴 실행(⌘R), 테스트(⌘U)
-# 명령줄
-xcodebuild -project src/Tokenly.xcodeproj -scheme Tokenly -configuration Release \
-  -destination 'generic/platform=macOS' build     # universal(arm64 + x86_64)
 xcodebuild -project src/Tokenly.xcodeproj -scheme Tokenly test
+scripts/release.sh                  # 개발 확인: Release universal 빌드 → ad-hoc 서명 → 검증 → ZIP·SHA-256
+scripts/release.sh --final 0.1.0    # 배포용: 깨끗한 작업 트리, Info.plist·CHANGELOG 버전 일치가 필요
 ```
 
-마지막 확인(2026-10-23, 개발자 Mac, Xcode 27.1):
+`release.sh`는 저장소 밖 `~/Developer/TokenlyRelease.noindex/<버전>[-dev]/`(환경 변수 `TOKENLY_RELEASE_DIR`로 변경)에 ZIP, `.sha256`, 릴리스 노트 초안, `build-info.txt`(빌드 환경과 검증 결과)를 만듭니다. 아키텍처(arm64·x86_64), 번들 ID, Info.plist(LSUIElement·유틸리티 카테고리·macOS 14·AppIcon), 리소스, 서명 식별자와 무결성, 명령줄 모드(임시 홈)를 서명 직후와 ZIP을 푼 뒤 두 번 검사합니다. 파일 시각을 HEAD 커밋 시각으로 고정해 같은 소스에서 같은 ZIP이 나옵니다. 설치·커밋·태그·업로드는 하지 않으며, 만든 앱의 LaunchServices 등록만 해제합니다.
+
+마지막 확인(2026-10-25, 개발자 Mac, macOS 27.0.1, Xcode 27.1, Swift 6.4):
 
 | 항목 | 결과 |
 |---|---|
-| Debug·Release 빌드 | 성공 |
-| XCTest | 58개 실제 실행, 전부 통과 |
-| 숫자형·최소형·곰돌이형 실행 | 각 스타일로 실행해 종료 없이 유지되는 것만 자동 확인 |
-| 메뉴 막대·팝오버 실제 화면 | 개발자 본인이 메뉴 막대 표시와 Codex 재설정 권한 표시를 확인. 자동화된 GUI 테스트는 없음 |
+| Debug·Release 빌드(arm64·x86_64) | 성공. 경고는 `BearGaugeView.swift:198`의 `let` 권고 1건 |
+| XCTest | 91개 실행, 전부 통과(실패·건너뜀 0) |
+| 명령줄 연결·해제(임시 홈, Release 빌드) | 기존 statusLine 보존 연결 → 브리지 실행 시 기존 출력 그대로 표시·한도 저장 → 재연결은 변경 없음 → 해제 후 설정 파일이 연결 전과 바이트 단위로 동일 |
+| `release.sh` 개발 확인(2026-10-24, 현재 소스와 같은 코드) | 모든 검사 통과, 세 번 실행한 ZIP의 SHA-256 동일 |
+| 메뉴 막대·팝오버 실제 화면 | 0.1.0 개발 빌드에서 개발자가 직접 확인. 새 번들 ID 빌드는 설치 전이라 미확인. 자동화된 GUI 테스트는 없음 |
+| 다운로드한 ZIP의 Gatekeeper 첫 실행, 실제 Claude Code·AGY 호출 | 미검증 |
 
-테스트는 Codex 응답 파싱, Claude·AGY 수신 파일 파싱과 만료, 표시·숨김·stale 규칙, 재설정 권한 계산, 스타일 저장·이전, 숫자형·곰돌이형의 크기·정렬·잘림(픽셀 단위) 등을 다룹니다(`src/TokenlyTests/TokenlyTests.swift`).
+- 빌드·XCTest·명령줄 확인은 2026-10-25에, `release.sh` 개발 확인은 2026-10-24에 실행했습니다. 그 사이 `src/`·`scripts/`의 코드는 바뀌지 않았습니다.
+- 개발자 Mac에 설치된 앱은 공개 전 0.1.0 개발 빌드(`com.tokenly.app`)이고, 실제 Claude Code·AGY 설정은 지금도 그 앱의 **Python 브리지**를 씁니다. 새 Swift 브리지(`--statusline`)와 `--connect`/`--disconnect`는 XCTest와 임시 홈(`TOKENLY_HOME`)에서만 검증했고, 실제 설정에는 아직 적용하지 않았습니다.
 
-## 현재 지원 범위와 제약
-
-- **설치 배포 없음:** Developer ID 서명·공증을 하지 않았습니다. 직접 빌드한 앱을 다른 Mac으로 옮기면 Gatekeeper가 막을 수 있습니다.
-- **요구 사항:** macOS 14 이상. Codex 표시는 Codex CLI 설치·로그인이 필요하며 `PATH`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `~/.npm-global/bin`에서 `codex`를 찾습니다.
-- **Python 의존:** 상태줄 브리지는 `/usr/bin/python3`로 실행됩니다. Xcode Command Line Tools가 없는 Mac에서는 실행되지 않을 수 있습니다.
-- **설정 스크립트 경로:** 현재 스크립트는 저장소 안의 브리지 경로를 상태줄에 등록합니다. 저장소를 옮기면 다시 설정해야 합니다.
-- **Codex app-server**는 Codex CLI에서 experimental로 표시된 기능이라 CLI 업데이트에 따라 바뀔 수 있습니다.
-- Gemini 자동 조회는 지원하지 않습니다. OpenAI API 사용량 연동 코드는 있으나 보류 상태입니다.
+테스트는 Codex 응답 파싱, Claude·AGY 수신 파일 파싱과 만료, 표시·숨김·stale 규칙, 재설정 권한 계산, 스타일 저장·이전, 숫자형·곰돌이형의 크기·정렬·잘림(픽셀 단위), statusLine 브리지·연결·해제(임시 홈) 등을 다룹니다(`src/TokenlyTests/`). 테스트용 설정 도메인은 임시 폴더에 만들어 `~/Library/Preferences`에 파일을 남기지 않습니다.
 
 ## 향후 계획
 
 1. 실제 메뉴 막대 스크린샷 추가
-2. 상태줄 설정 스크립트를 설치된 앱 번들 경로 기준으로 바꾸고 Python 의존을 줄이기
-3. 번들 ID·버전 정리, Hardened Runtime, universal 빌드 스크립트
-4. Apple Developer Program 가입 후 Developer ID 서명·공증과 GitHub Releases 배포
+2. 새 사용자 계정·다른 Mac에서 다운로드 설치 검증
+3. Apple Developer Program 가입 후 Developer ID 서명·Hardened Runtime·공증
 
 ## 개발 기록
 

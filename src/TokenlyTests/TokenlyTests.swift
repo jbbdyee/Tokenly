@@ -7,9 +7,9 @@ import XCTest
 final class TokenlyTests: XCTestCase {
     @MainActor
     func testAdditionalProviderVisibilityPersists() throws {
-        let suite = "TokenlyTests.Providers.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Providers")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         XCTAssertFalse(settings.showsAGY)
         XCTAssertFalse(settings.showsOpenAIAPI)
@@ -26,9 +26,9 @@ final class TokenlyTests: XCTestCase {
 
     @MainActor
     func testAccordionDefaultsPersistIndependentlyOfVisibility() throws {
-        let suite = "TokenlyTests.Accordion.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Accordion")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         XCTAssertTrue(settings.codexExpanded)
         XCTAssertFalse(settings.agyExpanded)
@@ -64,9 +64,9 @@ final class TokenlyTests: XCTestCase {
 
     @MainActor
     func testCollapsedAGYStillRefreshesWhenVisible() async throws {
-        let suite = "TokenlyTests.CollapsedRefresh.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("CollapsedRefresh")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         settings.showsAGY = true
         XCTAssertFalse(settings.agyExpanded)
@@ -180,9 +180,9 @@ final class TokenlyTests: XCTestCase {
 
     @MainActor
     func testClaudeVisibilityAndAccordionPersist() throws {
-        let suite = "TokenlyTests.Claude.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Claude")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         XCTAssertFalse(settings.showsClaude)
         XCTAssertFalse(settings.claudeExpanded)
@@ -196,9 +196,9 @@ final class TokenlyTests: XCTestCase {
 
     @MainActor
     func testPopoverProviderOrderIsCodexClaudeAGY() throws {
-        let suite = "TokenlyTests.Order.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Order")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         settings.showsCodex = true
         settings.showsAGY = true
@@ -258,9 +258,9 @@ final class TokenlyTests: XCTestCase {
 
     @MainActor
     func testProviderVisibilityPersistsAndDefaultsToShown() throws {
-        let suite = "TokenlyTests.ProviderVisibility.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("ProviderVisibility")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let initial = ProviderDisplaySettings(defaults: defaults)
         XCTAssertTrue(initial.showsCodex)
         XCTAssertEqual(initial.visibleSupportedProviders, ["Codex"])
@@ -419,9 +419,9 @@ final class TokenlyTests: XCTestCase {
 
     @MainActor
     func testDisplayStyleAndAppearancePersist() throws {
-        let suite = "TokenlyTests.DisplayPreferences.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("DisplayPreferences")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         XCTAssertEqual(settings.menuBarStyle, .numeric)
         XCTAssertEqual(settings.appearance, .system)
@@ -504,9 +504,9 @@ final class TokenlyTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: folder) }
         let feed = folder.appendingPathComponent("agy-quota.json")
         try Data(#"{"captured_at":"2020-01-01T00:00:00Z","quota":{"gemini-weekly":{"remaining_fraction":0.4}}}"#.utf8).write(to: feed)
-        let suite = "TokenlyTests.HeartStore.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("HeartStore")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         settings.showsAGY = true
         let store = ExternalProviderStore(displaySettings: settings,
@@ -523,9 +523,9 @@ final class TokenlyTests: XCTestCase {
 
     @MainActor
     func testStylesPersistSwitchAndGaugesFollowVisibilityOrder() throws {
-        let suite = "TokenlyTests.Styles.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Styles")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         XCTAssertEqual(settings.menuBarStyle, .numeric)
         for style in [MenuBarDisplayStyle.bear, .compact, .numeric, .bear] {
@@ -545,9 +545,9 @@ final class TokenlyTests: XCTestCase {
     func testOnlyThreeStylesAndRemovedStylesMigrateToNumeric() throws {
         XCTAssertEqual(MenuBarDisplayStyle.allCases, [.numeric, .compact, .bear])
         for removed in ["icon", "heart"] {
-            let suite = "TokenlyTests.Migration.\(removed).\(UUID().uuidString)"
+            let suite = TestDefaults.suite("Migration.\(removed)")
             let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-            defer { defaults.removePersistentDomain(forName: suite) }
+            defer { TestDefaults.discard(defaults, suite: suite) }
             defaults.set(removed, forKey: ProviderDisplaySettings.menuBarStyleKey)
             defaults.set(AppAppearance.dark.rawValue, forKey: ProviderDisplaySettings.appearanceKey)
             defaults.set(true, forKey: ProviderDisplaySettings.claudeVisibilityKey)
@@ -561,9 +561,9 @@ final class TokenlyTests: XCTestCase {
             XCTAssertFalse(settings.codexExpanded)
         }
         // Existing valid choices are kept as they are.
-        let suite = "TokenlyTests.Migration.keep.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Migration.keep")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         defaults.set(MenuBarDisplayStyle.compact.rawValue, forKey: ProviderDisplaySettings.menuBarStyleKey)
         XCTAssertEqual(ProviderDisplaySettings(defaults: defaults).menuBarStyle, .compact)
         XCTAssertEqual(defaults.string(forKey: ProviderDisplaySettings.menuBarStyleKey), "compact")
@@ -571,9 +571,9 @@ final class TokenlyTests: XCTestCase {
 
     @MainActor
     func testBearStylePersistsAndSwitchesBack() throws {
-        let suite = "TokenlyTests.Bear.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Bear")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         settings.menuBarStyle = .bear
         XCTAssertEqual(ProviderDisplaySettings(defaults: defaults).menuBarStyle, .bear)
@@ -931,9 +931,9 @@ final class TokenlyTests: XCTestCase {
 
     @MainActor
     func testInvalidDisplayPreferencesUseSafeDefaults() throws {
-        let suite = "TokenlyTests.InvalidPreferences.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("InvalidPreferences")
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         defaults.set("unknown-style", forKey: ProviderDisplaySettings.menuBarStyleKey)
         defaults.set("unknown-appearance", forKey: ProviderDisplaySettings.appearanceKey)
         let settings = ProviderDisplaySettings(defaults: defaults)
@@ -1053,5 +1053,27 @@ private actor CountingExternalProvider: ExternalUsageProvider {
             metrics: .quotas([QuotaMetric(name: "gemini-weekly", remainingPercent: 50, resetsAt: nil)]),
             fetchedAt: Date()
         )
+    }
+}
+
+/// Test-only preference suites. A plain suite name lands in ~/Library/Preferences, and even after
+/// `removePersistentDomain` cfprefsd later writes an empty `<suite>.plist` there, so every run used to
+/// leave one file per suite. An absolute-path suite keeps the file in a temporary folder instead.
+enum TestDefaults {
+    static let folder: URL = {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TokenlyTests-Preferences", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    static func suite(_ name: String) -> String {
+        folder.appendingPathComponent("TokenlyTests.\(name).\(UUID().uuidString)").path
+    }
+
+    static func discard(_ defaults: UserDefaults, suite: String) {
+        defaults.removePersistentDomain(forName: suite)
+        guard suite.hasPrefix(folder.path + "/") else { return }
+        try? FileManager.default.removeItem(atPath: suite + ".plist")
     }
 }

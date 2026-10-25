@@ -1,6 +1,6 @@
 import SwiftUI
 
-@main
+/// Started by `TokenlyMain` (the process entry point) when no command-line mode was requested.
 struct TokenlyApp: App {
     @StateObject private var store = UsageStore(provider: CodexUsageProvider())
     @StateObject private var loginItem = LoginItemManager()

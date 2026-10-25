@@ -8,6 +8,7 @@
 | `Numeric/` | 숫자형 위계·굵기·간격 비교 | 실행 가능 |
 | `CodexResetCredits/` | Codex 재설정 권한 팝오버 오프라인 렌더(가짜 응답, 네트워크 없음) | 실행 가능 |
 | `ReadmeImages/` | README용 메뉴 막대 이미지(`Doc/images/`) | 실행 가능 |
+| `AppIconConcepts/` | **앱에 쓰는 원본 추출본 `D-original-extracted/`**(`icon-*.png`가 `src/Tokenly/Assets.xcassets/AppIcon.appiconset/`과 바이트 동일, 추출 결과 `original-crop-343.png`·`native-396.png`)과 비교 시트(`sheetx`) 입력인 Swift 렌더 후보 `D-final-candidate/`(`source/render.sh`로 보드 없이 다시 렌더 가능). 다른 시안(A–C, D 초기안·보정본)과 비교 시트·리샘플링 비교 이미지는 `run.sh`로 다시 만들 수 있는 검토용 결과라 저장소에 포함하지 않음 | `source/`에 생성 스크립트 보존(콘셉트 보드 원본 필요, 저장소에 없음). `D-original-extracted/source/run.sh`는 앱 아이콘 원본 파일을 다시 쓰므로 주의 |
 | `HeartLegibility/`, `HeartStyles/` | 제거된 하트형의 가독성·스타일 시안 | `Shared/`의 레거시 코드로 실행 가능 |
 | `Shared/` | `HeartGaugeView.swift`(곰돌이 에셋 렌더러가 쓰는 `HeartShape` 포함), 레거시 하트 메뉴 막대 코드 | — |
 | `README.before-v1.md` | v1 정리 전 README 보존본 | — |

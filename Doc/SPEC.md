@@ -35,7 +35,7 @@ Tokenly는 macOS 메뉴 막대에서 **여러 AI 서비스의 사용량과 잔�
 - Claude 구독은 공식 Claude Code 상태줄 JSON 계약을 확인했지만 실제 계정 수신·앱 연동은 미검증이다. Gemini는 자동 조회 계약 검증 단계, OpenAI API는 코드가 있지만 연결 보류다. AGY는 사용자가 실제 한도 표시 성공을 보고했다.
 - 메뉴 막대 테마 선택 후보: 숫자형, 작은 아이콘과 사용량을 함께 보여 주는 아이콘형, 캐릭터 상태를 사용하는 캐릭터형, 공간을 최소화하는 미니멀형. 현재 숫자형·최소형·아이콘형과 시스템/라이트/다크 외관 설정을 구현했으며 캐릭터형은 후속이다.
 - 테마 구현 전에 AppKit `NSStatusItem`·`NSStatusBarButton`의 속성 문자열 또는 사용자 지정 뷰 방식을 기술 검증 후보로 비교한다. 현재 지원 방식으로 확정하지 않는다.
-- Tokenly 전용 앱 아이콘: Routine Scout와 독립적인 신규 디자인을 후속에 제작한다. 콘셉트는 아직 정하지 않았다.
+- Tokenly 전용 앱 아이콘: Routine Scout와 독립적인 디자인으로, 콘셉트 보드의 D안(세 개의 반투명 글래스 오브)을 채택해 앱에 등록했다(문서 끝 "앱 아이콘" 절).
 - Provider 연동 가능성을 확인한 뒤 서비스별 지표와 로고를 구분하고 메뉴 막대 표시 대상을 선택할 수 있는 통합 UI를 설계한다. 시간 단위·잔여 비율의 시각적 구분은 macOS 제약을 확인하며 AppKit 방식도 기술 검증한다.
 
 ### 제외
@@ -343,3 +343,58 @@ B안:
 ## v0.1.0 소스 공개 방향 (2026-10-23)
 
 설치 파일 배포(서명·공증·Releases)는 후순위로 미루고, **v0.1.0 개발 버전의 소스 코드 공개**를 먼저 준비한다. 앱 동작·UI는 바꾸지 않는다. README에는 일반 사용자용 설치 배포가 없다는 점, 렌더링 이미지가 실제 화면 캡처가 아니라는 점, 외부 Mac 호환성 제약을 명시한다. 앱 버전(`CFBundleShortVersionString`)은 `0.1.0`(빌드 1)으로 Codex `clientInfo`·문서와 맞췄다(2026-10-23 승인).
+
+## 개발자 Mac 설치 (2026-10-23)
+
+`/Applications/Tokenly.app`을 최신 공개 소스(0.1.0)로 교체했다. 이전 앱(0.1, arm64, 곰돌이 에셋·브리지 없음)은 `~/Developer/Tokenly-backup/Tokenly-0.1-old.app`에 보존했다. 사용자 설정·저장 데이터·CLI 인증은 그대로다. 로그인 항목 등록(`enabled, allowed`)은 교체 후에도 유지된다. 설정 화면의 "로그인 시 자동 실행" 토글과 메뉴 막대·팝오버 표시는 **사용자 확인 전**이다.
+
+## 개발 경로 단일화 (2026-10-23)
+
+앞으로 개발 기준 경로는 `~/Developer/Tokenly`(GitHub `jbbdyee/Tokenly`) 하나다. 개발자 Mac의 Claude·AGY `statusLine`은 설치 앱의 브리지(`/Applications/Tokenly.app/Contents/Resources/*Bridge.py`)를 가리키도록 옮겨, 저장소 위치와 무관하게 동작한다. 기존 `~/vibe/myapp/Tokenly`는 삭제 승인 대기다.
+
+## 앱 아이콘 (2026-10-24)
+
+사용자가 승인한 콘셉트 보드의 **D안(세 개의 반투명 글래스 오브)**을 앱 아이콘으로 쓴다. 새로 그리거나 재렌더링하지 않고 보드에서 추출한 원본 픽셀을 그대로 사용한다.
+
+- 원본: 콘셉트 보드(1536×1024px)의 D안 배경판 319×311px. 추출본은 `Preview/AppIconConcepts/D-original-extracted/`에 있다. 배경판 안쪽 픽셀은 원본과 바이트 단위로 같고, 배경판 바깥만 투명 처리했으며(원본 외곽선에 맞춘 마스크), 바닥 그림자는 알파로 분리했다.
+- 1024·512px은 원본보다 큰 Lanczos 확대본이라 디테일이 늘지 않는다. 256px 이하는 축소본이다.
+- Asset Catalog `src/Tokenly/Assets.xcassets`의 `AppIcon`(macOS 16·32·128·256·512pt × 1x·2x)으로 등록했다.
+- Info.plist에 `LSApplicationCategoryType = public.app-category.utilities`를 지정한다(macOS 앱 목록의 카테고리 분류용, 2026-10-24).
+- **앱 목록 표시:** 메뉴 막대 전용 앱이라 Dock에 나타나지 않으므로 macOS 앱 목록(`Apps.app`)의 전체·유틸리티 목록에 계속 표시돼야 한다. 2026-10-24 설치 후 앱 목록에서 사라지는 문제가 있었고, 진단 실험 뒤 다시 표시되며 유지되는 것을 사용자가 확인했다. 해결 원인은 확인되지 않았다(IMP-PLAN 46절). 외부 배포 전에 새 Mac·Developer ID 서명 빌드·재로그인 후 표시를 확인한다.
+- 메뉴 막대 전용 앱(`LSUIElement`)이라 평소에는 Dock에 아이콘이 나타나지 않는다. 아이콘은 Finder·응용 프로그램 폴더·Launchpad·설정 창 등에서 쓰인다.
+- macOS 27의 시스템 아이콘 서비스는 이 아이콘을 표준 둥근 사각형으로 다시 마스킹하고 약간 확대하며 가장자리 광택을 더해 표시한다(회색 틀에 넣지는 않음). 따라서 Finder 등에서는 원본 배경판 모서리 대신 시스템 곡선이 보인다.
+
+**검증 상태:** Debug·Release 빌드, XCTest 58개 통과, 빌드한 앱 번들의 `AppIcon.icns`·`Assets.car` 포함과 원본 일치(Assets.car 7개 해상도 차이 0)를 확인했다. 2026-10-24 `/Applications/Tokenly.app`을 이 빌드로 교체했고, 시스템 아이콘 서비스가 설치 앱에 새 아이콘을 반환함을 확인했다. 실제 Finder·Launchpad 화면 표시는 **사용자 확인 전**이다.
+
+## v0.1.0 공개 준비 방향 (2026-10-24, 승인·구현 전)
+
+첫 공개는 무료 ad-hoc 서명 GitHub Pre-release(개발자 미리보기)다. 공개 전에 번들 ID를 `io.github.jbbdyee.tokenly`로 바꾸고, Claude·AGY 수신을 Python(`/usr/bin/python3`) 대신 앱 실행 파일의 명령줄 모드(`Tokenly --statusline claude|agy`)로 처리한다. Claude의 기존 statusLine은 출력을 유지하고, CLI 설정 변경은 사용자가 직접 실행한 연결·해제 명령에서만 확인·백업 후 수행한다. 1단계 실행 가능성 검증은 통과했다(IMP-PLAN 47절). 2단계로 소스에 네이티브 브리지, 기존 statusLine 공존, `--status`·`--connect`·`--disconnect`를 구현하고 테스트했다(IMP-PLAN 48절). 3단계로 소스의 번들 ID를 `io.github.jbbdyee.tokenly`로 바꿨다(IMP-PLAN 49절). 아직 설치본에 반영하지 않았다.
+
+## 명령줄 모드와 statusLine 연결 (2026-10-24, 소스 구현·설치 전)
+
+- `Tokenly --statusline claude|agy`: Claude Code·AGY가 상태줄 JSON을 표준입력으로 넘겨 실행한다. 허용 필드만 0600 파일로 저장하고, 연결 전에 쓰던 statusLine이 있으면 같은 입력으로 실행해 그 출력을 그대로 표시한다. Python이 필요 없다.
+- `Tokenly --status`: 연결 상태와 마지막 수신 시각만 보여 준다.
+- `Tokenly --connect claude|agy [--dry-run|--yes]`: 변경 내용을 보여 주고 확인을 받은 뒤 백업과 함께 연결한다. `/Applications` 또는 `~/Applications`에 설치한 앱에서만 실행한다.
+- `Tokenly --disconnect claude|agy [--dry-run|--yes]`: Tokenly가 설치한 statusLine일 때만 원래 상태로 되돌린다. 사용자가 나중에 바꾼 설정은 바꾸지 않는다.
+- 설정 화면은 터미널 연결 명령을 복사만 하고 CLI 설정 파일을 직접 바꾸지 않는다.
+- 기존 0.1.0 Python 브리지는 호환을 위해 앱에 남는다.
+
+## 번들 ID (2026-10-24, 소스 적용·설치 전)
+
+- 번들 ID는 `io.github.jbbdyee.tokenly`다(0.1.0 개발자 설치본은 `com.tokenly.app`).
+- 설정은 번들 ID 도메인에 저장되므로 옛 설정은 자동으로 넘어오지 않는다. 개발자 Mac에서만 새 앱 첫 실행 전에 수동으로 옮긴다. 옮기지 않으면 Claude·AGY는 숨김, Codex는 표시로 시작한다.
+- 로그인 시 실행은 새 앱에서 다시 켜야 한다. 옛 앱에서 먼저 꺼서 항목이 둘 남지 않게 한다.
+- 수신 데이터 폴더(`~/Library/Application Support/Tokenly/`)와 Claude·AGY 연결 기록은 이름 기반이라 그대로 쓴다.
+
+## 배포 패키지 (2026-10-24, 개발 확인 완료·게시 전)
+
+- 배포 파일은 `Tokenly-<버전>-macOS-universal.zip`(최상위 `Tokenly.app` 하나, arm64·x86_64)과 `.sha256`이다. ad-hoc 서명(Identifier `io.github.jbbdyee.tokenly`), 공증 없음.
+- `scripts/release.sh`로만 만든다. 배포용은 `--final <버전>`이며 깨끗한 작업 트리와 Info.plist·CHANGELOG 버전 일치가 필요하다. 같은 소스에서는 같은 ZIP이 나온다.
+- 사용자는 앱을 `/Applications`로 옮긴 뒤 시스템 설정의 "그래도 열기"로 이 앱만 허용한다. Gatekeeper 비활성화는 안내하지 않는다.
+
+## macOS 앱 목록 표시 (2026-10-24, 원인 미확정)
+
+- 관찰: 개발자 Mac에서 같은 번들 ID의 다른 사본(임시 이름 설치, 빌드 결과물, 백업)이 해제되거나 사라진 직후 Tokenly가 앱 목록 전체 보기에서 빠졌고, 다른 앱 설치로 `/Applications`가 다시 스캔된 뒤 돌아왔다. 근거는 IMP-PLAN 51절.
+- 재현(IMP-PLAN 52절): 테스트 앱에서도 같은 번들 ID의 다른 사본을 등록 해제하자 `/Applications`의 정상 설치본이 남아 있는데도 앱 목록에서 빠졌다. 중복 등록만으로는 빠지지 않았고, `/Applications` 다시 스캔만으로는 돌아오지 않았다. 앱 목록의 내부 처리 방식과 복귀 조건은 미확인이다. Tokenly 설정·서명 조건(ad-hoc, `LSUIElement`, 유틸리티)만으로 제외된다는 근거는 없다.
+- 복구(IMP-PLAN 53절): 테스트 앱은 `/Applications` 경로를 `lsregister -f`로 다시 등록하자 돌아왔다. Tokenly는 2026-10-25 다시 표시되는 것을 사용자가 확인했지만, 재등록 없이 돌아왔고 시점·계기는 확인되지 않았다.
+- 제품 방침: 설치·업데이트 안내에서 같은 번들 ID의 사본을 만들지 않게 하고(앱을 `/Applications`로 옮겨 한 곳에만 둠), 앱 목록에 없을 때는 Spotlight·Finder로 실행하도록 안내한다.

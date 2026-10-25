@@ -722,3 +722,442 @@ XCTest 58개 실제 실행·전부 통과, Debug·Release 빌드 성공.
 ## 42. 독립 저장소 `~/Developer/Tokenly` (2026-10-23)
 
 승인에 따라 원본 `~/vibe/myapp/Tokenly`를 `rsync`로 복사했다. `dist/`·`.DS_Store`·`xcuserdata/`·`*.profraw`는 제외했고 원본은 변경하지 않았다. 복사본은 원본과 181개 파일이 동일하고, Xcode 프로젝트에 절대 경로가 없다. 복사본에서 `git init -b main`을 했고, 상위 `~/vibe` 저장소는 변경 없음을 확인했다. 이후 변경은 복사본에서만 한다: MIT LICENSE(© 2026 jbbdyee), `CFBundleShortVersionString` 0.1 → 0.1.0, README 라이선스·Preview 안내, Preview 실행 불가 스크립트 목록 명시.
+
+## 43. 개발자 Mac `/Applications` 설치 (2026-10-23)
+
+**설치 전 상태:**
+- 공개본: `~/Developer/Tokenly`는 `origin/main`(`5c0ddb4`)과 일치하고 변경이 없었다.
+- 기존 `/Applications/Tokenly.app`: `dist`와 같은 바이너리(0.1, arm64, `Resources` 없음, ad-hoc)이고, BTM 로그인 항목에 `enabled, allowed`로 등록돼 있었다.
+- Xcode Debug 실행본 6개가 떠 있었다.
+- Claude·AGY `statusLine`은 원본 저장소 경로의 브리지(`~/vibe/myapp/Tokenly/src/Tokenly/*Bridge.py`)를 가리킨다. 앱 교체와 무관하다.
+
+**빌드:** `-destination 'generic/platform=macOS' DEPLOYMENT_POSTPROCESSING=YES STRIP_INSTALLED_PRODUCT=YES DEBUG_INFORMATION_FORMAT=dwarf-with-dsym`(스크래치 경로)로 빌드한 뒤 `codesign --force --deep --sign -`로 서명했다. 결과는 0.1.0 universal, strict 검증 통과, 브리지 2개·곰돌이 PNG 16·manifest 포함, 개인 경로 0이다. 공증하지 않아 `spctl`은 rejected지만, 로컬 빌드라 격리 속성이 없어 실행된다.
+
+**설치(사용자 승인):**
+- Debug 실행본 6개를 종료했다. 1개(82185)는 Xcode 디버거에 붙어 있어 SIGTERM·SIGKILL로 종료되지 않았고, Xcode에서 정지해야 한다.
+- 기존 앱은 `~/Developer/Tokenly-backup/Tokenly-0.1-old.app`으로 이동하고, `ditto`로 새 앱을 설치했다.
+- `open`으로 실행해 `/Applications/Tokenly.app` 프로세스 1개와 BTM 등록 유지를 확인했다.
+
+**코드 검토:** 로그인 항목은 `SMAppService.mainApp`이고 `/Applications` 또는 `~/Applications`에서만 켤 수 있다. 자동 실행을 막는 코드 문제는 발견하지 못해 수정하지 않았다.
+
+**검증:**
+- Release(universal)·Debug 빌드 성공, XCTest 58개 실제 실행·전부 통과.
+- 실제 GUI(로그인 시 자동 실행 토글, 재로그인 후 자동 실행, 세 스타일, 팝오버, 재설정 권한, Claude·AGY 표시)는 확인하지 못했다.
+- Claude 수신 파일은 설치 직후에도 갱신됐다. AGY 수신 파일은 오전 이후 갱신이 없어 회색(이전 데이터)일 수 있다.
+
+## 44. 개발 경로 단일화와 statusLine 이전 (2026-10-23)
+
+**조사:**
+- 기존 `~/vibe/myapp/Tokenly`와 `~/Developer/Tokenly`의 차이는 새 쪽의 갱신분뿐이다(문서 추가, LICENSE, 버전 0.1.0). 기존 문서에만 있던 줄은 새 쪽에서 갱신된 TODO 항목·README 문장이다.
+- 기존 쪽에만 있는 것: `dist/`(설치 백업 `~/Developer/Tokenly-backup/Tokenly-0.1-old.app`과 같은 바이너리), `.DS_Store`, `xcuserdata`, `default.profraw`.
+- 기존 경로를 참조하는 곳은 Claude·AGY `statusLine` 2곳뿐이다. 셸 설정, LaunchAgents, `~/vibe`의 다른 프로젝트에서는 참조가 없다.
+- Xcode DerivedData `Tokenly-dvrmp…`는 기존 경로 빌드 캐시라 기능과 무관하다. 로그인 항목은 `/Applications/Tokenly.app`이다.
+
+**이전:**
+- 설치 앱·기존·새 저장소의 브리지는 SHA-256이 같다.
+- 각 설정 파일을 0600으로 백업(`settings.json.tokenly-backup-20261023-165332`)한 뒤, 정확히 1번 나오는 기존 경로 문자열만 `/Applications/Tokenly.app/Contents/Resources/`로 교체했다. `statusLine.command`를 뺀 모든 키가 같음을 검증했고, 권한 0600을 유지했다.
+- `/usr/bin/python3`(3.9.6, Xcode 개발자 도구 있음)는 캐시를 `~/Library/Caches/com.apple.python`에 쓰므로 앱 번들 서명이 유지된다(검증함).
+
+**검증:**
+- Claude: 설정 변경 11초 뒤 `claude-quota.json`이 갱신됐다(5시간·7일). 기존 파일이 아직 있어 새 경로 실행을 완전히 구분하지 못했으므로 삭제 후 재확인한다.
+- AGY: 설치 앱 브리지가 빈 입력에서 정상 종료하고 실제 파일을 덮어쓰지 않았다. 실제 수신은 AGY CLI 이벤트가 필요해 미확인이다.
+- Codex: 설치 앱(pid 90284)이 5분 주기로 `codex app-server --listen stdio://`를 실행하는 것을 관찰했다.
+- 빌드·테스트: Debug·Release 빌드, XCTest 58개 실제 실행·전부 통과.
+- GUI(세 스타일, 팝오버, 설정 창, 로그인 시 자동 실행 토글·재로그인)는 미확인이다.
+
+**삭제(승인, 2026-10-23 16:58):**
+- 직전 재확인: 새 저장소는 `origin/main`과 같고 문서 4개만 미커밋 수정 상태였다. 두 `statusLine`은 설치 앱 브리지를 가리켰다.
+- `~/vibe/myapp/Tokenly`(193개 파일)만 삭제했다. `~/vibe`, `~/vibe/myapp`, `Routine Scout` 등 다른 프로젝트는 그대로다.
+- AGY 설정의 `trustedWorkspaces`에 삭제된 경로가 남아 있다. 기능과 무관하며 사용자 설정이라 보존했다.
+
+**삭제 후 확인:**
+- Claude: 기존 스크립트가 없는 상태에서 `claude-quota.json`이 16:58:44에 갱신됐다(5시간·7일). 설치 앱 브리지 경유 수신을 확인했다.
+- AGY: 설치 앱 브리지 실행 가능(exit 0, 실제 파일 미변경). 실제 수신은 미검증이다(마지막 수신 09:27).
+- Codex: 설치 앱이 17:00:48에 `codex app-server`를 실행했다.
+- Tokenly 프로세스는 설치 앱 1개뿐이고, 로그인 항목은 `enabled, allowed`이며, 앱 서명은 정상이다.
+
+## 45. 앱 아이콘 등록 (2026-10-24)
+
+**결정:** 사용자가 콘셉트 보드의 D안(세 개의 반투명 글래스 오브)을 승인했다. Swift 렌더러로 다시 그린 후보(`Preview/AppIconConcepts/D-*`) 대신 **보드에서 추출한 원본 픽셀**을 그대로 쓴다.
+
+**추출(`Preview/AppIconConcepts/D-original-extracted/source/`):**
+- 보드는 색 프로파일 없는 1536×1024 RGB다. 색 변환 없이 원시 바이트로 다뤘다.
+- 배경판 경계는 1px 외곽선을 여러 행·열에서 스캔해 x 1168–1486, y 120–430(319×311, 정사각형 아님)으로 확정했다. 모서리는 네 곳 모두 반지름 56px 원호에 0.6px 이내로 맞는다.
+- `original-crop-343.png`는 보드와 바이트 단위로 같다. `native-396.png`는 배경판을 캔버스의 80.6%(macOS 격자 80.5%)로 리샘플링 없이 배치하고, 배경판 바깥만 원본 외곽선 마스크로 투명 처리했다. 바닥 그림자는 보드 배경 대비 어두워진 정도로 알파를 계산했다(원래 배경 위 재합성 시 최대 Δ5).
+- 1024·512px은 Lanczos 확대(최근접·쌍선형·쌍입방과 비교해 선택, 생성형 업스케일 미사용)이며 디테일은 늘지 않는다. 256px 이하는 단계적 Lanczos 축소다.
+
+**등록:** `src/Tokenly/Assets.xcassets/AppIcon.appiconset`에 macOS 10개 슬롯을 추출본 PNG의 바이트 복사로 채웠다. `project.pbxproj`에 Asset Catalog 파일 참조·리소스 단계를 추가하고, 앱 타깃 Debug·Release에 `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`을 넣었다. Info.plist는 수정하지 않았고, 빌드 시 `CFBundleIconFile`·`CFBundleIconName`이 자동으로 들어간다.
+
+**검증:**
+- Debug·Release 빌드 성공(universal). 새 경고 없음(기존 `BearGaugeView.swift:198`의 `let` 권고만 남음). XCTest 58개 실행·통과.
+- 번들에 `AppIcon.icns`(호환용, 16·32·128·256px)와 `Assets.car`(16–1024px 10개 슬롯)가 있다. `NSBundle`로 읽은 Assets.car 아이콘 7개 해상도는 원본과 차이 0이다. 호환용 icns의 16px만 구형 형식 양자화로 화면 값 최대 Δ21 차이가 있다.
+- `NSWorkspace.icon(forFile:)`로 받은 시스템 아이콘: macOS 27이 원본을 표준 둥근 사각형으로 다시 마스킹하고 약간 확대하며 가장자리 광택을 더한다. 회색 틀에 넣지는 않는다. Asset Catalog 등록만으로는 이 처리를 끌 수 없다.
+- `/Applications/Tokenly.app`(실행 중)은 교체·종료하지 않았다. 실제 Finder·Launchpad 표시는 사용자 확인 전이다. 앱이 `LSUIElement`라 Dock에는 평소 나타나지 않는다.
+
+**설치(승인, 2026-10-24):**
+- 교체 전: `com.tokenly.app` 0.1.0(빌드 1), 번들 ad-hoc 서명 검증 OK, 아이콘 없음, PID 90284 실행 중, 로그인 항목 `enabled, allowed`.
+- 백업: `ditto`로 `~/Developer/Tokenly-backup/20261024-014425-Tokenly-0.1.0-before-appicon/Tokenly.app`(서명 검증 OK, 내용 동일). 문서에 적힌 이전 백업 경로(`Tokenly-0.1-old.app`)는 현재 존재하지 않았다. 이 백업은 사용자 결정으로 같은 날 휴지통으로 이동했다(아래 Spotlight 정리).
+- 새 Release 앱(브리지·곰돌이 에셋은 설치본과 동일)에 `codesign --force --deep --sign - --identifier com.tokenly.app`, `codesign --verify --deep --strict` 통과(Assets.car·AppIcon.icns 봉인 포함).
+- 기존 앱을 SIGTERM으로 종료 후 교체하고 `open`으로 실행(PID 16907). 교체용 임시 사본 `Tokenly.app.old`는 백업과 동일함을 확인한 뒤 삭제했다.
+- 확인: 로그인 항목 `enabled, allowed` 유지, `com.tokenly.app` 설정 변경 없음, Claude `statusLine`(설치 앱 브리지) 수신 갱신, 실행 5분 뒤 `codex app-server --listen stdio://` 자식 프로세스로 Codex 조회 실행, 크래시 보고 없음. `NSWorkspace`가 설치 앱에 새 아이콘을 반환하므로 LaunchServices 캐시는 갱신하지 않았다.
+- 미확인(사용자 GUI): 메뉴 막대 세 스타일 표시·클릭, 팝오버의 세 서비스 값, 설정 창, Finder·Launchpad 아이콘 화면 표시.
+
+**Spotlight 중복 정리(2026-10-24, 사용자 승인):** Spotlight가 홈 폴더 안의 `.app`도 색인해 `com.tokenly.app`이 세 개 검색됐다(정식 설치본, AppIcon 설치 전 백업, 삭제된 `~/vibe/myapp/Tokenly` 프로젝트의 DerivedData Debug 빌드 0.1). 백업 폴더에 이전 앱 하나만 있음을 확인한 뒤, 백업 폴더와 이전 프로젝트 DerivedData(`Tokenly-dvrmpgjx…`, `WorkspacePath`로 소속 확인)를 `/usr/bin/trash`로 휴지통에 옮겼다. 현재 프로젝트의 DerivedData 폴더는 유지했다. 정리 후 `mdfind`에는 정식 설치본과 휴지통 안의 이전 Debug 앱이 남는다. 휴지통 안 항목은 휴지통을 비우면 사라진다. 이후 Xcode에서 현재 프로젝트를 빌드하면 새 DerivedData의 Debug 앱도 Spotlight에 색인될 수 있다.
+
+## 46. macOS 앱 목록(Apps) 표시 문제 트러블슈팅 (2026-10-24)
+
+**증상:** D안 AppIcon을 넣은 Tokenly를 `/Applications`에 설치하자 macOS 27 앱 목록(Launchpad를 대체한 `/System/Applications/Apps.app`, `com.apple.apps.launcher`)에 처음에는 보였다. 한 번 실행하거나 시간이 지난 뒤 전체 목록과 카테고리(유틸리티·기타)에서 사라졌다. 앱 목록 안의 검색과 Spotlight 검색으로는 찾을 수 있었다. 다른 메뉴 막대 앱(Stats·Maccy·Tailscale)은 정상 표시됐다. Tokenly는 Dock에 나타나지 않는 `LSUIElement` 앱이라 앱 목록이 주요 실행 경로다.
+
+**확인된 사실:**
+- 앱 목록 검색은 Spotlight 파일 메타데이터를 쓰지만, 전체·카테고리 목록은 별도 데이터로 구성된다. 그 데이터가 있을 것으로 보이는 `~/Library/Group Containers/com.apple.spotlightui`·`group.com.apple.spotlight`는 개인정보 보호(TCC)로 읽을 수 없었다. 표시 규칙을 설명하는 Apple 공식 문서는 찾지 못했다. 기존 Launchpad 데이터베이스(`com.apple.dock.launchpad`)는 없다.
+- 설치본은 계속 정상이었다: LaunchServices 등록(숨김 플래그 없음), Spotlight 항목, 번들 ID 조회(설치본 하나로 해석), 서명 검증.
+- 정상 표시 앱과의 차이(카테고리·`LSUIElement` 외): Tokenly는 ad-hoc 서명(Team ID·Hardened Runtime·공증 없음, Gatekeeper `rejected`)이고 세 앱은 Notarized Developer ID다. Info.plist에는 세 앱에 모두 있는 `NSPrincipalClass`·`CFBundleDevelopmentRegion`·`NSHumanReadableCopyright`가 Tokenly에 없다. quarantine 속성은 Tokenly·Tailscale 모두 없어 차이가 아니다.
+- 외부 참고(공식 문서 아님): Apple DTS 엔지니어는 서명하지 않거나 ad-hoc 서명한 앱이 Launchpad에 안 보이는 질문에 "직접 조사한 적은 없지만 표준 경로에서 크게 벗어난 것이며 Launchpad는 그 함정 중 하나"라고 답했다([Developer Forums 796644](https://developer.apple.com/forums/thread/796644)). Tahoe에서 일부 앱이 기본 보기에서 빠지고 검색으로만 나온다는 보고도 있으나 원인은 밝혀지지 않았다([Apple Community 256157828](https://discussions.apple.com/thread/256157828)).
+
+**시도와 결과:**
+
+| 시각 | 조치 | 결과 |
+|---|---|---|
+| 01:45 | AppIcon 빌드 설치(백업 후 교체) | 설치 직후 표시 → 이후 사라짐 |
+| 01:58 | Spotlight 중복 정리(이전 백업·이전 경로 DerivedData를 휴지통으로) | 앱 목록 변화 없음 |
+| 02:08 | `LSApplicationCategoryType = public.app-category.utilities` 추가·재설치 | LaunchServices·Spotlight는 유틸리티로 인식. 설치 직후 상단 표시 → 시간이 지나 전체·유틸리티·기타에서 사라짐 |
+| 02:17 | 사용자: 종료 후 확인, 재실행 | 종료 상태에서도 미표시 → "실행 중인 `LSUIElement` 앱 숨김" 가설 배제 |
+| 02:22 | 같은 번들 ID의 설치본 외 LaunchServices 등록 15개(`in-temp-dir` 임시 빌드 12, 사라진 경로 3)만 `lsregister -u` | 등록은 설치본 하나만 남음. 앱 목록은 바로 회복되지 않음 |
+| 16:59 | 실험 앱 ListProbe A·B·C 설치(아래) | 사용자 확인: A·B·C와 Tokenly 모두 표시 |
+
+**실험(ListProbe, `~/Developer/TokenlyAppListExperiment.noindex/`):** 별도 번들 ID(`dev.local.applisttest.a`·`.b`·`.c`)의 최소 SwiftUI 메뉴 막대 앱. 세 앱은 같은 실행 파일(서명 제외 시 바이트 동일, universal)을 쓰고, Info.plist는 Tokenly 설치본 Info.plist 복사본에서 이름·번들 ID·실행 파일명·실험 변수만 바꿨다. 아이콘은 Asset Catalog, 서명은 Tokenly와 같은 ad-hoc(Gatekeeper `rejected`).
+- A: Tokenly 조건 재현(`LSUIElement = true`, 유틸리티, ad-hoc)
+- B: A + `LSUIElement = false`
+- C: A + `NSPrincipalClass`·`CFBundleDevelopmentRegion`·`NSHumanReadableCopyright`
+
+**사용자 확인 결과:** A·B·C를 설치한 뒤 Tokenly가 앱 목록에 다시 나타났다. A·B·C와 Tokenly 모두 정상 표시됐고, 시간이 지난 뒤에도, Tokenly를 정상 종료한 뒤에도, 앱 목록에서 다시 실행한 뒤에도 Tokenly는 사라지지 않았다. 원격 접속 중이라 로그아웃·재로그인 시점은 확인하지 않았다.
+
+**관찰(시스템 기록):** 설치 직후 A·B·C의 LaunchServices 등록에는 `launch-disabled`가 있었고, 처음 실행(17:04)한 뒤 다시 등록되며 사라졌다. Tokenly 설치본 등록(0x4450, 02:08)은 실험 전후로 바뀌지 않았는데도 다시 표시됐다.
+
+**현재 상태:** 문제는 재현되지 않는다. **해결 원인은 확인되지 않았다.**
+- 가설(미확정): A·B·C 설치로 앱 목록 데이터가 다시 만들어져 Tokenly가 포함됐을 수 있다. 02:22의 중복 등록 정리 효과가 늦게 반영됐을 가능성도 배제할 수 없다.
+- A(ad-hoc + `LSUIElement` + 유틸리티)가 표시됐으므로 "ad-hoc 메뉴 막대 앱은 앱 목록에서 제외된다"는 가설은 이번 관찰과 맞지 않는다. 다만 한 번의 관찰이고 재로그인 시점이 빠져 있다.
+- 미확인: 재로그인 후 표시 유지, 앱 목록 데이터의 갱신 조건, 같은 번들 ID 중복 등록이 원인이었는지 여부.
+
+**정리:** 실험 앱 세 개는 종료 후 휴지통으로 옮기고, 테스트 번들 ID의 LaunchServices 등록(`/Applications` 경로와 휴지통으로 옮기며 생긴 휴지통 경로 등록)만 해제했다. 다른 등록 1,188개와 Tokenly 등록은 변화가 없다. 실험 디렉터리는 재현용으로 보존한다.
+
+**외부 배포 시 추가 검증:**
+- 새 Mac(이전 Tokenly 등록이 없는 환경)에 설치했을 때 앱 목록 전체·유틸리티 표시와 재로그인 후 유지
+- Developer ID 서명·공증 빌드에서 같은 확인(ad-hoc 개발 빌드와 비교)
+- 업데이트 설치(같은 경로 교체) 후 표시 유지
+- 개발 중 `/private/tmp` 등에 남는 빌드가 같은 번들 ID로 등록되지 않도록 빌드 산출물 위치·정리 방법 정리
+
+## 47. v0.1.0 배포 준비 — 1단계: 네이티브 statusLine 브리지 실행 가능성 검증 (2026-10-24)
+
+**확정된 결정(사용자 승인):** 번들 ID `io.github.jbbdyee.tokenly`로 변경, Python 브리지를 Swift 네이티브 브리지로 전환, Claude 기존 statusLine 출력 유지·안전한 복원, 사용자 확인·백업을 갖춘 CLI 연결·해제, 아이콘 시안 중 원본·재생성 자료만 Git에 유지(나머지는 `~/Developer/TokenlyDesignArchive.noindex/`), 첫 배포는 ad-hoc 서명 GitHub Pre-release. 구현은 4단계로 나눠 단계마다 승인을 받는다.
+
+**1단계 방법:** 프로젝트 원본·설치본·실제 수신 폴더·Claude/AGY 설정을 건드리지 않도록 `src/`를 `~/Developer/TokenlyBridgeProbe.noindex/`에 복사해 실험했다. 복사본만 번들 ID(`…bridgeprobe`)·표시 이름을 바꾸고, 새 진입점 `TokenlyMain`(인자가 `--statusline…`이면 브리지 실행 후 종료, 아니면 `TokenlyApp.main()`)과 프로토타입 `BridgeCommand`를 추가했다. 데이터는 `TOKENLY_BRIDGE_DATA_DIR`의 테스트 폴더에만 썼다.
+
+**결과(자동 테스트 `probe-tests.sh` 33개, Release·Debug 모두 통과 / 기존 XCTest 58개 통과):**
+- GUI 없이 종료: 브리지 모드 프로세스는 LaunchServices에 앱으로 등록되지 않았다(`lsappinfo`). 같은 실행 파일의 GUI 인스턴스는 정상 등록되고 1개로 유지됐다.
+- 표준입력·출력: 정상 JSON 저장, 잘못된 JSON·빈 입력·2MB 초과·불리언 값은 저장하지 않고 종료 코드 0과 빈 줄 하나를 출력(Python과 같은 정책). 터미널에서 직접 실행하면 즉시 사용법을 출력하고 종료(64).
+- 저장: 폴더 0700, 파일 0600, 같은 폴더의 임시 파일을 이름 바꾸기로 교체. 40개 동시 쓰기 후에도 두 파일 모두 유효하고 임시 파일이 남지 않았다.
+- 성능: 실행 시간 중앙값 약 14–17 ms(p95 약 15–20 ms), 최대 RSS 약 11 MB. 같은 조건의 Python 브리지는 중앙값 약 33–35 ms.
+- 동시 실행: 설치된 Tokenly와 실험용 GUI 인스턴스가 실행 중일 때도 정상.
+- 자식 프로세스(공존용 프로토타입): 입력·여러 줄 출력·종료 코드 전달, 5초 시간 제한 시 프로세스 그룹 종료, SIGTERM 취소 시 손자 프로세스까지 정리.
+- 발견·수정한 결함: 자식이 입력을 읽지 않으면 SIGPIPE로 브리지가 종료되던 문제 → 브리지 모드에서 SIGPIPE 무시.
+
+**미검증:** 격리 속성이 있는 다운로드 ZIP 설치에서 CLI가 이 실행 파일을 실행할 수 있는지(Gatekeeper, 새 사용자 계정 검증 대상), 실제 Claude Code·AGY CLI 호출(실제 설정 미변경).
+
+**관찰:** 실험 중 17:44에 `~/Developer/Tokenly-backup.noindex/20261024-020800-…/Tokenly.app`이 `com.tokenly.app`으로 LaunchServices에 새로 등록됐다. 원인은 확인하지 못했고 해제하지 않았다. `.noindex` 폴더도 LaunchServices 등록을 막지 못한다는 뜻이므로, 4단계 릴리스 스크립트와 백업 보관 방식에서 다룬다. 실험용 앱의 등록은 해제했다.
+
+**판단:** 네이티브 브리지 전환은 실행 가능하다. 2단계(정식 이식·공존·연결/해제)로 진행할 수 있다. 원본 프로젝트에는 아직 아무 변경도 하지 않았다.
+
+## 48. v0.1.0 배포 준비 — 2단계: 네이티브 브리지·statusLine 공존·연결/해제 (2026-10-24)
+
+**0. LaunchServices 정리:** 17:44에 새로 등록된 `~/Developer/Tokenly-backup.noindex/20261024-020800-…/Tokenly.app`(`com.tokenly.app`, `launch-disabled`, 카테고리 없음)을 경로·번들 ID·등록 시각으로 설치본(`/Applications/Tokenly.app`, 0x4450, 02:08, 유틸리티)과 구분한 뒤 이 경로만 `lsregister -u`로 해제했다. 전체 등록 경로 비교에서 이 한 줄만 사라졌고 백업 파일은 그대로다. **`.noindex` 폴더 이름은 Spotlight 색인만 막고 LaunchServices 등록은 막지 못한다**(백업본이 실행·접근 없이 등록됨, 원인 미확인). 이번 단계의 Debug·Release 빌드 결과물도 같은 번들 ID로 등록돼 해제했다. 4단계 릴리스 스크립트는 빌드·검증용 사본의 등록 해제를 포함해야 한다.
+
+**구현(원본 프로젝트, 설치본 미교체):**
+- `TokenlyMain.swift`: 새 진입점. `--statusline`·`--status`·`--connect`·`--disconnect`·`--help`이면 SwiftUI·AppKit 객체를 만들기 전에 처리하고 종료, 그 밖의 실행(인자 없음, macOS가 붙이는 `-NS…`·`-Apple…`)은 `TokenlyApp.main()`. `TokenlyApp`은 `@main`만 제거했다.
+- `StatusLineBridge.swift`: Python 브리지와 같은 허용 필드·범위 정책(Claude `five_hour`·`seven_day`의 0–100 `used_percentage`, 양수 `resets_at` 아니면 `null`, 유효 객체면 창이 없어도 기록 / AGY 0–1 `remaining_fraction` 버킷이 하나 이상일 때만 기록). 불리언은 숫자로 받지 않는다(AGY는 의도적으로 강화). 2,000,000바이트 초과·잘못된 JSON·빈 입력은 저장하지 않고 빈 줄 하나와 종료 코드 0. `Codable`로 직렬화해 `41.2`가 그대로 저장된다. 폴더 0700, 파일 0600, 같은 폴더 임시 파일→이름 바꾸기. SIGPIPE 무시. 터미널에서 직접 실행하면 사용법(64).
+- 공존 래퍼: 한도를 **먼저** 저장한 뒤, 연결 기록의 원래 명령을 `/bin/sh -c`로 같은 표준입력·환경·작업 폴더에서 실행하고 표준출력과 종료 코드를 그대로 돌려준다. 자식은 자기 프로세스 그룹에서 실행돼 시간 제한(기본 10초, 종료 코드 124)과 취소(SIGTERM·SIGINT·SIGHUP → 그룹 전체 종료, 128+신호)에서 손자 프로세스까지 정리된다. 재귀 방지: Tokenly 명령(네이티브·0.1.0 Python)은 원래 명령으로 기록하지 않고, 원래 명령 실행 시 `TOKENLY_STATUSLINE_ACTIVE`를 넘겨 스크립트를 거친 재진입도 즉시 끝낸다. 원래 명령이 실패하면 그 출력과 종료 코드를 그대로 전달한다(한도는 이미 저장됨).
+- `StatusLineConnector.swift`: `--connect`는 변경 미리보기 → 확인(`y/N`, 터미널이 아니면 `--yes` 필요) → 원본 바이트 백업(`~/Library/Application Support/Tokenly/backups/`, 0600, 비교 검증) → 연결 기록(`…/statusline/<claude|agy>.json`, 0600: 설치한 statusLine, 원래 객체 전체와 원문 텍스트) → 쓰기 직전 재확인(바뀌었으면 중단·기록 되돌림) → 원래 권한으로 원자적 교체 → 결과 검증. 설정 파일은 통째로 다시 쓰지 않고 최상위 `statusLine` 값만 교체·삽입·삭제하며, 바꾼 뒤 다른 모든 값이 같은지 확인한다. 심볼릭 링크·일반 파일 아님·5MB 초과·잘못된 JSON·`statusLine` 중복·객체 아닌 `statusLine`은 거부. 설정 파일이 없으면(폴더는 있을 때) 0600으로 만든다. `--disconnect`는 현재 값이 Tokenly가 설치한 값과 같을 때만 원래 객체(원문 서식 그대로)로 복원하거나 원래 없었으면 제거하고, 사용자가 이후 바꾼 statusLine·Tokenly와 무관한 statusLine은 건드리지 않는다. 0.1.0 Python 명령은 연결 시 네이티브로 바꾸고, 해제 시 제거한다. 연결은 `/Applications`·`~/Applications`의 앱에서만 허용(개발 빌드 경로 등록 방지). `--status`는 상태만 보여 주며 다른 statusLine 명령 내용은 출력하지 않는다. 실패 시 백업 위치와 `cp -p` 복원 명령을 출력한다.
+- AGY: 원래 객체의 옵션(`stack_with_default` 등)을 유지하고, 원래 statusLine이 없으면 `stack_with_default: true`.
+- 설정 화면: Claude·AGY 모두 "연결 명령 복사"(터미널용 `'…/Tokenly' --connect …`). AGY의 기존 Python 명령 복사 버튼은 이 버튼으로 대체했다. 설정 화면은 CLI 설정 파일을 직접 바꾸지 않는다.
+- `LoginItemManager.isStableInstallLocation`에 `nonisolated`만 추가(명령줄 모드에서 호출, 동작 동일).
+- 호환: 앱 번들의 `ClaudeStatusLineBridge.py`·`AGYStatusLineBridge.py`와 `scripts/`·최상위 설정 스크립트는 그대로 둔다. 수신 파일 형식이 같아 앱의 Claude·AGY 표시 코드는 바꾸지 않았다. Codex 연동·앱 목록 관련 설정은 바꾸지 않았다.
+
+**테스트:** 새 `StatusLineTests` 33개 + 기존 58개 = XCTest 91개, 3회 반복 모두 통과. 모든 테스트는 임시 홈(`TOKENLY_HOME`)과 가짜 설정만 쓰고, 프로세스 테스트는 XCTest 주입 변수를 넘기지 않은 최소 환경으로 앱 실행 파일을 직접 실행한다. 다룬 항목: 허용 필드·정확한 숫자·범위·불리언·잘못된 입력·2MB 경계, 0600/0700, 기존 파서 호환, 24개 동시 실행, 원래 명령의 입력·출력·종료 코드 전달, 실패 전달, 시간 제한·취소 시 손자 정리, 재귀 3가지, 설정 파일 없음·폴더 없음, 기존 statusLine 보존과 나머지 바이트 불변·권한 유지, 원문 서식 그대로 복원, 원래 없던 statusLine 제거 시 바이트 동일, 사용자 변경 후 해제 거부, 잘못된 JSON·심볼릭 링크·중복 키, 읽기와 쓰기 사이 변경 시 중단·롤백, 공백·따옴표·`$` 포함 경로 인용, 0.1.0 Python 명령 전환·제거, AGY 옵션, 미리보기·확인 없음·불안정 위치 거부, CLI 왕복, `--status`의 비밀 문자열 비노출, 일반 실행 인자. Release 빌드로 임시 홈에서 연결→수신(기존 출력 유지)→해제→복원을 수동 확인했고 브리지 실행 시간 중앙값은 약 12 ms다.
+
+**실제 환경 확인:** `~/.claude/settings.json`·`~/.gemini/antigravity-cli/settings.json`은 10월 23일 수정 시각 그대로이고 여전히 0.1.0 Python 브리지를 가리킨다. 실제 수신 폴더에는 `backups/`·`statusline/`이 생기지 않았다. 설치본(Info.plist 02:05, 서명 정상, PID 50367)은 그대로다.
+
+**미검증:** 실제 Claude Code·AGY CLI에서의 호출(Claude Code가 `/bin/sh`가 아닌 셸로 실행하는지 포함), 다운로드(격리 속성) 설치에서 CLI의 앱 실행 파일 호출, 새 빌드 설치 후 동작.
+
+## 49. v0.1.0 배포 준비 — 3단계: 번들 ID 변경 (2026-10-24)
+
+**이유:** `com.tokenly.app`은 소유하지 않은 도메인 형식이다. 첫 공개 배포 뒤에 바꾸면 사용자마다 설정·로그인 항목·메뉴 막대 허용이 끊기므로, 공개 전인 지금 소유 가능한 `io.github.jbbdyee.tokenly`로 바꾼다.
+
+**변경 파일(소스만, 설치본 미교체):**
+- `src/Tokenly.xcodeproj/project.pbxproj`: 앱 `PRODUCT_BUNDLE_IDENTIFIER`(Debug·Release) → `io.github.jbbdyee.tokenly`, 테스트 번들 → `io.github.jbbdyee.tokenly.tests`.
+- `src/Tokenly/KeychainAdminKeyStore.swift`: Keychain 서비스 → `io.github.jbbdyee.tokenly.openai.admin`. 옛 이름·새 이름 모두 저장된 항목이 없음을 확인했다(이전할 값 없음).
+- 그 밖의 코드에는 번들 ID 문자열이 없다. `UserDefaults.standard`, `SMAppService.mainApp`, 테스트용 임시 도메인(`TokenlyTests.*`)은 번들 ID를 직접 쓰지 않으므로 수정하지 않았다. Codex 연동·앱 목록(카테고리·아이콘·`LSUIElement`) 설정은 바꾸지 않았다.
+
+**런타임 영향(사실):**
+- 설정: `UserDefaults.standard`는 번들 ID 도메인이라 새 앱은 `~/Library/Preferences/io.github.jbbdyee.tokenly.plist`를 새로 쓴다. 옛 `com.tokenly.app.plist`(키 10개: 설정 창 위치·탭, 화면 모드, 메뉴 막대 표시 방식, 제공자별 표시·펼침)는 자동으로 넘어가지 않는다. 이전하지 않으면 `ProviderDisplaySettings`가 `bool(forKey:)` 기본값을 써서 **Claude·AGY가 팝오버에서 숨김으로 시작**한다(Codex는 표시).
+- 로그인 항목: BTM 식별자가 `2.<번들 ID>`라 새 앱에서 다시 켜야 한다. 옛 항목 `2.com.tokenly.app`은 옛 앱에서 끄지 않으면 남는다.
+- 그 밖: 수신 데이터 `~/Library/Application Support/Tokenly/`는 이름 기반이라 영향 없음. Caches·HTTPStorages·Saved Application State·Containers는 옛 ID로도 없다. macOS의 메뉴 막대 허용(설정 > 메뉴 막대)은 앱별 항목이라 새 앱에서 다시 허용해야 할 수 있다(추정, 미확인).
+- 서명: Xcode 로컬 빌드의 서명 Identifier는 `Tokenly`다. 설치·배포 사본은 4단계 스크립트에서 `codesign --force --deep --sign - --identifier io.github.jbbdyee.tokenly`로 다시 서명한다.
+
+**설정 수동 이전 절차(개발자 Mac 전용, 실행 전 — 별도 승인 후):**
+1. 옛 앱 설정에서 "로그인 시 실행"을 끄고, `sfltool dumpbtm`(60초 제한)에서 `2.com.tokenly.app`이 사라졌거나 `disabled`인지 확인한다.
+2. 옛 앱을 종료한다(설정이 디스크에 기록되도록).
+3. 백업: `defaults export com.tokenly.app ~/Developer/Tokenly-backup.noindex/<시각>-com.tokenly.app.plist`, `chmod 600`. 원본 plist 파일도 `cp -p`로 함께 보관한다.
+4. 새 도메인 확인: `defaults read io.github.jbbdyee.tokenly`가 "does not exist"여야 한다. 값이 있으면(새 앱을 먼저 실행한 경우) 내용을 확인하고 덮어쓸지 결정한 뒤 진행한다.
+5. 새 앱을 **처음 실행하기 전에** `defaults import io.github.jbbdyee.tokenly <백업 파일>`.
+6. 확인: 두 도메인을 `defaults export … -`로 내보내 비교해 키 10개가 같은지 본다.
+7. 새 앱을 설치·실행하고 Claude·AGY 표시, 메뉴 막대 표시 방식, 화면 모드가 예전과 같은지 확인한다.
+- 충돌 위험: 옛 앱이 실행 중이면 종료 시 값을 다시 쓸 수 있고, 새 앱이 먼저 실행되면 기본값이 생긴다(5번 전에 확인). `cfprefsd` 캐시 때문에 plist 파일을 직접 복사하지 말고 `defaults`를 쓴다.
+- 복구: `defaults delete io.github.jbbdyee.tokenly`로 새 도메인을 지우고 다시 가져오거나, 새 앱을 종료하고 백업해 둔 옛 앱(`~/Developer/Tokenly-backup.noindex/…`)을 `/Applications`로 되돌린다. 옛 도메인은 새 앱 검증이 끝날 때까지 지우지 않는다.
+
+**로그인 항목 전환 절차(실행 전 — 별도 승인 후):**
+1. 옛 앱에서 자동 실행 끄기 → 2. `sfltool dumpbtm`으로 `2.com.tokenly.app` 해제·비활성 확인 → 3. 새 앱을 `/Applications/Tokenly.app`에 설치(옛 앱은 백업 폴더로 이동) → 4. 새 앱 설정에서 자동 실행 켜기 → 5. `2.io.github.jbbdyee.tokenly`가 `enabled, allowed`이고 `Tokenly` 항목이 하나뿐인지 확인. 옛 항목이 끝까지 남으면 `sfltool resetbtm`(전체 초기화)은 쓰지 않고 시스템 설정 > 일반 > 로그인 항목에서 해당 항목만 끈다. 재로그인 확인은 별도 승인.
+
+**빌드·테스트(격리 derivedData `scratchpad/dd3.noindex`):**
+- Debug·Release 빌드 성공. 결과물 번들 ID `io.github.jbbdyee.tokenly`, `x86_64 arm64`, 카테고리 유틸리티, `CFBundleIconName=AppIcon`, `LSUIElement=true`. 경고는 기존 `BearGaugeView.swift:198`(`var px`) 하나.
+- XCTest 91개 통과, 실패 0.
+- Release 실행 파일, 임시 홈(`TOKENLY_HOME`)·최소 환경: `--status` 정상, `--connect claude --dry-run` 미리보기, 개발 경로에서 연결 거부(종료 코드 2), 위치 우회 후 연결 → `--statusline claude` 수신 저장·기존 출력(`orig`) 유지 → 해제 후 원본과 바이트 동일, `--connect agy --dry-run`의 `stack_with_default: true`.
+- 테스트 중 새 도메인 `io.github.jbbdyee.tokenly.plist`는 생기지 않았다. 기존 테스트가 매 실행마다 남기는 `TokenlyTests.*` 임시 plist가 14개 늘었다(이전부터 누적 408개, 정리는 별도 승인).
+- 빌드 결과물 Debug·Release가 새 ID로 LaunchServices에 등록돼 이 두 경로만 `lsregister -u`로 해제했다. Tokenly 관련 등록은 설치본(`com.tokenly.app`, 0x4450) 하나다.
+
+**실제 환경 확인:** 설치본(Info.plist 02:05:32, `com.tokenly.app`, PID 50367 실행 중) 그대로. `com.tokenly.app.plist` md5 변경 없음, 새 도메인 없음. BTM `2.com.tokenly.app` `enabled, allowed` 하나, 전후 덤프 동일. Claude·AGY 설정 파일 md5 동일(여전히 0.1.0 Python 브리지). 실제 `claude-quota.json`은 이 작업 중에도 갱신됐는데, 기존 Python 브리지가 실행 중인 Claude Code 세션에서 받은 정상 수신이다(테스트는 임시 홈만 사용).
+
+**미검증·남은 일:** 설정 이전·로그인 항목 전환·새 앱 설치(승인 필요), 새 ID에서의 메뉴 막대 허용·앱 목록 표시, 실제 Claude·AGY 연결 전환(새 빌드 설치와 기본 검증 뒤 별도 승인), 재로그인 자동 실행.
+
+## 50. v0.1.0 배포 준비 — 4단계: Release 패키징 (2026-10-24)
+
+**확정 결정:** 개발자 Mac의 설정 이전·설치본 교체는 보류, 메뉴 막대 동작 검증은 새 앱 설치 후, 재로그인 검증은 원격 접속이 끝난 뒤, Claude·AGY 실제 연결 전환은 새 앱 설치·기본 검증 후 별도 승인. 테스트 임시 plist는 Tokenly 테스트가 만든 것만 정리하고 누적을 막는다.
+
+**`scripts/release.sh`:**
+- 모드: 인자 없음(또는 `--dev`) = 개발 확인. 미커밋 변경을 허용하되 `build-info.txt`·릴리스 노트에 "dirty/초안"으로 표시하고 출력 폴더에 `-dev`를 붙인다. `--final <버전>` = 배포용. 요청 버전 = Info.plist `CFBundleShortVersionString` = `CHANGELOG.md` 최신 항목, 깨끗한 작업 트리(`git status --porcelain` 비어 있음), `v<버전>` 태그가 있으면 HEAD여야 한다. 태그는 만들지 않는다.
+- 출력: 저장소 밖 `~/Developer/TokenlyRelease.noindex/<버전>[-dev]/`(`TOKENLY_RELEASE_DIR`로 변경, 저장소 안이면 거부). 매 실행마다 해당 폴더를 새로 만든다.
+- 절차: `xcodebuild clean build`(Release, `ARCHS="arm64 x86_64"`, `ONLY_ACTIVE_ARCH=NO`, 출력 폴더 안 DerivedData) → `ditto --norsrc --noextattr --noacl`로 스테이징 → 검사(아키텍처 두 개, 번들 ID, 버전, `LSUIElement`, 유틸리티 카테고리, `LSMinimumSystemVersion` 14.0, `CFBundleIconName`, `plutil -lint`, `AppIcon.icns`·`Assets.car`·Python 브리지 2개·곰돌이 에셋) → `codesign --force --deep --sign - --identifier io.github.jbbdyee.tokenly --timestamp=none` → 서명 검사(`codesign --verify --deep --strict`, Identifier, `Signature=adhoc`) → 명령줄 스모크 테스트(최소 환경·임시 홈: `--help`, `--status`, `--connect claude --dry-run`이 설정 파일을 만들지 않음, `--statusline claude`가 0600 파일 저장) → 파일 시각을 HEAD 커밋 시각으로 고정 → `ditto -c -k --keepParent --norsrc --noextattr --noacl --noqtn` → 압축 해제 후 같은 검사·스모크 테스트와 서명본과의 파일 내용 해시 비교 → `.sha256` 생성·`shasum -c` 확인 → 릴리스 노트 초안(CHANGELOG 해당 버전 + 설치·Gatekeeper 안내 + 체크섬) → DerivedData 삭제.
+- LaunchServices: `lsregister -dump`에서 출력 폴더 아래 `.app` 경로만 골라 `-u`(빌드 직후, 압축 해제 후, 종료 시 `trap`). `/Applications/Tokenly.app` 등 다른 경로는 건드리지 않는다.
+- 결함 수정: 첫 작성본은 `--final`을 버전 없이 주면 인자 반복이 끝나지 않았다(`shift 2` 실패 후 같은 인자 반복). 실행 중인 해당 스크립트만 종료하고 인자 처리를 고쳤다. 버전 불일치를 작업 트리 검사보다 먼저 알린다.
+
+**실행 결과(개발 확인 모드, 미커밋 21경로):** 모든 검사 통과. `Tokenly-0.1.0-macOS-universal.zip` 2,590,755바이트, SHA-256 `3160b1966ca3988bb00858687bc8ce0c7a16bd270040e3b2e149f45527229dda`, 앱 내용 해시 `ac6538ad…48d4a6`. ZIP 최상위는 `Tokenly.app` 하나이고 `__MACOSX`·`.DS_Store` 없음. **세 번 독립 실행(매번 clean build)한 ZIP이 바이트 단위로 같았다**(첫 결과는 `TokenlyRelease.noindex/run1-dev/`에 보관). 최종 모드는 버전 없음·버전 불일치(9.9.9)·미커밋 변경을 각각 거부했다. 실행 후 Tokenly LaunchServices 등록은 설치본(`com.tokenly.app`) 하나다.
+
+**테스트 임시 plist:**
+- 조사: `~/Library/Preferences/TokenlyTests.<이름>.<UUID>.plist` 422개(조사 중 실험 파일 1개 추가 → 423개). 모두 내 소유 일반 파일, 정확히 이 이름 형식, 내용 빈 사전(42바이트). 이름 16종 중 14종은 현재 `TokenlyTests.swift`의 suite 이름, `Heart`·`HeartMigration`은 이전 버전 테스트 이름. 10월 23일 296개, 10월 24일 126개(실행마다 13~14개).
+- 원인: 테스트는 `defer { removePersistentDomain }`로 값을 지우지만 cfprefsd가 빈 도메인 파일을 남긴다. 파일을 직접 지워도 프로세스 종료 몇 초 뒤 cfprefsd가 다시 쓰는 것을 실험으로 확인했다.
+- 정리: 목록(이름·크기·시각)을 기록하고 이름 형식·일반 파일·빈 내용을 다시 확인한 423개만 `~/.Trash/TokenlyTests-plists-20261024/`로 옮겼다(목록 `_list.txt` 포함, 복구 가능). `TokenlyPreview.*.plist` 3개는 `Preview/CodexResetCredits/render.swift`가 만든 것으로, 테스트 파일이 아니어서 그대로 뒀다. `com.tokenly.app.plist`는 md5 동일.
+- 개선: `TestDefaults.suite(_:)`가 임시 폴더(`$TMPDIR/TokenlyTests-Preferences/`)의 절대 경로를 suite 이름으로 준다(CFPreferences는 절대 경로 도메인을 그 파일로 저장). `TestDefaults.discard`가 도메인을 비우고 그 폴더 안 파일만 지운다. 이후 XCTest 91개 통과, 10초 뒤에도 `~/Library/Preferences`에 Tokenly 테스트 파일 0개.
+
+**README·CHANGELOG:** README를 Release ZIP 사용자 기준으로 재구성(요구 사항, 설치·체크섬, 공증 없는 미리보기와 "그래도 열기" 절차, 사전 준비, 연결·상태·해제, 기존 statusLine 보존·백업, 자동 실행, 삭제·설정 복원, 알려진 제한, `release.sh`). Gatekeeper 전역 비활성화나 격리 속성 일괄 제거는 안내하지 않고 하지 말라고 적었다. `CHANGELOG.md`에 0.1.0(미출시) 항목.
+
+**두 번들 ID 공존 영향(검토, 실행 전):**
+- 사실: 설정 도메인·로그인 항목(BTM `2.<ID>`)·LaunchServices 등록이 ID별로 따로다. Keychain 항목은 어느 쪽에도 없다. 수신 폴더 `~/Library/Application Support/Tokenly/`와 연결 기록은 이름 기반이라 두 앱이 같은 파일을 읽는다. 실제 Claude·AGY statusLine은 `/Applications/Tokenly.app/Contents/Resources/`의 Python 브리지를 가리키고, 새 ZIP에도 같은 파일이 있어 교체 후 `--connect` 전까지 수신이 이어진다(경로 기준 판단, 미실행).
+- 위험: 두 앱을 동시에 실행하면 메뉴 막대 항목이 둘이고 Codex 조회도 두 번(5분마다 `codex app-server` 2개). 옛 BTM 항목 URL이 `/Applications/Tokenly.app`이라 같은 경로에 새 앱을 넣고 옛 항목을 끄지 않으면 로그인 시 동작이 불명확하다(추정) → 49절 순서대로 옛 앱에서 먼저 끈다. 옛 앱을 백업 폴더에 두면 `.noindex`라도 LaunchServices에 등록될 수 있어 앱 목록·"다음으로 열기"에 둘이 보일 수 있다(46·48절 관찰).
+
+**실제 환경 확인:** 설치본(`com.tokenly.app`, Info.plist 02:05:32, 서명 정상, PID 50367 실행 중) 그대로. `com.tokenly.app.plist` md5 동일, 새 도메인 없음. BTM `2.com.tokenly.app` `enabled, allowed` 그대로(전후 덤프 차이는 Zoom 업데이터 세대 번호뿐). Claude·AGY 설정 md5·수정 시각(10월 23일) 동일. `agy-quota.json` 그대로, `claude-quota.json`은 실행 중인 Claude Code 세션의 기존 Python 브리지 수신으로 계속 갱신. Python 브리지 소스 유지. 테스트 DerivedData Debug 산출물의 LaunchServices 등록 1개를 해제했다.
+
+**미검증:** 다운로드(격리 속성)한 ZIP의 Gatekeeper 첫 실행과 "그래도 열기" 절차(실제 화면), 다운로드 설치에서 Claude Code·AGY가 앱 실행 파일을 호출하는 경로, 실제 Claude·AGY 연결 전환, 새 ID의 메뉴 막대 허용·앱 목록 표시, 재로그인 자동 실행, `--final` 모드의 성공 경로(깨끗한 트리 필요).
+
+## 51. v0.1.0 배포 준비 — 5단계: 앱 목록 재발 진단·새 빌드 격리 검증 (2026-10-24, 읽기 전용)
+
+**범위:** 상태를 바꾸지 않는 진단만 했다. LaunchServices 등록·해제, Spotlight 재색인, 재설치, GUI 실행은 하지 않았다. 근거 파일은 세션 임시 폴더의 `lsregister -dump`, `log show` 추출본이다(로그는 개인정보 마스킹 `<private>` 상태 그대로).
+
+### 확인된 사실
+
+- **설치본:** `/Applications/Tokenly.app`, `com.tokenly.app`, PID 50367 실행 중. LaunchServices 레코드 하나(0x4450, 등록 02:08, 카테고리 유틸리티, 플래그 `has-display-name ui-element`, `launch-disabled` 없음). Spotlight에도 있음(유틸리티, 마지막 사용 17:15:51).
+- **그 밖의 관련 레코드:** `com.tokenly.app`·`io.github.jbbdyee.tokenly` 레코드는 설치본 하나뿐. ListProbe A·B·C는 휴지통 경로(17:27 재등록, `trash launch-disabled`)와 실험 폴더의 빌드 사본(17:44 등록, `launch-disabled`)으로 6개가 남아 있다(46절의 "휴지통 경로 해제" 이후 다시 등록됨). 1단계 실험 폴더의 `py-home/…/Xcode.app`(17:45, `launch-disabled no-info.plist`)도 등록돼 있다.
+- **Spotlight와 앱 목록의 차이:** Spotlight는 휴지통의 옛 Debug 빌드(`~/.Trash/Tokenly-…/Build/Products/Debug/Tokenly.app`, 10월 22일)도 `com.tokenly.app`으로 찾는다. 휴지통도 색인 대상이다. 이 항목은 10월 22일부터 계속 있었으므로 표시가 켜졌다 꺼지는 시점과는 맞지 않는다.
+- **앱 목록을 만드는 주체:** `Apps.app`(`com.apple.apps.launcher`)은 얇은 실행기이고, 열면 Dock이 `.launchAppsBrowsing`을 보내 `Siri AI` 프로세스(`com.apple.spotlight.ui`)가 화면을 띄운다. 목록 데이터는 같은 프로세스의 `com.apple.spotlight:Apps`가 관리한다. Spotlight 질의(`[LocalApps]`)와 앱 폴더 감시·스캔(`VNODE: rescan`, `Scanning path`, `App identification`, `removed N vanished app path(s)`)을 함께 쓴다. 이 Mac에는 GUI 세션이 둘(jbbdyee, 다른 계정) 있고 `Siri AI`도 사용자마다 따로 돈다. 앱 목록은 사용자별이다.
+- **표시 조건 근거:** Apple 공식 문서는 여전히 찾지 못했다. Apps.app 자체가 `LSUIElement = true`·유틸리티 카테고리이고, ListProbe A(ad-hoc·`LSUIElement`·유틸리티)가 표시됐으므로 이 세 조건만으로 제외되지는 않는다.
+- **시간 순서(사용자 앱 목록 열기 = Dock `.launchAppsBrowsing`):**
+
+| 시각 | 사건 |
+|---|---|
+| 01:44:25–59 | 설치(임시 이름 `/Applications/Tokenly.app.new` → 이름 바꾸기). `com.tokenly.app` 등록 알림 9회, 앱 목록 스캔이 `Tokenly.app.new`를 찾다가 "파일 없음" 오류 |
+| 01:46:06 | 앱 목록: `[LocalApps] Removed items`, `removed 1 vanished app path(s)` |
+| **01:47:49** | 사용자가 앱 목록을 엶 → **같은 초에 `Siri AI`(앱 목록 자신, client 13209)가 lsd에 unit 2814 해제를 요청** → `applicationUnregistered com.tokenly.app` |
+| 02:08:09–10 | 카테고리 추가 재설치(같은 방식). 등록 알림, 스캔이 새 항목 추가 |
+| 02:08:51 | 앱 목록: `removed 1 vanished app path(s)` |
+| **02:09:33** | 사용자가 앱 목록을 엶 → **같은 초에 `Siri AI`가 unit 282c 해제 요청** → `applicationUnregistered com.tokenly.app` |
+| 02:21:39 | 중복 등록 15개 수동 해제(`applicationUnregistered com.tokenly.app`). 이후에도 미표시 |
+| 16:59:43–44 | ListProbe A·B·C를 `/Applications`에 설치 → 앱 폴더 다시 스캔·항목 추가. 이후 Tokenly 표시(사용자 확인 17:03–17:22) |
+| 17:17·17:27 | ListProbe 종료·휴지통 이동(ListProbe ID 해제·재등록만) |
+| 17:44:08 | 백업본 `Tokenly-backup.noindex/…/Tokenly.app`이 `com.tokenly.app`으로 등록(`launch-disabled`). 17:43–47에 1단계 실험 앱(`io.github.jbbdyee.tokenly.bridgeprobe`, 표시 이름 Tokenly) 빌드·실행·해제와 같은 시간대 |
+| 17:45:55 | 앱 목록: `[LocalApps] Removed items`(휴지통 ListProbe 등록 해제와 같은 초, 항목 이름은 마스킹) |
+| 17:51:49 | 사용자가 앱 목록을 엶(이때 Tokenly가 보였는지 기록 없음) |
+| **17:52:29** | 2단계 0번: 백업본 `lsregister -u` → `applicationUnregistered com.tokenly.app` |
+| 17:59–18:01 | 2단계 빌드 결과물 `com.tokenly.app` 등록 20회 |
+| **18:01:49** | 빌드 결과물 2개 `lsregister -u` → `applicationUnregistered com.tokenly.app` |
+| 18:16 이후 | 3·4단계 빌드는 새 ID(`io.github.jbbdyee.tokenly`)라 `com.tokenly.app` 알림 없음 |
+| 18:23·18:24·18:39 | 사용자가 앱 목록을 엶 |
+
+- 휴지통 이동·`lsregister -u`·사라진 경로 정리는 모두 번들 ID를 담은 `com.apple.LaunchServices.applicationUnregistered` 분산 알림을 보낸다. 다른 레코드(설치본)가 남아 있어도 알림에는 번들 ID만 있다.
+
+### 가능성이 높은 가설
+
+**H1. 같은 번들 ID의 "다른 사본"이 해제될 때 앱 목록이 그 번들 ID 전체를 빼고, 앱 폴더가 다시 스캔돼야 돌아온다.**
+- 맞는 근거: 두 번의 새벽 소실이 모두 임시 사본(`Tokenly.app.new`) 정리 → 해제 알림 직후다. 02:21의 대량 해제 뒤에도 돌아오지 않았다. 다른 앱을 `/Applications`에 설치해 폴더 스캔이 일어나자(16:59) 돌아왔다. 오후에는 `com.tokenly.app` 해제 알림이 17:52:29와 18:01:49에 있었고 그 뒤 사라진 상태가 관찰됐다. 사본이 생기지 않는 다른 메뉴 막대 앱(Stats·Maccy·Tailscale)은 정상이다.
+- 약한 점: 앱 목록 내부 상태를 직접 볼 수 없다(마스킹·TCC). 오후 소실이 17:52 전인지 후인지 모른다(17:51:49에 보였는지에 따라 갈린다).
+- 의미: Tokenly 설정·서명 문제가 아니라 **개발 중 같은 번들 ID의 사본이 생겼다 사라지는 작업**(Xcode 빌드, 임시 이름 설치, 백업, `lsregister -u`)과 macOS 앱 목록의 갱신 방식이 겹친 결과일 가능성이 높다.
+
+**H2. `launch-disabled` 중복 레코드(17:44 백업본)가 생기면 앱 목록이 그 번들 ID를 숨긴다.** 오후 소실을 17:51:49 이전으로 설명할 수 있지만, 새벽 두 번은 `launch-disabled` 사본 없이도 일어났다. H1의 보조 가설.
+
+### 근거가 부족한 가설
+
+- ad-hoc 서명·`LSUIElement`·Info.plist 키 부족: ListProbe A가 같은 조건으로 표시됐고 Tokenly도 50분 이상 표시됐다.
+- 일정 시간이 지나면 빠지는 규칙, 실행 중인 `LSUIElement` 앱 숨김: 46절에서 배제(종료 상태에서도 미표시).
+- 휴지통의 옛 Debug 빌드(Spotlight 중복): 계속 존재해 시점과 안 맞는다. 단, Spotlight 질의(`[LocalApps]`) 결과에는 영향을 줄 수 있어 완전 배제는 못 한다.
+- 다른 사용자 세션: 앱 목록이 사용자별이라 관련 근거 없음.
+
+### 추가 검증이 필요한 항목
+
+- 사용자 기억: 17:51:49에 열었을 때 Tokenly가 보였는지(H1과 H2를 가른다).
+- 해제 알림만으로 숨겨지는지, 폴더 변경만으로 돌아오는지(아래 실험).
+- 새 Mac·새 계정에서 같은 번들 ID의 사본 없이 설치했을 때 계속 표시되는지, 업데이트(같은 경로 교체) 후 유지되는지, 재로그인 후 유지되는지.
+
+### 안전한 실험 계획(승인 전, 실행하지 않음)
+
+| | E1: 다른 번들 ID로 재현 | E2: 폴더 스캔으로 Tokenly 복구 | E3: H2 분리 |
+|---|---|---|---|
+| 가설 | H1: 같은 ID 사본 해제가 정상 설치본을 목록에서 뺀다 | H1의 복구 경로: `/Applications` 변경 → 다시 스캔 → 복귀 | `launch-disabled` 사본 등록만으로 숨겨지는가 |
+| 방법 | ListProbe A를 `/Applications`에 복사 → 사용자 확인(표시) → 실험 폴더의 ListProbe A 사본(`.noindex`) `lsregister -f` → 확인 → 그 사본만 `lsregister -u` → 확인 | `/Applications`에 ListProbe A를 넣는 E1 첫 단계가 곧 E2. 따로 하려면 ListProbe C 복사 → Tokenly 표시 확인 | E1 중간 단계(사본 등록 직후) 확인으로 겸함 |
+| 예상 | H1이면 마지막 단계에서 ListProbe A만 사라짐. 등록 단계에서 사라지면 H2 | Tokenly 다시 표시 | 등록 직후 사라지면 H2 지지 |
+| 영향 | 테스트 ID(`dev.local.applisttest.a`) 등록만 변경. Tokenly 레코드·설치본 무관 | 사용자 `/Applications`에 테스트 앱 1개 추가 | 없음(E1에 포함) |
+| 복구 | 테스트 앱을 휴지통으로 옮기고 테스트 ID 경로만 `lsregister -u` | 같음 | — |
+| 위험 | 실행 중 Tokenly·원격 접속 영향 없음(테스트 앱은 실행하지 않아도 됨). 앱 목록 확인은 사용자가 GUI로 해야 함 | 같음. 결과에 따라 Tokenly가 다시 보이는 것 외 변화 없음 | — |
+
+정식 설치본 등록 변경, 앱 목록 데이터베이스 초기화, 재색인, 로그아웃은 어느 실험에도 필요 없다.
+
+### 새 Release 빌드 격리 검증(4단계 개발 확인 ZIP)
+
+- `shasum -c` OK, 31개 항목, 최상위 `Tokenly.app` 하나. 실행 파일 universal(x86_64·arm64), 최소 macOS 14.0, 시스템 외 동적 라이브러리 없음, entitlements 없음.
+- 번들 ID `io.github.jbbdyee.tokenly`, 0.1.0(1), `LSUIElement`, 유틸리티, AppIcon. `codesign --verify --deep --strict` 통과, Identifier 일치, ad-hoc, Sealed Resources 21개. `spctl -a -t exec`: `rejected`(ad-hoc 예상값, 격리 속성 없는 로컬 사본 기준).
+- 임시 홈(최소 환경) CLI: `--help`·`--status` 정상, 개발 경로 연결 거부(2), 확인 없는 비대화 연결 거부(4), Claude·AGY 연결 → 수신(0600 파일 2개, 기존 statusLine 출력 유지) → 해제 후 두 설정 파일 모두 원본과 바이트 동일. 인자 없는 실행(GUI 경로)은 하지 않았다. 처음 낸 명령에 GUI가 뜨는 인자 없는 호출이 섞여 있었고 자동 권한 검사가 거부해 빼고 다시 실행했다.
+- 압축을 푼 검증 사본은 LaunchServices에 등록되지 않았다.
+- **설정·수신 경로 충돌:** 설정 도메인·로그인 항목·LaunchServices는 번들 ID별로 분리. 수신 폴더·연결 기록·백업은 이름 기반이라 공유(같은 형식이라 충돌보다는 공용). 새 앱을 같은 `/Applications/Tokenly.app` 경로로 교체하면 실제 statusLine(설치본 안의 Python 브리지 경로)은 계속 유효.
+- **새 앱을 별도 경로에서 GUI로 실행할 때의 영향(추정):** 그 경로가 `io.github.jbbdyee.tokenly`로 등록되고, 나중에 지우거나 해제하면 H1에 따라 정식 설치한 새 앱이 앱 목록에서 빠질 수 있다. 새 ID를 `/Applications`에 설치한 뒤에는 `release.sh`의 산출물 등록 해제도 같은 알림을 보낸다. → 새 앱 GUI 검증은 `/Applications` 설치 단계에서 한 번에 하고, 설치 후 개발 Mac에서 빌드하면 앱 목록이 다시 빠질 수 있음을 감안한다.
+
+### 미리보기 설정 파일
+
+`~/Library/Preferences/TokenlyPreview.<UUID>.plist` 3개(10월 23일 15:14·15:25·15:39, 42바이트, 내용 `{}`, 0600). `Preview/CodexResetCredits/render.swift`가 실행마다 새 UUID suite를 만들고 `removePersistentDomain`으로 비운 흔적이며, 생성 시각이 같은 폴더 PNG 렌더링과 일치한다. 스크립트는 매번 새 이름을 쓰므로 이 파일들을 다시 읽지 않는다 → 정리해도 안전(삭제는 승인 대기). 재발 방지는 테스트와 같은 임시 폴더 경로 suite로 바꾸면 된다.
+
+### 실제 환경
+
+설치본·PID 50367·`com.tokenly.app.plist`(md5 동일)·로그인 항목(`enabled, allowed`)·Claude·AGY 설정(md5 동일)·`agy-quota.json`(10월 23일) 그대로. 새 ID 설정 도메인 없음.
+
+## 52. v0.1.0 배포 준비 — 6단계: 앱 목록 재현 실험 E1·E2 (2026-10-24)
+
+**원칙:** 정식 설치본(`/Applications/Tokenly.app`, `com.tokenly.app`, 0x4450)과 실행 중인 Tokenly(PID 50367)는 건드리지 않았다. 실험은 테스트 ID `dev.local.applisttest.a`로만 했고, 단계마다 사용자가 앱 목록 전체 보기를 확인했다. 17:51:49 당시 Tokenly 표시 여부는 사용자 기억으로 **확인 불가**.
+
+| 시각 | 단계 | 조치·LaunchServices 상태 | 사용자 확인 |
+|---|---|---|---|
+| 18:50:47 | 기준 | Tokenly 레코드 1개(0x4450, `launch-disabled` 없음). ListProbe A·B·C 레코드 6개(휴지통 3, 실험 폴더 `build/` 3, 모두 `launch-disabled`). `/Applications`에 ListProbe 없음 | Tokenly **안 보임** |
+| 18:51:51 | E2 설치 | `build/ListProbe A.app` → `/Applications/ListProbe A.app`(`ditto`, 임시 이름 없음, 실행 안 함). 새 레코드 0x45dc(`launch-disabled`). 같은 초에 앱 목록 `VNODE: rescan` → `pushing 1 newly-scanned item` → `[LocalApps] found items` | Tokenly **안 보임**, ListProbe A **보임** |
+| 18:53:43 | E1-1 등록 | 사본 `…/TokenlyAppListExperiment.noindex/e1/ListProbe A.app`을 `lsregister -f` → 레코드 0x45e0(`launch-disabled`). ListProbe A 레코드 4개 | ListProbe A **보임**, Tokenly 안 보임 |
+| 18:54:23 | E1-2 해제 | `e1/` 사본만 `lsregister -u` → lsd "will unregister", `applicationUnregistered` 알림. `/Applications/ListProbe A.app`(0x45dc)은 등록 그대로. 앱 목록 쪽 로그에는 "Removed" 기록 없음 | ListProbe A **안 보임**, Tokenly 안 보임 |
+| 18:55:52–18:56:17 | 정리 | 테스트 ID 경로 7개만 `lsregister -u`(`/Applications`·휴지통 3·`build/` 3). `/Applications/ListProbe A.app`은 실험 폴더 `e2-installed/`로 옮겨 보존. `build/ListProbe C.app`이 해제 직후 자동 재등록(0x45ec)돼 한 번 더 해제, 30초 후 재등록 없음 | Tokenly **안 보임** |
+
+**관찰된 사실:**
+- 같은 번들 ID의 `launch-disabled` 중복 레코드가 있거나(2개) 새로 생겨도(E1-1) ListProbe A는 계속 표시됐다.
+- `/Applications`의 정상 레코드가 남아 있는데도, 다른 위치의 같은 ID 사본 하나를 해제하자 ListProbe A가 앱 목록에서 빠졌다(E1-2).
+- 다른 앱을 `/Applications`에 설치해 폴더가 다시 스캔돼도 Tokenly는 돌아오지 않았다(E2).
+- 해제 직후 같은 경로가 자동으로 다시 등록되는 경우가 있다(`build/ListProbe C.app`, 17:44 백업본도 같은 현상으로 추정).
+
+**판단:**
+- **H1 재현(Tokenly와 무관한 테스트 앱으로):** 같은 번들 ID의 다른 사본이 해제되면 macOS 앱 목록이 그 번들 ID를 빼고, 정상 설치본이 남아 있어도 다시 넣지 않는다. 5단계의 새벽 두 번·오후 해제 알림 시점과도 맞는다. 앱 목록 내부 구현을 본 것은 아니므로 "해제 알림을 번들 ID 단위로 처리한다"는 설명은 추론이다.
+- **H2 기각(이번 조건):** 중복 등록 자체로는 숨겨지지 않았다.
+- **E2 가설 기각:** `/Applications` 변경만으로는 복구되지 않는다. 46절의 "ListProbe 설치 후 복귀"는 원인이 아니었을 가능성이 높다. 로그상 02:24:05와 17:03:14 사이에 사용자가 앱 목록을 연 기록이 없어, 그 사이 어느 시점에 다른 이유로 복귀했을 수 있다.
+
+**복귀 조건 추가 가설(미검증):**
+- R1: 같은 번들 ID의 등록 알림(`applicationRegistered`)이 오면 다시 넣는다 — 01:44·02:08 설치 직후 표시와 맞는다. 검증하려면 해당 경로를 다시 등록해야 한다(`lsregister -f`). Tokenly에 적용하면 정식 설치본 등록 변경이라 별도 승인이 필요하다.
+- R2: 앱 목록 프로세스(`Siri AI`)의 주기적·재시작 시 전체 재구성(밤사이 복귀를 설명할 수 있음).
+- R3: 잠자기·깨어나기, 재로그인 같은 세션 이벤트.
+
+**정리한 것:** ListProbe 테스트 ID 레코드 7개(위 표), `~/Library/Preferences/TokenlyPreview.<UUID>.plist` 3개(`Preview/CodexResetCredits/render.swift:22`가 만든 빈 파일 재확인 후 `~/.Trash/TokenlyPreview-plists-20261024/`로 이동, 목록 `_list.txt`, 휴지통 비우지 않음). 실험 앱 파일은 `~/Developer/TokenlyAppListExperiment.noindex/`(`build/`, `e1/`, `e2-installed/`)에 보존. `py-home/…/Xcode.app` 등록은 그대로.
+
+**실험 후 상태:** Tokenly·테스트 ID 관련 LaunchServices 레코드는 `/Applications/Tokenly.app`(0x4450, 02:08, 변경 없음) 하나. 실행 중인 Tokenly·로그인 항목·Claude·AGY 설정 변경 없음. `com.tokenly.app.plist`은 18:53:59에 `provider.claude.expandedInPopover`가 true로 바뀌었는데, 실행 중인 앱이 팝오버 펼침 상태를 저장한 것이다(실험 명령은 이 파일을 쓰지 않음). Tokenly는 앱 목록에서 여전히 보이지 않고, Spotlight·Finder로는 실행할 수 있다.
+
+**배포·개발에 주는 의미:**
+- 일반 사용자가 한 곳에 한 번 설치하면 이 경로는 생기지 않을 가능성이 높다. 업데이트(같은 경로 교체, 옛 사본이 휴지통으로 감)는 사본이 생겼다 사라지는 경우라 앱 목록에서 빠질 수 있다 → 새 앱 설치 단계에서 확인.
+- 개발 Mac: 설치한 번들 ID와 같은 ID로 빌드·복사·백업·`lsregister -u`를 하면 앱 목록에서 빠진다. 새 ID 설치 후에는 `release.sh`(산출물 등록 해제)와 Xcode 빌드도 같은 영향을 줄 수 있다. 대안 후보: Debug 빌드에 별도 번들 ID 접미사(`.dev`) 사용, 설치 후 `/Applications` 경로 재등록(R1 확인 뒤).
+
+**다음 실험 후보(승인 전):** E3 — ListProbe A를 다시 `/Applications`에 넣어 표시 확인 → 다른 사본 등록·해제로 숨김 재현 → `/Applications/ListProbe A.app`만 `lsregister -f` → 복귀 여부 확인(R1). 복귀하면 같은 방법(파일 변경 없는 정식 설치본 경로 재등록)으로 Tokenly 복구를 제안한다.
+
+## 53. v0.1.0 배포 준비 — 7단계: 앱 목록 복구 실험 E3·Tokenly 재표시 확인 (2026-10-24~25)
+
+**원칙:** 52절과 같다. 정식 설치본(`/Applications/Tokenly.app`, 0x4450)과 실행 중인 Tokenly(PID 50367)는 건드리지 않았고, 테스트 ID `dev.local.applisttest.a`로만 실험했다. 단계마다 사용자가 앱 목록 전체 보기를 확인했다.
+
+| 시각(10-24) | 단계 | 조치·LaunchServices 상태 | 사용자 확인 |
+|---|---|---|---|
+| 19:01:20 | 설치 | `e2-installed/ListProbe A.app` → `/Applications/ListProbe A.app`, 레코드 0x4600 | ListProbe A **보임** |
+| 19:03:59 / 19:04:04 | 숨김 재현 | `e1/ListProbe A.app` 사본을 `lsregister -f` 후 `lsregister -u`. `/Applications` 사본 레코드는 그대로 | ListProbe A **안 보임** |
+| 19:04:36 | 재등록 | `/Applications/ListProbe A.app`만 `lsregister -f` → 레코드 0x4600 → 0x4608, 실행 파일 md5 동일 | ListProbe A **다시 보임** |
+| 19:05–19:07 | 정리 | 테스트 ID 경로만 해제(휴지통 A·B·C, `/Applications`). `/Applications` 사본은 `e3-installed/`로 옮겨 보존, 옮긴 직후 자동 재등록돼 19:06:14에 다시 해제 | — |
+
+**판단:**
+- **R1 확인(테스트 앱):** 같은 ID 사본 해제로 앱 목록에서 빠진 앱은, 파일 변경 없이 `/Applications` 경로를 다시 등록하면 돌아왔다.
+- Tokenly에 같은 재등록을 제안했지만(`lsregister -f /Applications/Tokenly.app`) 실행하지 않았다.
+
+**Tokenly 재표시(10-25 사용자 확인):**
+- 사용자가 앱 목록 전체 보기에서 Tokenly가 정상 표시되는 것을 직접 확인했다. 그래서 재등록은 실행하지 않았고, 추가 복구 조치도 하지 않았다.
+- 마지막으로 "안 보임"이 확인된 것은 52절 정리 직후(10-24 18:56 이후)다. E3 동안에는 ListProbe A만 확인했다. **언제, 어떤 계기로 다시 표시됐는지는 확인되지 않았다.**
+- **E3가 Tokenly를 복구했다고 볼 근거는 없다.**
+  - E3의 등록·해제 알림은 테스트 ID 것뿐이었다.
+  - Tokenly 레코드는 등록 시각 10-24 02:08, 0x4450 그대로다. 즉 Tokenly 재등록(R1 경로)은 일어나지 않았다.
+  - 52절의 R2(앱 목록 프로세스 재구성)·R3(잠자기·세션 이벤트) 같은 다른 계기도 검증하지 않았다.
+
+**10-25 22:05 읽기 전용 확인:**
+- **LaunchServices:**
+  - `com.tokenly.app` 레코드는 `/Applications/Tokenly.app`(0x4450) 하나다.
+  - 등록 시각 02:08, 카테고리 유틸리티, `launch-disabled` 없음.
+  - 테스트 ID(`dev.local.applisttest.*`) 레코드는 없다.
+- **프로세스:** Tokenly는 PID 50367(10-24 17:15:51 시작) 그대로 실행 중이다.
+- **로그인 항목:** BTM `2.com.tokenly.app`, `/Applications/Tokenly.app`, `enabled, allowed`.
+- **Claude·AGY 설정:** `~/.claude/settings.json`, `~/.gemini/antigravity-cli/settings.json`의 md5가 3단계 기준값과 같다(수정 시각 10-23).
+- **Tokenly 자체:**
+  - 실행 파일 md5 `a3e755b2…`, 수정 시각 10-24 02:08.
+  - 서명 식별자 `com.tokenly.app`.
+  - `com.tokenly.app.plist` 마지막 수정은 10-24 18:53:59(52절에 적은 팝오버 상태 저장)다.
+  - `claude-quota.json`은 statusLine 수신으로 계속 갱신된다.
+  - 실험 명령이 바꾼 것은 없다.
+
+**남은 것:**
+- 휴지통의 ListProbe 파일은 휴지통을 비우지 않는 한 테스트 ID 레코드로 다시 등록될 수 있다. 테스트 ID만 해당한다.
+- 실험 앱 파일은 `~/Developer/TokenlyAppListExperiment.noindex/`(`build/`, `e1/`, `e2-installed/`, `e3-installed/`)에 보존했다.
+- 이 단계 이후 개발·배포 작업은 중단했다.
+
+## 54. GitHub 반영 전 검증 (2026-10-25)
+
+**비교:** 로컬 `main`과 `origin/main`은 첫 커밋 `5c0ddb4`로 같았다. 2–4단계(IMP-PLAN 47–50절)의 구현과 문서는 모두 커밋되지 않은 상태였다.
+
+**10-25 실행 결과 (개발자 Mac, macOS 27.0.1, Xcode 27.1, Swift 6.4, 임시 DerivedData):**
+- Debug·Release 빌드(`ARCHS="arm64 x86_64"`)가 성공했고, 실행 파일은 `x86_64 arm64`였다. 경고는 기존 `BearGaugeView.swift:198` 1건이다.
+- XCTest 91개가 모두 통과했다(TokenlyTests 58, StatusLineTests 33, 실패·건너뜀 0).
+- 명령줄 확인은 Release 빌드로, 임시 홈(`TOKENLY_HOME`)과 `TOKENLY_ALLOW_ANY_LOCATION`을 써서 했다.
+  - 잘못된 사용법과 `--dry-run --yes` 동시 지정은 종료 코드 64.
+  - `--dry-run`은 파일을 바꾸지 않는다.
+  - 터미널이 아닌 곳에서 `--yes` 없이 실행하면 종료 코드 4.
+  - 기존 statusLine을 보존한 채 연결되고, 브리지가 기존 명령 출력을 그대로 표시하며 한도를 0600 권한으로 저장한다.
+  - 이미 연결된 상태에서 다시 연결하면 변경이 없다.
+  - 해제 후 설정 파일은 연결 전과 바이트 단위로 같다.
+
+**10-24 실행 결과 (50절):**
+- `release.sh` 개발 확인이 모든 검사를 통과했다. ZIP SHA-256 `3160b196…229dda`.
+- 10-25에는 다시 실행하지 않고 문법 검사(`bash -n`)와 `.sha256` 확인만 했다.
+- 그 뒤로 `src/`·`scripts/`의 코드는 바뀌지 않았다.
+
+**브리지 적용 상태:**
+- 설치본(`com.tokenly.app`, 0.1.0 개발 빌드)이 계속 실행 중이다.
+- 실제 `~/.claude/settings.json`과 AGY 설정의 statusLine은 설치본의 Python 브리지(`/usr/bin/python3 …/ClaudeStatusLineBridge.py`, `AGYStatusLineBridge.py`)를 가리킨다.
+- Swift 브리지와 연결·해제는 XCTest와 임시 홈에서만 검증했다.
+
+**실수 1건:**
+- 명령줄 확인에 알 수 없는 인자 `--bogusflag`를 넣었다. 알 수 없는 인자는 설계상 앱을 시작하므로(`testUnknownArgumentsStartTheAppNormally`), 임시 폴더의 Release 빌드가 메뉴 막대 앱으로 약 2분 실행됐다.
+- 그 프로세스만 종료했다.
+- 설치본 프로세스, 로그인 항목, 환경설정 파일 목록, Claude·AGY 설정과 설치본 실행 파일의 md5는 변화가 없었다.
+- 빌드 과정에서 임시 Debug·Release 빌드 결과물 2개가 LaunchServices에 자동 등록됐고, 사용자 지시에 따라 해제하지 않았다.
+
+**공개 정리:**
+- 비밀정보는 없었다. `sk-` 형태 문자열은 테스트용 가짜 키였고, 이메일 패턴은 `@2x` 파일명의 오탐이었다.
+- `.DS_Store`·`*.profraw`는 이미 `.gitignore`가 제외한다.
+- 아이콘 시안은 47절 결정대로 앱 아이콘 원본(`D-original-extracted/`의 추출 결과·크기별 PNG·스크립트)과 비교 시트 입력(`D-final-candidate/`의 렌더 PNG·스크립트)만 커밋한다.
+- 나머지 시안, 비교 시트, 리샘플링 비교 이미지, `D-final-comparison.png`는 커밋하지 않는다. `D-final-comparison.png`는 커밋하지 않는 `D-refinement/`가 있어야 다시 만들 수 있다. 파일은 로컬에 남겼다.
