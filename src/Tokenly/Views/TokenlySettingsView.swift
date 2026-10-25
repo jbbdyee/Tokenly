@@ -63,11 +63,11 @@ struct TokenlySettingsView: View {
         ScrollView {
           VStack(alignment: .leading, spacing: 10) {
             Text("AI 서비스").font(.headline)
-            Text("팝오버에 표시할 서비스를 선택합니다. 메뉴 막대의 수치에는 영향을 주지 않습니다.")
+            Text("팝오버에 표시할 서비스를 선택합니다. 숫자형·곰돌이형 메뉴 막대도 이 선택을 따르고, 최소형은 항상 Codex만 표시합니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Toggle("Codex", isOn: $displaySettings.showsCodex)
-            Text("연결 가능 · 숨겨도 5분 조회와 메뉴 막대 표시는 계속됩니다.")
+            Text("연결 가능 · 숨겨도 5분 조회는 계속됩니다. 숫자형·곰돌이형 메뉴 막대에서는 함께 숨겨집니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(codexConnectionStatus)
