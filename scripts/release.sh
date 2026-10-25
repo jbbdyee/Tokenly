@@ -94,9 +94,14 @@ ok "version $version, CHANGELOG ${changelog_version:-none}, tree $([ -z "$dirty"
 
 # ---------------------------------------------------------------- 2. universal Release build
 echo "building…"
+# The scheme xcodebuild creates on the fly gathers test coverage, which turns on coverage mapping for
+# every build. An instrumented executable writes default.profraw into its working directory on exit,
+# i.e. into the user's project whenever Claude Code runs the status line, so switch it off here.
+# (-enableCodeCoverage NO is rejected for `build`.)
 xcodebuild -project "$ROOT/src/Tokenly.xcodeproj" -scheme Tokenly -configuration Release \
     -destination 'generic/platform=macOS' -derivedDataPath "$DD" \
-    ARCHS="$REQUIRED_ARCHS" ONLY_ACTIVE_ARCH=NO clean build > "$OUT/xcodebuild.log" 2>&1 \
+    ARCHS="$REQUIRED_ARCHS" ONLY_ACTIVE_ARCH=NO \
+    CLANG_COVERAGE_MAPPING=NO ENABLE_CODE_COVERAGE=NO clean build > "$OUT/xcodebuild.log" 2>&1 \
     || { tail -20 "$OUT/xcodebuild.log" >&2; fail "xcodebuild failed (see $OUT/xcodebuild.log)"; }
 ok "xcodebuild Release"
 mkdir -p "$STAGE"
@@ -114,6 +119,12 @@ verify_app() {
         case " $archs " in *" $a "*) ;; *) fail "$label: missing $a (has: $archs)" ;; esac
     done
     ok "$label: architectures $archs"
+    local loads
+    for a in $REQUIRED_ARCHS; do
+        loads="$(otool -l -arch "$a" "$exe")" || fail "$label: otool could not read $a"
+        case "$loads" in *"sectname __llvm_prf"*) fail "$label: $a has LLVM profiling sections (coverage instrumentation)" ;; esac
+    done
+    ok "$label: no coverage instrumentation (no __llvm_prf sections in $REQUIRED_ARCHS)"
     [ "$(plist "$info" CFBundleIdentifier)" = "$BUNDLE_ID" ] || fail "$label: bundle id is $(plist "$info" CFBundleIdentifier)"
     [ "$(plist "$info" CFBundleShortVersionString)" = "$version" ] || fail "$label: version mismatch"
     [ "$(plist "$info" LSUIElement)" = "true" ] || fail "$label: LSUIElement is not true"
