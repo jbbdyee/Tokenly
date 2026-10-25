@@ -1161,3 +1161,176 @@ XCTest 58개 실제 실행·전부 통과, Debug·Release 빌드 성공.
 - `.DS_Store`·`*.profraw`는 이미 `.gitignore`가 제외한다.
 - 아이콘 시안은 47절 결정대로 앱 아이콘 원본(`D-original-extracted/`의 추출 결과·크기별 PNG·스크립트)과 비교 시트 입력(`D-final-candidate/`의 렌더 PNG·스크립트)만 커밋한다.
 - 나머지 시안, 비교 시트, 리샘플링 비교 이미지, `D-final-comparison.png`는 커밋하지 않는다. `D-final-comparison.png`는 커밋하지 않는 `D-refinement/`가 있어야 다시 만들 수 있다. 파일은 로컬에 남겼다.
+
+## 55. 배포 준비 0–2단계와 Release 빌드 커버리지 계측 제거 (2026-10-26)
+
+**0단계 백업:** `~/Developer/Tokenly-backup.noindex/20261026-004137-stage0-before-native-bridge/`(0700)에 다음을 저장했다.
+- 설치본: `.app` 사본을 만들지 않고 ZIP으로만 저장. 같은 번들 ID 사본이 생기면 앱 목록에서 빠질 수 있어서다(53절 H1).
+- Claude·AGY 설정(`cp -p`), `defaults export com.tokenly.app`, 수신 파일, 로그인 항목·LaunchServices·실행 상태 기록, `SHA256SUMS`.
+- 검증: ZIP은 압축을 풀지 않고 앱 파일 25개의 SHA-256을 비교해 같았다. AppleDouble 항목 30개는 `com.apple.provenance` 확장 속성이다. 설정 사본은 바이트 동일, 해시 14개 검증 통과.
+- 백업 전후로 바뀐 것이 없다.
+
+**1단계 릴리스 후보:**
+- 기본 출력 폴더(`0.1.0-dev/`)를 `rm -rf`로 덮어쓰게 돼 있어 실행 전에 멈췄다. 승인 후 `TOKENLY_RELEASE_DIR=…/rc-20261026`으로 새 폴더에 만들었다.
+- 검사 19개 모두 통과. SHA-256 `86fb7649…209882`.
+- LaunchServices 등록 경로 1,198개는 전후 동일하다.
+
+**2단계 실제 Claude Code 격리 검증 (`~/Developer/TokenlyStage2.noindex/`, 보존):**
+- 공식 문서상 프로젝트 로컬 설정(`.claude/settings.local.json`)이 사용자 설정보다 우선하고, statusLine은 셸에서 실행된다. 처음 여는 폴더는 작업 공간 신뢰를 수락해야 실행된다.
+- 임시 프로젝트의 local 설정에 `TOKENLY_HOME='<임시 데이터 폴더>' '<릴리스 후보 실행 파일>' --statusline claude`를 넣었다.
+- 임시 데이터 폴더에는 표시용 "기존 statusLine"(`marker.sh`)을 `--connect`로 연결해 두었다.
+- 사용자가 그 폴더에서 Claude Code v2.1.292를 실행했고, 상태줄에 "Tokenly 격리 테스트 · Swift 브리지 OK (tokenly-home)"가 표시됐다. 이 문구는 다음 세 가지가 모두 맞아야만 나온다: 프로젝트 설정 적용, `TOKENLY_HOME` 전달, Swift 브리지 호출.
+- 임시 폴더의 `claude-quota.json`이 첫 응답 직후 생성됐다(0600, `captured_at`과 `five_hour`·`seven_day`의 `used_percentage`·`resets_at`만 저장).
+- 실제 수신 파일은 Python 형식만 유지됐다. 창 안 키 순서가 Python은 `used_percentage` 먼저, Swift는 정렬해 `resets_at` 먼저라 구분할 수 있다.
+- 실제 설정, 설치본, 로그인 항목, LaunchServices는 변화가 없었다.
+
+### Release 실행 파일의 커버리지 계측 (실제 발생)
+
+**증상:** 2단계 세션 뒤 테스트 프로젝트 폴더에 `default.profraw`(59KB, LLVM 원시 프로파일 매직 바이트)가 생겼다.
+- 저장소 루트와 `src/`에도 같은 파일이 있었다. 개발 중 저장소 폴더에서 실행 파일을 직접 돌린 때 생긴 것이다.
+- 세 파일은 수정 전 증거로 보존한다.
+
+**원인 (확인):**
+1. 저장소에 `.xcscheme`가 없어 xcodebuild가 스킴을 자동으로 만든다.
+2. 이 자동 스킴은 테스트 커버리지를 수집하도록 돼 있어, Debug·Release 모든 빌드에 `CLANG_COVERAGE_MAPPING = YES`, `ENABLE_CODE_COVERAGE = YES`가 주입된다(`-showBuildSettings`).
+3. Xcode의 `Swift.xcspec`·`Clang.xcspec` 규칙상 `CLANG_COVERAGE_MAPPING = YES`이면 컴파일러에 `-profile-generate -profile-coverage-mapping`, 링커에 `-fprofile-instr-generate`가 붙는다. 1단계 빌드 로그에 각각 6·6·2회 있었다.
+4. 그 결과 실행 파일에 `__llvm_prf_*` 섹션 7개가 생기고(arm64·x86_64), 프로세스가 끝날 때 현재 폴더에 `default.profraw`를 쓴다.
+- 10-24 설치본도 계측돼 있다. 다만 작업 폴더가 `/`라 쓰지 못하고, Python 브리지는 이 실행 파일을 실행하지 않는다.
+
+**재현 (프로젝트 사본, `-showBuildSettings`):**
+
+| 조건 | Release 빌드의 `CLANG_COVERAGE_MAPPING` |
+|---|---|
+| 자동 스킴 | YES |
+| 명시 스킴, 테스트 커버리지 YES | YES |
+| 명시 스킴, 테스트 커버리지 NO | 기본값 NO |
+| `project.pbxproj` Release에 `CLANG_COVERAGE_MAPPING = NO` | 스킴이 이겨서 YES |
+| `project.pbxproj` Release에 `ENABLE_CODE_COVERAGE = NO` | YES 유지(링커 인자는 이 값을 따름) |
+
+- `-enableCodeCoverage NO`는 `build`에서 "only supported when testing" 오류로 거부된다.
+- `-dry-run`은 지원이 끝났다.
+
+**해결 (`scripts/release.sh`만 변경, 스킴·`project.pbxproj`는 그대로):**
+- Release 빌드에 명령줄 설정 `CLANG_COVERAGE_MAPPING=NO ENABLE_CODE_COVERAGE=NO`를 추가했다. 명령줄 값은 스킴 주입보다 우선한다.
+- `verify_app`이 아키텍처별 `otool -l` 출력에 `sectname __llvm_prf`가 있으면 실패하도록 했다(built·signed·unzipped).
+  - `pipefail` 환경에서 `grep -q`가 일찍 끝나 `otool`이 SIGPIPE로 종료되면 검사가 통과해 버릴 수 있어, `otool` 출력을 먼저 받아 검사한다.
+  - 기존 계측 실행 파일로 실패 판정을 확인했다.
+
+**검증 (10-26):**
+- `bash -n` 통과.
+- XCTest 91개 통과(실패·건너뜀 0). 커버리지 수집 유지(앱 51.80%, 테스트 97.78%, 이전과 같음).
+- 새 릴리스 후보 `rc-20261026b/0.1.0-dev`:
+  - 검사 22개 모두 통과, SHA-256 `42df6097…28d2a1`.
+  - 빌드 로그의 계측 플래그 0개, `__llvm_prf` 섹션 0개(이전 7개), 실행 파일 3,738,800바이트(이전 4,864,496).
+- 빈 폴더와 임시 홈에서 `--help`·`--status`·`--connect claude --dry-run`·`--statusline claude` 10회를 실행했다.
+  - 새 실행 파일: 폴더에 파일이 생기지 않음.
+  - 이전 실행 파일: 같은 조건에서 `default.profraw` 생성.
+  - 수신 파일은 둘 다 0600. 실행 시간은 평균 약 8ms로 같다.
+- 설치본, 설정, 로그인 항목, Keychain, 백업, 기존 산출물, 보존 증거, LaunchServices(1,198개)는 전후 동일하다.
+- XCTest는 하위 프로세스가 증거 파일을 덮어쓰지 않게 임시 작업 폴더에서 실행했다.
+
+**실제 Claude Code 재확인 (10-26 01:36, 계측 제거 빌드):**
+- 새 임시 프로젝트 `claude-project-b`와 데이터 폴더 `tokenly-home-b`에서 `rc-20261026b` 실행 파일로 같은 방식으로 확인했다. 기존 `claude-project`와 그 안의 `default.profraw`는 증거로 보존했다.
+- 상태줄에 "Tokenly 재검증 · 계측 제거 빌드 OK (tokenly-home-b)"가 표시됐다. 브리지는 세션 시작(01:36:04)과 첫 응답 뒤(01:36:19) 두 번 실행됐다.
+- `claude-quota.json`이 01:36:19에 갱신됐다(0600, `captured_at`과 `five_hour`·`seven_day`의 `used_percentage`·`resets_at`만, 값 범위 정상).
+- 표시용 기존 statusLine 실행 기록 2회가 브리지 실행 시점과 같다. 출력 전달이 유지된다는 뜻이다.
+- **프로젝트 폴더와 데이터 폴더에 `default.profraw`가 생기지 않았다.**
+- 실제 수신 파일은 Python 형식만 유지됐다. 설치본, 설정, 로그인 항목, Keychain, 백업, 기존 산출물, 보존 증거, LaunchServices(1,198개)도 변화가 없다.
+
+**수정 전후 요약:**
+
+| | 수정 전 (`rc-20261026`) | 수정 후 (`rc-20261026b`) |
+|---|---|---|
+| 빌드 로그 계측 플래그 | `-profile-generate` 6, `-profile-coverage-mapping` 6, `-fprofile-instr-generate` 2 | 0 |
+| `__llvm_prf` 섹션 (arm64 / x86_64) | 7 / 7 | 0 / 0 |
+| 빈 폴더에서 CLI 실행 후 `default.profraw` | 생성 | 없음 |
+| 실제 Claude Code 세션 후 프로젝트 폴더 `default.profraw` | 생성(01:15, 59KB) | 없음(01:36) |
+| Swift 브리지 수신·기존 statusLine 출력 전달 | 정상 | 정상 |
+| XCTest | 91개 통과(10-25) | 91개 통과(10-26), 커버리지 수집 유지 |
+
+**남은 것:**
+- Xcode·xcodebuild 개발 빌드는 여전히 계측된다(개발용).
+- AGY 실제 연동 확인 방법(프로젝트 단위 설정 지원 미확인), 새 앱 GUI 확인, 설치 전환, 다운로드 ZIP 검증.
+
+## 56. AGY 실제 연동 격리 검증 (2026-10-26)
+
+**사전 조사:**
+- AGY CLI는 `/opt/homebrew/bin/agy`(마지막 로그의 `version: 1.4.5`)이고, 설정 파일은 `~/.gemini/antigravity-cli/settings.json`이다.
+- 실제 statusLine은 설치본의 Python 브리지 명령이다. 이 경로는 10-23 17:10에 설정했고, 그 뒤로 AGY를 쓰지 않아 실제로 실행된 적이 없다.
+- **실제 `agy-quota.json`이 10-23 09:27:55 이후 그대로인 이유:** 마지막 AGY 사용 시각(`history.jsonl` 마지막 기록, 로그·대화 파일)이 이 시각과 같다. 오류가 아니라 그 뒤로 AGY를 쓰지 않아서다.
+- **공식 문서:** statusLine은 사용자 설정 파일에서만 지정할 수 있다(프로젝트 단위 불가). AGY는 statusLine을 `sh -c`로 실행하고, 최대 300ms마다 실행하며, 5초가 넘으면 강제 종료하고, 30번 연속 실패하면 실행을 멈춘다.
+- `agy --help`에는 설정 경로나 프로필을 지정하는 옵션이 없다(`--log-file`만 있음).
+
+**방법 (A안: 임시 HOME + 파일 쓰기 차단):**
+- `~/Developer/TokenlyStage2.noindex/`에 `agy-home`(임시 HOME, 테스트 statusLine만 들어 있음), `agy-tokenly-home`(별도 `TOKENLY_HOME`, 표시용 기존 statusLine 연결), `agy-project`(작업 폴더)를 만들었다.
+- `sandbox-exec` 차단 설정 `agy-guard.sb`를 썼다.
+  - 실제 홈 전체 쓰기 금지(테스트 폴더만 허용)
+  - 실제 `~/.gemini` 읽기 금지
+  - `/opt/homebrew/bin/agy` 쓰기 금지
+- 사용자가 `env HOME=<agy-home> sandbox-exec -f agy-guard.sb agy`로 실행했다.
+
+**성공 (확인됨):**
+- 실제 `~/.gemini`를 읽을 수 없는 상태에서 상태줄에 "Tokenly AGY 격리 테스트 · Swift 브리지 OK"가 기본 상태줄 아래에 표시됐다. AGY가 임시 HOME의 설정을 읽었고, 실제 AGY CLI가 `sh -c`로 Swift 브리지(`rc-20261026b`)를 호출했다는 뜻이다.
+- 실제 quota를 받았다. `agy-tokenly-home`의 `agy-quota.json`(01:58:23, 0600)에 버킷 2개의 `remaining_fraction`(0~1)과 `reset_time`, 그리고 `captured_at`만 저장됐다. 작업 경로, 대화, 모델, 계정 정보는 없다.
+- 기존 statusLine 출력이 전달됐다(표시용 스크립트 실행 14회, 01:57:23~01:58:23).
+- 테스트 폴더에 `default.profraw`가 생기지 않았다.
+- 실제 `~/.gemini`(579개 항목), 실제 `agy-quota.json`, Claude 설정, Tokenly 설치본(PID 50367), 로그인 항목, LaunchServices(1,198개), AGY 실행 파일, Keychain `gemini` 항목(수정 시각 그대로, 새 항목 없음)은 변화가 없다.
+
+**예상하지 못한 일: 임시 HOME에서 새 OAuth 인증이 이루어짐**
+- AGY 로그(임시 HOME의 `cli-20261026_015722.log`):
+  - 01:57:28 OAuth 흐름 시작
+  - 01:57:57 첫 시도 토큰 교환 실패
+  - 01:58:00 다시 시도
+  - 01:58:18 `Keyring SaveToken timed out after 5s, falling back to file storage`
+  - 01:58:18 인증 완료
+- macOS 팝업 "'antigravity'을(를) 저장한 키체인을 찾을 수 없습니다"는 새 토큰을 Keychain에 저장하려던 시도에서 나왔다. 사용자는 팝업에서 재설정이나 추가 로그인을 하지 않고 중단했지만, 로그상 OAuth 승인은 이미 완료됐다. 브라우저의 기존 로그인 세션 때문으로 추정한다.
+- 원인 추정(미확인): HOME을 바꾸자 macOS가 Keychain 위치를 임시 HOME 아래에서 찾았고, AGY가 기존 `gemini` 인증을 읽지 못해 새 로그인을 시작했다.
+- 결과: 새 토큰이 임시 HOME의 `antigravity-oauth-token`(0600)에 저장됐다. 실제 Keychain은 바뀌지 않았다.
+- **정리:** 사용자 승인 후 이 파일 하나만 삭제했다. 삭제 전에 일반 파일인지, 심볼릭 링크가 아닌지, 실제 경로가 테스트 폴더 안인지, 상위 경로에 링크가 없는지, 소유자와 하드 링크 1개를 확인했다. 삭제 후 없음을 확인했다. 토큰 내용은 출력하지 않았다.
+- 나머지 임시 HOME 파일(로그, 대화 기록 등)은 증거로 보존했다. 로그에는 계정 이메일이 들어 있다.
+- Google 서버 쪽 승인 철회는 하지 않기로 했다(사용자 결정).
+
+**미검증:**
+- 기존 인증을 재사용하는 격리 실행. HOME을 바꾸면 Keychain을 쓸 수 없어 매번 새 인증이 필요하므로, 더 시도하지 않는다.
+- 실제 전역 설정(Swift 브리지로 전환)에서의 AGY 동작.
+- 설치본 경로 Python 브리지의 실제 실행(보류).
+- 새 번들 ID 앱의 GUI.
+
+**교훈:** 홈 폴더를 바꿔 격리하면 Keychain에 의존하는 CLI는 새 인증을 시작할 수 있다. 실행 전에 인증 저장 위치(Keychain 항목과 수정 시각)를 확인하고, 이 위험을 중단 조건과 함께 안내해야 했다.
+
+## 57. 새 번들 ID 앱 GUI 격리 검증 G1 (2026-10-26)
+
+**방법:**
+- 설치본(`com.tokenly.app`)을 그대로 둔 채, 릴리스 후보 `rc-20261026b/0.1.0-dev/unzipped/Tokenly.app`(`io.github.jbbdyee.tokenly`)을 복사하지 않고 제자리에서 `open`으로 실행했다(사용자 조작, 02:13:40).
+- 사용자가 확인한 뒤 새 앱만 종료했다.
+
+**성공 (확인됨):**
+- 새 앱은 새 번들 ID로 실행됐고(`lsappinfo`), 설치본과 동시에 실행됐다. 메뉴 막대 중복 말고는 충돌이 없었다(오류 로그 없음, 남은 `codex app-server` 자식 프로세스 없음).
+- 새 앱의 첫 실행 기본값은 Claude·AGY 숨김이었다(`bool(forKey:)` 기본값). 새 메뉴 막대 항목은 Codex만 표시했다.
+- 새 앱 설정 창의 "로그인 시 자동 실행" 토글이 비활성이었고, Applications 폴더 설치 안내가 표시됐다(사용자 확인). 로그인 항목은 등록되지 않았다(`2.com.tokenly.app`만 `enabled, allowed`).
+- 사용자가 새 앱에서 Claude·AGY 표시를 켜자 새 도메인 `io.github.jbbdyee.tokenly`에만 기록됐다(`provider.claude/antigravity.visibleInPopover = true`, 설정 창 탭·위치).
+- 새 앱은 기존 도메인과 수신 데이터에 쓰지 않았다.
+- AGY의 "최신 데이터 없음 · 상태줄 갱신 대기"는 정상이다. 실제 `agy-quota.json`의 `captured_at`(10-23 00:27:55Z)이 15분 기준(`AGYQuotaParser.parse`, `maxAge: 900`)을 넘었기 때문이며, 두 앱이 같은 파일을 읽는다.
+- 새 앱 종료 후 프로세스가 0개였다.
+- 그대로인 것: Claude·AGY 설정 md5, 실제 수신 파일, Keychain `gemini`, AGY 실행 파일, 설치본 파일·서명, 백업, 보존 증거, 기존 산출물. 새 `default.profraw`는 0개다.
+- LaunchServices 변화는 릴리스 후보 경로 등록 1건뿐이다(예상된 변화, 해제하지 않음).
+
+**사용자 확인 (화면 기준, 자동 검증 아님):** 새 앱의 Claude·AGY 표시, 연결 명령 복사, 팝오버 동작.
+
+**관찰된 일 (원인 미확인):**
+- 사후 확인에서 설치본이 다시 실행된 상태였다. PID가 50367(10-24 17:15)에서 83087(10-26 02:24:34, 부모 launchd)로 바뀌었다.
+- 앱 파일, 서명, 로그인 항목은 그대로다. 시스템 로그에는 종료 원인이 남아 있지 않았다. 검증 명령은 앱을 종료하거나 실행하지 않았다.
+- 두 앱의 화면이 거의 같아 기존 앱 팝오버의 종료를 눌렀다가 다시 실행했을 가능성이 있다(추정, 사용자 확인 필요).
+- 그 전 02:15:07에 기존 앱 설정 2개가 바뀌었다. 설정 창 위치와 `provider.codex.expandedInPopover` true → false로, 기존 앱 팝오버·설정 창 조작에 따른 UI 상태다.
+
+**문제 발견 (수정하지 않음):**
+- Claude·AGY 기본 숨김은 의도된 동작이지만, README의 연결 절차에 "설정 → AI 서비스에서 표시 켜기" 단계가 없다. 번들 ID가 바뀌면 기존 사용자도 숨김 상태로 시작한다.
+- 설정 화면 문구 "메뉴 막대의 수치에는 영향을 주지 않습니다"와 Codex의 "숨겨도 … 메뉴 막대 표시는 계속됩니다"는 숫자형·곰돌이형 동작과 다르다. 이 두 스타일은 표시 설정을 따른다(`HeartGauge.visibleProviders`).
+- 두 앱을 동시에 실행하면 메뉴 막대 항목이 비슷해 구분하기 어렵다.
+
+**미검증:** `/Applications` 설치 상태의 동작(자동 실행 켜기, 앱 목록 표시), 실제 전역 설정 전환, 다운로드 ZIP의 Gatekeeper 첫 실행.
+
+**후속 수정 (10-26, 기능 변경 없음):**
+- README에 "팝오버·메뉴 막대에 표시하기"를 추가했다. 처음에는 Codex만 표시되고, 설정 → AI 서비스에서 표시를 켜야 하며, statusLine 연결과는 별개라는 내용이다. AGY 토글은 수신 파일이 생긴 뒤에만 켤 수 있다.
+- `TokenlySettingsView`의 AI 서비스 문구 2줄을 실제 동작에 맞췄다. 숫자형·곰돌이형은 표시 선택을 따르고, 최소형은 항상 Codex만 표시하며, Codex를 숨겨도 5분 조회는 계속된다.
+- XCTest 91개 통과. 문구가 앱에 컴파일되므로 이 변경은 다음 Release 빌드(`--final`)에 반영된다. 기존 릴리스 후보 `rc-20261026b`에는 옛 문구가 들어 있다.

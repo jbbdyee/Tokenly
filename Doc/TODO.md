@@ -526,10 +526,10 @@
 
 - [x] 결정 확정: 번들 ID `io.github.jbbdyee.tokenly`, Swift 네이티브 브리지, Claude statusLine 공존·복원, CLI 연결·해제, 시안 정리, ad-hoc Pre-release
 - [x] 1단계: 네이티브 브리지 실행 가능성 검증(격리 복사본 `~/Developer/TokenlyBridgeProbe.noindex/`, 자동 테스트 33개 Release·Debug 통과, XCTest 58개 통과, SIGPIPE 결함 발견·수정)
-- [ ] 1단계 미검증: 다운로드(격리 속성) 설치에서 CLI가 앱 실행 파일을 실행할 수 있는지, 실제 Claude Code·AGY 호출
+- [ ] 1단계 미검증: 다운로드(격리 속성) 설치에서 CLI가 앱 실행 파일을 실행할 수 있는지, 실제 전역 설정에서의 호출(실제 Claude Code·AGY CLI 호출은 격리 환경에서 확인, IMP-PLAN 55·56절)
 - [x] 2단계 구현(소스): `TokenlyMain` 진입점, 네이티브 브리지(`--statusline claude|agy`), Claude·AGY 기존 statusLine 공존 래퍼, 재귀 방지, 시간 제한·취소 정리, `--status`·`--connect`·`--disconnect`(미리보기·확인·백업·원래 값 기록·원문 서식 복원), 설정 화면 연결 명령 복사
 - [x] 2단계 테스트: XCTest 91개(기존 58 + 새 33) 3회 반복 전부 통과, Release 빌드로 임시 홈에서 연결→수신→해제 수동 확인, 실행 시간 중앙값 약 12 ms
-- [ ] 2단계 미검증: 실제 Claude Code·AGY CLI에서 호출(실제 설정 미변경), 다운로드(격리 속성) 설치에서 CLI의 실행 파일 호출, 새 빌드 설치(설치본 미교체)
+- [ ] 2단계 미검증: 실제 전역 설정에서의 호출, 다운로드(격리 속성) 설치에서 CLI의 실행 파일 호출, 새 빌드 설치(설치본 미교체). 실제 Claude Code·AGY CLI 호출은 격리 환경에서 확인(IMP-PLAN 55·56절)
 - [x] 3단계(소스, IMP-PLAN 49절): 번들 ID `io.github.jbbdyee.tokenly`(테스트 `….tests`), Keychain 서비스 이름 변경. Debug·Release 빌드(universal), XCTest 91개 통과, 임시 홈에서 브리지 명령 확인, 빌드 결과물 LaunchServices 등록 2개 해제
 - [x] 3단계 실제 환경 불변 확인: 설치본·실행 중 앱·`com.tokenly.app` 설정·로그인 항목·Claude·AGY 설정 그대로, 새 설정 도메인 없음
 - [ ] 개발자 Mac 설정 수동 이전(`defaults export`/`import`, 새 앱 첫 실행 전) — 승인 필요. 이전하지 않으면 Claude·AGY가 숨김으로 시작
@@ -540,8 +540,17 @@
 - [x] 테스트 임시 plist 423개 휴지통(`~/.Trash/TokenlyTests-plists-20261024/`)으로 정리, 테스트 설정 도메인을 임시 폴더 경로로 바꿔 누적 방지, XCTest 91개 통과
 - [ ] 커밋 후 `scripts/release.sh --final 0.1.0` 실행, CHANGELOG 날짜 확정, GitHub Pre-release 생성(승인 필요)
 - [ ] 다운로드한 ZIP으로 Gatekeeper "그래도 열기" 절차와 CLI 호출 확인(새 사용자 계정 또는 다른 Mac)
-- [ ] 아이콘 시안 보관 정리(`~/Developer/TokenlyDesignArchive.noindex/`)
+- [x] 아이콘 시안 보관 정리: 커밋하지 않은 시안 60개를 `~/Developer/TokenlyDesignArchive.noindex/`로 이동(10-26, 이동 전후 SHA-256 일치, 목록·해시 `FILES.txt`·`SHA256SUMS`). 커밋된 원본·재생성 자료 27개는 그대로
 - [x] GitHub 반영 전 검증(IMP-PLAN 54절): 10-25 빌드·XCTest 91개 통과, 임시 홈 연결·해제 확인. 실제 설정은 Python 브리지 유지
+- [x] 배포 준비 0–2단계(IMP-PLAN 55절): 백업(ZIP), 릴리스 후보, 격리된 실제 Claude Code 세션에서 Swift 브리지 수신 확인
+- [x] Release 빌드 커버리지 계측 제거(`release.sh`: `CLANG_COVERAGE_MAPPING=NO`, `__llvm_prf` 검사) — 상태줄 실행 시 프로젝트 폴더에 `default.profraw`가 생기던 문제
+- [x] 계측 제거 빌드(`rc-20261026b`)로 실제 Claude Code 세션 재확인(10-26 01:36): 수신·출력 전달 정상, `default.profraw` 생성 안 됨
+- [x] AGY 실제 연동 격리 검증(IMP-PLAN 56절): 임시 HOME + `sandbox-exec`에서 실제 AGY CLI가 Swift 브리지 호출, quota 수신(0600, 허용 필드만), 기존 상태줄 출력 전달, `default.profraw` 없음. 실제 설정·Keychain·설치본 변화 없음
+- [x] 임시 HOME 실행 중 예상하지 못한 새 OAuth 인증 발생 → 임시 폴더의 토큰 파일 1개 삭제(사용자 승인). 서버 쪽 승인 철회는 하지 않음
+- [x] 새 번들 ID 앱 GUI 격리 검증 G1(IMP-PLAN 57절): 동시 실행 충돌 없음, Claude·AGY 기본 숨김, 자동 실행 토글 비활성·설치 안내, 새 도메인에만 기록, 기존 설정·데이터·로그인 항목 보존
+- [ ] 확인 필요: G1 중 설치본이 다시 실행됨(PID 50367 → 83087, 원인 미확인)
+- [x] README에 "팝오버·메뉴 막대에 표시하기"(설정 → AI 서비스, 표시와 statusLine 연결 구분) 추가, 설정 화면 AI 서비스 문구 2줄을 실제 동작에 맞게 수정(숫자형·곰돌이형은 표시 선택을 따르고 최소형은 Codex만). 기능 변경 없음, XCTest 91개 통과(10-26)
+- [ ] 설치 전환(`com.tokenly.app` → `io.github.jbbdyee.tokenly`), 실제 전역 설정으로 Swift 브리지 전환(Claude·AGY), 다운로드 ZIP Gatekeeper 검증(단계별 승인)
 - [x] 17:44에 새로 생긴 백업본 LaunchServices 등록 해제(파일 보존, 다른 등록 변화 없음). 2단계 빌드 결과물 등록 2개도 해제 → `com.tokenly.app` 등록은 설치본 하나
 - [x] 5단계 진단(IMP-PLAN 51절, 읽기 전용): 앱 목록 주체(`Siri AI`의 `com.apple.spotlight:Apps`) 확인, 소실 시점이 같은 번들 ID 사본의 해제 알림과 겹침(새벽 2회는 같은 초), 다른 앱 설치로 폴더 스캔 후 복귀 — 가설 H1, 원인 미확정
 - [x] 개발 확인 ZIP 격리 검증(구조·서명·임시 홈 CLI·복원 바이트 동일), `TokenlyPreview.*.plist` 3개 조사(정리 안전, 삭제 대기)

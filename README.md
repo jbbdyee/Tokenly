@@ -60,6 +60,18 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 - 다음 경우에는 아무것도 바꾸지 않고 중단합니다: 설정 파일이 심볼릭 링크·일반 파일이 아님·올바른 JSON 객체가 아님·5MB 초과, `statusLine` 키가 여러 개, 미리 보기 후 쓰기 직전에 파일이 바뀜, 터미널이 아닌데 `--yes`가 없음. 종료 코드: 0 완료·취소·변경 없음, 2 설치 위치 아님, 3 계획 단계 중단, 4 확인 필요, 5 쓰기 실패, 64 잘못된 사용법.
 - 0.1.0 개발 빌드의 Python 브리지(`…/Resources/ClaudeStatusLineBridge.py`, `AGYStatusLineBridge.py`)로 연결해 두었다면, `--connect`가 네이티브 명령으로 바꿉니다. 호환을 위해 Python 브리지는 앱 안에 남아 있습니다.
 
+### 팝오버·메뉴 막대에 표시하기
+
+처음 설치하면 **Codex만 표시**되고 Claude·AGY는 꺼져 있습니다. statusLine 연결(`--connect`)은 값을 **받아 오는** 설정이고, 아래 표시 설정은 받은 값을 **보여 줄지** 정하는 앱 설정이라 따로 켜야 합니다.
+
+1. 메뉴 막대의 Tokenly를 눌러 팝오버를 열고 오른쪽 위 톱니바퀴(설정 열기)를 누릅니다.
+2. **AI 서비스** 탭에서 **Claude를 팝오버에 표시**, **AGY를 팝오버에 표시**를 켭니다.
+   - AGY는 수신 파일이 생긴 뒤에만 켤 수 있습니다. 연결 후 AGY CLI를 한 번 사용한 다음 **연결 확인**을 누르세요.
+   - Claude는 언제든 켤 수 있지만, 값은 연결 후 Claude Code 세션의 첫 응답부터 들어옵니다. **수신 확인**으로 수신 파일이 있는지 볼 수 있습니다.
+3. 숫자형·곰돌이형 메뉴 막대도 이 선택을 따릅니다. 최소형은 항상 Codex만 표시합니다. Codex를 숨겨도 5분 조회는 계속됩니다.
+
+공개 전 개발 빌드(`com.tokenly.app`)에서 옮겨 온 경우에도 설정이 이어지지 않으므로 같은 방법으로 다시 켭니다.
+
 ## 자동 실행
 
 팝오버의 설정(톱니바퀴) → **일반** → **로그인 시 자동 실행**을 켭니다. `/Applications` 또는 `~/Applications`에 설치한 앱에서만 켤 수 있고, macOS가 승인을 요구하면 **로그인 항목 설정 열기**에서 Tokenly를 허용합니다. 끄면 등록이 해제됩니다.
@@ -166,21 +178,25 @@ scripts/release.sh                  # 개발 확인: Release universal 빌드 �
 scripts/release.sh --final 0.1.0    # 배포용: 깨끗한 작업 트리, Info.plist·CHANGELOG 버전 일치가 필요
 ```
 
-`release.sh`는 저장소 밖 `~/Developer/TokenlyRelease.noindex/<버전>[-dev]/`(환경 변수 `TOKENLY_RELEASE_DIR`로 변경)에 ZIP, `.sha256`, 릴리스 노트 초안, `build-info.txt`(빌드 환경과 검증 결과)를 만듭니다. 아키텍처(arm64·x86_64), 번들 ID, Info.plist(LSUIElement·유틸리티 카테고리·macOS 14·AppIcon), 리소스, 서명 식별자와 무결성, 명령줄 모드(임시 홈)를 서명 직후와 ZIP을 푼 뒤 두 번 검사합니다. 파일 시각을 HEAD 커밋 시각으로 고정해 같은 소스에서 같은 ZIP이 나옵니다. 설치·커밋·태그·업로드는 하지 않으며, 만든 앱의 LaunchServices 등록만 해제합니다.
+`release.sh`는 저장소 밖 `~/Developer/TokenlyRelease.noindex/<버전>[-dev]/`(환경 변수 `TOKENLY_RELEASE_DIR`로 변경)에 ZIP, `.sha256`, 릴리스 노트 초안, `build-info.txt`(빌드 환경과 검증 결과)를 만듭니다. 아키텍처(arm64·x86_64), 번들 ID, Info.plist(LSUIElement·유틸리티 카테고리·macOS 14·AppIcon), 리소스, 코드 커버리지 계측이 없는지(arm64·x86_64 실행 파일에 LLVM 프로파일 섹션 `__llvm_prf`가 없어야 함)는 빌드 직후·서명 직후·ZIP을 푼 뒤 세 번, 서명 식별자와 무결성, 명령줄 모드(임시 홈)는 서명 직후와 ZIP을 푼 뒤 두 번 검사합니다. 파일 시각을 HEAD 커밋 시각으로 고정해 같은 소스에서 같은 ZIP이 나옵니다. 설치·커밋·태그·업로드는 하지 않으며, 만든 앱의 LaunchServices 등록만 해제합니다.
 
-마지막 확인(2026-10-25, 개발자 Mac, macOS 27.0.1, Xcode 27.1, Swift 6.4):
+xcodebuild가 자동으로 만드는 스킴은 테스트 커버리지를 수집하도록 설정돼 있어 모든 빌드에 커버리지 계측(`CLANG_COVERAGE_MAPPING = YES`)이 들어갑니다. 계측된 실행 파일은 종료할 때 현재 폴더에 `default.profraw`를 쓰므로, Claude Code가 상태줄을 실행할 때마다 사용자의 프로젝트 폴더에 파일이 생깁니다. `release.sh`는 Release 빌드에 `CLANG_COVERAGE_MAPPING=NO ENABLE_CODE_COVERAGE=NO`를 지정해 계측을 끄고(`-enableCodeCoverage NO`는 `build`에서 쓸 수 없음), 위 검사로 확인합니다. Xcode·`xcodebuild`로 만드는 개발 빌드와 XCTest 커버리지 수집은 그대로입니다(`Doc/IMP-PLAN.md` 55절).
+
+마지막 확인(개발자 Mac, macOS 27.0.1, Xcode 27.1, Swift 6.4):
 
 | 항목 | 결과 |
 |---|---|
-| Debug·Release 빌드(arm64·x86_64) | 성공. 경고는 `BearGaugeView.swift:198`의 `let` 권고 1건 |
-| XCTest | 91개 실행, 전부 통과(실패·건너뜀 0) |
-| 명령줄 연결·해제(임시 홈, Release 빌드) | 기존 statusLine 보존 연결 → 브리지 실행 시 기존 출력 그대로 표시·한도 저장 → 재연결은 변경 없음 → 해제 후 설정 파일이 연결 전과 바이트 단위로 동일 |
-| `release.sh` 개발 확인(2026-10-24, 현재 소스와 같은 코드) | 모든 검사 통과, 세 번 실행한 ZIP의 SHA-256 동일 |
-| 메뉴 막대·팝오버 실제 화면 | 0.1.0 개발 빌드에서 개발자가 직접 확인. 새 번들 ID 빌드는 설치 전이라 미확인. 자동화된 GUI 테스트는 없음 |
-| 다운로드한 ZIP의 Gatekeeper 첫 실행, 실제 Claude Code·AGY 호출 | 미검증 |
+| Debug·Release 빌드(arm64·x86_64, 2026-10-25) | 성공. 경고는 `BearGaugeView.swift:198`의 `let` 권고 1건 |
+| XCTest(2026-10-26) | 91개 실행, 전부 통과(실패·건너뜀 0). 커버리지 수집 유지(앱 51.80%) |
+| 명령줄 연결·해제(임시 홈, Release 빌드, 2026-10-25) | 기존 statusLine 보존 연결 → 브리지 실행 시 기존 출력 그대로 표시·한도 저장 → 재연결은 변경 없음 → 해제 후 설정 파일이 연결 전과 바이트 단위로 동일 |
+| `release.sh` 개발 확인(2026-10-26, 계측 제거 후) | 모든 검사 통과(새 계측 검사 포함). 빌드 로그의 계측 플래그 0개, `__llvm_prf` 섹션 0개, 빈 폴더에서 명령줄 실행 후 `default.profraw` 생성 안 됨. ZIP 재현성(같은 소스 → 같은 SHA-256)은 2026-10-24에 세 번 실행으로 확인 |
+| 메뉴 막대·팝오버 실제 화면 | 0.1.0 개발 빌드에서 개발자가 직접 확인. 새 번들 ID 릴리스 후보(`rc-20261026b`)는 2026-10-26에 설치하지 않고 실행해 확인: 기존 앱과 동시 실행 시 충돌 없음, Claude·AGY 기본 숨김(설정 → AI 서비스에서 켬), 설치 위치 밖에서는 자동 실행 토글 비활성. 자동화된 GUI 테스트는 없음 |
+| 실제 Claude Code 세션(2026-10-26, 격리 환경) | 임시 프로젝트의 `.claude/settings.local.json`과 임시 `TOKENLY_HOME`으로 실제 설정을 바꾸지 않고 확인. 01:15(계측 제거 전 빌드): Swift 브리지 호출·한도 수신(0600, 허용 필드만)·기존 statusLine 출력 전달은 정상이었으나 프로젝트 폴더에 `default.profraw` 생성. **01:36(계측 제거 빌드 `rc-20261026b`): 같은 확인 모두 통과, `default.profraw` 생성 안 됨** |
+| 실제 AGY CLI 세션(2026-10-26, 격리 환경) | 임시 HOME과 `sandbox-exec`로 실제 `~/.gemini` 읽기·쓰기를 막은 상태에서 계측 제거 빌드 `rc-20261026b`로 확인. 실제 AGY CLI가 Swift 브리지를 호출했고, quota 수신(0600, `remaining_fraction`·`reset_time`만 저장)·기존 statusLine 출력 전달 확인, `default.profraw` 생성 안 됨. 임시 HOME에서는 Keychain을 쓸 수 없어 AGY가 새 OAuth 인증을 진행했고, 임시 폴더에 저장된 토큰 파일은 삭제함(`Doc/IMP-PLAN.md` 56절) |
+| 실제 전역 설정에서의 Swift 브리지(Claude·AGY), 새 번들 ID 앱의 `/Applications` 설치·전환(자동 실행, 앱 목록), 다운로드한 ZIP의 Gatekeeper 첫 실행 | 미검증 |
 
-- 빌드·XCTest·명령줄 확인은 2026-10-25에, `release.sh` 개발 확인은 2026-10-24에 실행했습니다. 그 사이 `src/`·`scripts/`의 코드는 바뀌지 않았습니다.
-- 개발자 Mac에 설치된 앱은 공개 전 0.1.0 개발 빌드(`com.tokenly.app`)이고, 실제 Claude Code·AGY 설정은 지금도 그 앱의 **Python 브리지**를 씁니다. 새 Swift 브리지(`--statusline`)와 `--connect`/`--disconnect`는 XCTest와 임시 홈(`TOKENLY_HOME`)에서만 검증했고, 실제 설정에는 아직 적용하지 않았습니다.
+- 2026-10-26의 변경은 `scripts/release.sh`(커버리지 계측 끄기와 검사)뿐이고, `src/`의 코드는 2026-10-25 이후 바뀌지 않았습니다.
+- 개발자 Mac에 설치된 앱은 공개 전 0.1.0 개발 빌드(`com.tokenly.app`)이고, 실제 Claude Code·AGY 설정은 지금도 그 앱의 **Python 브리지**를 씁니다. 새 Swift 브리지(`--statusline`)와 `--connect`/`--disconnect`는 XCTest, 임시 홈(`TOKENLY_HOME`), 격리된 실제 Claude Code·AGY 세션에서만 검증했고, 실제 설정에는 아직 적용하지 않았습니다.
 
 테스트는 Codex 응답 파싱, Claude·AGY 수신 파일 파싱과 만료, 표시·숨김·stale 규칙, 재설정 권한 계산, 스타일 저장·이전, 숫자형·곰돌이형의 크기·정렬·잘림(픽셀 단위), statusLine 브리지·연결·해제(임시 홈) 등을 다룹니다(`src/TokenlyTests/`). 테스트용 설정 도메인은 임시 폴더에 만들어 `~/Library/Preferences`에 파일을 남기지 않습니다.
 
