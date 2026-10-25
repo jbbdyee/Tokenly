@@ -551,6 +551,12 @@
 - [ ] 확인 필요: G1 중 설치본이 다시 실행됨(PID 50367 → 83087, 원인 미확인)
 - [x] README에 "팝오버·메뉴 막대에 표시하기"(설정 → AI 서비스, 표시와 statusLine 연결 구분) 추가, 설정 화면 AI 서비스 문구 2줄을 실제 동작에 맞게 수정(숫자형·곰돌이형은 표시 선택을 따르고 최소형은 Codex만). 기능 변경 없음, XCTest 91개 통과(10-26)
 - [ ] 설치 전환(`com.tokenly.app` → `io.github.jbbdyee.tokenly`), 실제 전역 설정으로 Swift 브리지 전환(Claude·AGY), 다운로드 ZIP Gatekeeper 검증(단계별 승인)
+  - [x] T0 백업, T1 최종 빌드, T2 옛 앱 자동 실행 해제·종료, T3 사용자 설정 7개 이전, T4 앱 교체(첫 시도는 검증 스크립트 결함으로 자동 복원, 재시도 성공)
+  - [ ] T5: 설치본에서 자동 실행 토글이 비활성(`SMAppService.mainApp.status == .notFound`)으로 중단
+- [x] 자동 실행 최초 등록 수정: 설치본이면 `.notFound`에서도 등록 시도 가능, 등록 결과는 실제 상태로만 표시, 실패 시 시스템 오류 설명 표시. 임시 빌드 차단 유지. 가짜 컨트롤러 테스트 6개 추가, XCTest 97개 통과(10-26). 빌드 번호 2
+- [ ] 이 Mac의 설치본에서 앱 안 자동 실행 등록이 실제로 성공하는지 확인(빌드 2 설치 후)
+- [ ] 새 macOS 사용자 계정(G2)에서 다운로드 ZIP으로 첫 등록·Gatekeeper 확인
+- [ ] 개선 후보: `scripts/release.sh`의 `echo "$sig" | grep -qx …` 두 곳을 출력·종료 코드를 따로 확인하는 방식으로 변경(`set -o pipefail`에서 `grep -q` 조기 종료로 앞 명령이 SIGPIPE를 받으면 잘못 판정될 수 있음. 설치 전환 T4 첫 시도가 같은 패턴의 `codesign -dv | grep -qx`로 실패했다. release.sh에서는 아직 실패 사례 없음)
 - [x] 17:44에 새로 생긴 백업본 LaunchServices 등록 해제(파일 보존, 다른 등록 변화 없음). 2단계 빌드 결과물 등록 2개도 해제 → `com.tokenly.app` 등록은 설치본 하나
 - [x] 5단계 진단(IMP-PLAN 51절, 읽기 전용): 앱 목록 주체(`Siri AI`의 `com.apple.spotlight:Apps`) 확인, 소실 시점이 같은 번들 ID 사본의 해제 알림과 겹침(새벽 2회는 같은 초), 다른 앱 설치로 폴더 스캔 후 복귀 — 가설 H1, 원인 미확정
 - [x] 개발 확인 ZIP 격리 검증(구조·서명·임시 홈 CLI·복원 바이트 동일), `TokenlyPreview.*.plist` 3개 조사(정리 안전, 삭제 대기)

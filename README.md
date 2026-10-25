@@ -76,6 +76,10 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 팝오버의 설정(톱니바퀴) → **일반** → **로그인 시 자동 실행**을 켭니다. `/Applications` 또는 `~/Applications`에 설치한 앱에서만 켤 수 있고, macOS가 승인을 요구하면 **로그인 항목 설정 열기**에서 Tokenly를 허용합니다. 끄면 등록이 해제됩니다.
 
+- 처음 설치한 직후에는 "시스템이 로그인 항목 상태를 확인하지 못했습니다…"가 표시될 수 있습니다. 아직 등록하지 않은 경우에도 macOS가 이렇게 보고할 수 있으므로, 그대로 토글을 켜서 등록을 시도하면 됩니다.
+- 토글은 macOS가 실제로 보고한 상태만 보여 줍니다. 등록이 거부되면 "자동 실행 등록에 실패했습니다(…)", 요청 후에도 켜짐이 확인되지 않으면 "등록을 요청했지만 시스템에서 켜짐 상태가 확인되지 않았습니다"가 표시되고 토글은 꺼진 상태로 돌아갑니다.
+- 이런 오류가 계속될 때만 대안으로 **시스템 설정 → 일반 → 로그인 항목**의 "로그인 시 열기"에 `/Applications/Tokenly.app`을 직접 추가할 수 있습니다.
+
 ## 삭제와 설정 복원
 
 1. Claude·AGY를 연결했다면 먼저 해제합니다: `/Applications/Tokenly.app/Contents/MacOS/Tokenly --disconnect claude`(AGY는 `agy`).

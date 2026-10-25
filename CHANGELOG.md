@@ -22,6 +22,9 @@
 - `scripts/release.sh`: universal Release 빌드, ad-hoc 서명, 검증, ZIP·SHA-256 생성.
   - Release 빌드의 코드 커버리지 계측을 끕니다(`CLANG_COVERAGE_MAPPING=NO`). 계측된 실행 파일이 상태줄로 실행될 때마다 사용자의 프로젝트 폴더에 `default.profraw`를 만들던 문제를 막습니다. arm64·x86_64 실행 파일에 LLVM 프로파일 섹션(`__llvm_prf`)이 없는지 검사합니다.
 
+### 수정
+- 처음 설치한 앱에서 macOS가 로그인 항목 상태를 `notFound`로 보고하면 자동 실행 토글이 비활성화되어 앱 안에서 등록할 수 없던 문제. 설치 위치(`/Applications`, `~/Applications`)의 앱이면 등록을 시도할 수 있고, 토글은 등록 후 macOS가 보고한 상태로만 표시합니다. 실패하면 시스템 오류 설명이 들어간 안내를 보여 줍니다. 실제 macOS에서의 첫 등록 성공은 아직 확인하지 않았습니다.
+
 ### 변경
 - 번들 ID를 `io.github.jbbdyee.tokenly`로 정했습니다. 공개 전 개발 빌드(`com.tokenly.app`)의 설정·로그인 항목은 자동으로 이어지지 않습니다.
 - 앱 카테고리를 유틸리티로 지정했습니다.
