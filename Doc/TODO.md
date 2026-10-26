@@ -539,6 +539,8 @@
 - [x] 4단계 산출물: `~/Developer/TokenlyRelease.noindex/0.1.0-dev/Tokenly-0.1.0-macOS-universal.zip`(SHA-256 `3160b196…7229dda`), 세 번 실행 ZIP 동일, 최종 모드 거부 조건 확인
 - [x] 테스트 임시 plist 423개 휴지통(`~/.Trash/TokenlyTests-plists-20261024/`)으로 정리, 테스트 설정 도메인을 임시 폴더 경로로 바꿔 누적 방지, XCTest 91개 통과
 - [ ] 최종 빌드와 발행(단계별 승인): `release.sh --final 0.1.0`(새 출력 경로) → 설치·GUI 확인(디버그 기호 제거로 개발 빌드 3과 실행 파일이 다름, 앱은 출력 폴더에서 직접 열지 않음) → CHANGELOG 날짜·릴리스 노트 정리 → push·태그·GitHub Pre-release
+  - [x] 최종 빌드(커밋 `5fa3e9b`, ZIP SHA-256 `b2890dd1…0d124`)·설치·GUI·실사용 확인, 발행 전 문서 정리(10-26, IMP-PLAN 64절)
+  - [ ] 문서 커밋 → push·태그·GitHub Pre-release(별도 승인)
 - [ ] 다운로드한 ZIP으로 Gatekeeper "그래도 열기" 절차와 CLI 호출 확인(새 사용자 계정 또는 다른 Mac)
 - [x] 아이콘 시안 보관 정리: 커밋하지 않은 시안 60개를 `~/Developer/TokenlyDesignArchive.noindex/`로 이동(10-26, 이동 전후 SHA-256 일치, 목록·해시 `FILES.txt`·`SHA256SUMS`). 커밋된 원본·재생성 자료 27개는 그대로
 - [x] GitHub 반영 전 검증(IMP-PLAN 54절): 10-25 빌드·XCTest 91개 통과, 임시 홈 연결·해제 확인. 실제 설정은 Python 브리지 유지
@@ -556,7 +558,7 @@
   - [x] T4′ 빌드 2 교체(로그인 항목 조회 시간 초과 → 조회 실패와 상태 불일치를 구분하도록 개선), T6 Claude·T7 AGY Swift 브리지 전환
 - [x] 자동 실행 최초 등록 수정: 설치본이면 `.notFound`에서도 등록 시도 가능, 등록 결과는 실제 상태로만 표시, 실패 시 시스템 오류 설명 표시. 임시 빌드 차단 유지. 가짜 컨트롤러 테스트 6개 추가, XCTest 97개 통과(10-26). 빌드 번호 2
 - [x] 이 Mac의 설치본에서 앱 안 자동 실행 등록 성공(빌드 2, 10-26)
-- [ ] 새 macOS 사용자 계정(G2)에서 다운로드 ZIP으로 첫 등록·Gatekeeper 확인
+- [ ] 새 macOS 사용자 계정(G2)에서 다운로드 ZIP으로 첫 등록·Gatekeeper 확인 — 0.1.0에서는 생략(미검증, 10-26 결정). 사전 조사·기준 스냅샷만 완료(IMP-PLAN 64절)
 - [x] (10-26 구현, 빌드 3 설치 후 실제 환경 미리 보기 확인, IMP-PLAN 60·61절) 개선 후보: Python 브리지에서 `--connect`로 전환한 뒤 `--disconnect`하면 이전 Python statusLine을 복원하지 않고 `statusLine`을 삭제한다. 연결 기록에 `original: null`만 남기기 때문이며, 안내 문구도 "연결 전에는 statusLine이 없었습니다"로 사실과 다르다(10-26 T6 준비 중 설정 복사본 리허설로 확인). 연결 시 Python 명령을 원래 값으로 기록해 해제 때 되돌리거나, 최소한 "Python 브리지 명령을 제거합니다"로 정확히 안내하고 백업 복원(`cp -p`) 방법을 보여 주기. 실제 T6 복원은 `--disconnect` 대신 백업 기반 복원 스크립트 사용
 - [x] (10-26 수정) 개선 후보: `scripts/release.sh`의 `echo "$sig" | grep -qx …` 두 곳을 출력·종료 코드를 따로 확인하는 방식으로 변경(`set -o pipefail`에서 `grep -q` 조기 종료로 앞 명령이 SIGPIPE를 받으면 잘못 판정될 수 있음. 설치 전환 T4 첫 시도가 같은 패턴의 `codesign -dv | grep -qx`로 실패했다. release.sh에서는 아직 실패 사례 없음)
 - [x] 17:44에 새로 생긴 백업본 LaunchServices 등록 해제(파일 보존, 다른 등록 변화 없음). 2단계 빌드 결과물 등록 2개도 해제 → `com.tokenly.app` 등록은 설치본 하나
@@ -575,5 +577,6 @@
 - [x] 빌드 3 설치(`t4e`, 빌드 2 보존)와 실사용 검증: 실행 경로·버전, `--status`·`--disconnect --dry-run`(두 소스 모두 Python 브리지 복원 안내), Codex·Claude·AGY 표시와 수신, 설정·연결 기록·로그인 항목 불변(10-26, IMP-PLAN 61절)
 - [x] 앱 목록 누락 재발(10-26): `release.sh`의 산출물 해제(09:36:56) 뒤 미표시 → 설치본 경로 `lsregister -f` 재등록으로 복구(사용자 확인, 62절)
 - [x] 배포 전 안정화(10-26, 63절): `release.sh` 출력 폴더 보호(`--replace`는 옆으로 옮김)·임시 ID 빌드·`strip -S`와 경로 검사, XCTest 5개 추가(112개, 3회 통과), README·CHANGELOG 갱신
-- [ ] 재로그인·재부팅 후 자동 실행 확인
+- [x] 재로그인 후 자동 실행 확인: 최종 빌드 0.1.0 (3), 로그인 항목 켬 상태에서 사용자 확인(10-26, IMP-PLAN 64절)
+- [ ] 재부팅 후 자동 실행 확인
 - [ ] 검토: `jsonEqual` 문자열 비교를 정규화 없는 비교(`utf8`)로 바꾸기, 출력 폴더와 무관하게 실행 파일 UUID까지 같은 빌드

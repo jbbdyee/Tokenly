@@ -3,9 +3,9 @@
 macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다.
 
 > **v0.1.0 개발자 미리보기(Pre-release)**
-> Apple Developer ID 서명과 공증(notarization)을 받지 않은 **ad-hoc 서명** 빌드입니다. 첫 실행 때 macOS가 확인을 요구하며, 아래 [설치](#설치) 절차로 이 앱만 허용하면 됩니다. 개발자 Mac 밖에서의 동작은 아직 충분히 검증되지 않았습니다([알려진 제한](#알려진-제한)).
+> Apple Developer ID 서명과 공증(notarization)을 받지 않은 **ad-hoc 서명** 빌드입니다. 첫 실행 때 macOS가 실행을 막으며, 아래 [설치](#설치) 절차로 이 앱만 허용해야 합니다. 개발자 Mac 밖에서의 동작, 특히 내려받은 ZIP을 새 사용자 계정이나 다른 Mac에서 처음 여는 절차는 아직 확인하지 않았습니다([알려진 제한](#알려진-제한)).
 >
-> **현재 GitHub Release는 아직 발행하지 않았습니다.** 지금은 [소스에서 빌드](#빌드와-테스트)해 실행할 수 있고, 아래 ZIP 설치 절차는 Release 발행 후 기준입니다.
+> **GitHub Pre-release로 발행할 준비 중이며, 아직 발행하지 않았습니다.** 발행 전에는 [소스에서 빌드](#빌드와-테스트)해 실행할 수 있고, 아래 ZIP 설치 절차는 Pre-release 발행 후 기준입니다.
 
 ## 요구 사항
 
@@ -15,7 +15,7 @@ macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** �
 
 ## 설치
 
-Release ZIP 기준입니다(발행 전에는 `scripts/release.sh`가 만드는 같은 형식의 ZIP으로 확인할 수 있습니다).
+GitHub Pre-release의 ZIP 기준입니다(발행 전에는 `scripts/release.sh --final 0.1.0`이 만드는 같은 형식의 ZIP으로 확인할 수 있습니다).
 
 1. [Releases](https://github.com/jbbdyee/Tokenly/releases)에서 `Tokenly-0.1.0-macOS-universal.zip`과 `Tokenly-0.1.0-macOS-universal.zip.sha256`을 받습니다.
 2. (권장) 무결성 확인: 두 파일이 있는 폴더에서 `shasum -a 256 -c Tokenly-0.1.0-macOS-universal.zip.sha256` → `OK`가 나와야 합니다.
@@ -23,6 +23,8 @@ Release ZIP 기준입니다(발행 전에는 `scripts/release.sh`가 만드는 �
 4. `Tokenly.app`을 엽니다. 처음에는 "확인되지 않은 개발자" 또는 "Apple이 악성 소프트웨어가 없음을 확인할 수 없음" 경고가 나오고 열리지 않습니다. **완료**(또는 취소)를 누릅니다.
 5. **시스템 설정 → 개인정보 보호 및 보안**의 아래쪽 **보안** 항목에 Tokenly가 차단되었다는 안내와 함께 나타나는 **그래도 열기**를 누르고, 암호(또는 Touch ID)로 확인한 뒤 한 번 더 **열기**를 누릅니다. macOS 14에서는 Finder에서 앱을 Control-클릭 → **열기**로도 허용할 수 있습니다.
 6. 메뉴 막대에 Tokenly가 나타납니다. Dock에는 나타나지 않는 메뉴 막대 전용 앱입니다.
+
+이 경고는 Tokenly가 Apple Developer ID로 서명·공증되지 않아 Apple이 앱을 확인할 수 없기 때문에 나옵니다. 위 4–5단계는 macOS의 일반적인 개별 허용 절차이며, 내려받은 이 ZIP으로 새 사용자 계정·다른 Mac에서 직접 확인하지는 않았습니다. macOS 버전과 계정 종류(표준·관리자)에 따라 문구와 인증 단계가 다를 수 있습니다.
 
 허용은 이 앱 하나에만 적용됩니다. Gatekeeper를 끄거나(`spctl --master-disable`) 격리 속성을 일괄 제거하는 등 시스템 보안 설정을 바꿀 필요는 없으며, 권장하지 않습니다. 새 버전으로 교체하면 다시 허용해야 할 수 있습니다.
 
@@ -94,10 +96,10 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 ## 알려진 제한
 
-- **공증 없음:** ad-hoc 서명이라 첫 실행에 Gatekeeper 허용이 필요하고, 다운로드한 ZIP에서의 첫 실행·CLI가 앱 실행 파일을 호출하는 경로는 아직 다른 Mac에서 검증하지 않았습니다.
+- **공증 없음:** ad-hoc 서명이라 첫 실행에 Gatekeeper 허용이 필요합니다. 내려받은 ZIP(격리 속성 있음)을 새 사용자 계정·다른 Mac에서 처음 여는 절차와, 그 상태에서 CLI가 앱 실행 파일을 호출하는 경로는 0.1.0에서 검증하지 않았습니다.
 - **이벤트 기반 갱신:** Claude·AGY 값은 CLI가 상태줄을 그릴 때만 갱신됩니다. CLI를 쓰지 않으면 값이 멈추고, 수신 후 15분이 지나면 회색(이전 데이터)으로 표시합니다.
 - **Codex app-server**는 Codex CLI에서 experimental로 표시된 기능이라 CLI 업데이트에 따라 바뀔 수 있습니다.
-- **AGY**는 5시간·7일 창이 아니라 버킷별 잔여 비율을 제공합니다. IDE·Gemini API 사용량과는 다릅니다.
+- **AGY**는 AGY CLI가 statusLine으로 보내는 `quota`의 **버킷별** 잔여 비율과 초기화 시각을 그대로 보여 주며, 5시간·7일 창으로 바꾸지 않습니다. 개발자 계정에서는 버킷 2개(`3p-weekly`, `gemini-weekly`)가 들어왔지만, 버킷의 수·이름·주기는 계정·요금제·AGY 버전에 따라 다를 수 있습니다. IDE·Gemini API 사용량과는 다릅니다.
 - **macOS 앱 목록:** 같은 번들 ID의 **다른 사본**(빌드 결과물·백업 등)이 LaunchServices에서 등록 해제되면, `/Applications`의 설치본이 그대로 있어도 앱 목록(Apps)에서 빠집니다(macOS 27, 테스트 앱과 Tokenly에서 재현). 일반 사용자의 한 번 설치에서는 생기지 않는 경로로 보이며, 개발 Mac에서 빌드할 때 생깁니다. 이 경우 `/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Tokenly.app`로 설치본 경로만 다시 등록하면 돌아옵니다(2026-10-26 확인). 그때까지는 Spotlight나 Finder에서 실행할 수 있습니다(`Doc/IMP-PLAN.md` 51–53·62절).
 - 메뉴 막대에 아이콘이 보이지 않으면 메뉴 막대 공간이 부족하거나, macOS 버전에 따라 시스템 설정의 메뉴 막대 항목에서 허용이 필요할 수 있습니다.
 - Gemini 자동 조회는 지원하지 않습니다. OpenAI API 사용량 연동 코드는 있으나 보류 상태입니다.
@@ -113,7 +115,7 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 - 서비스별 표시 선택, 연결되지 않은 서비스 숨김, 오래된 데이터는 반투명/회색으로 구분
 - 팝오버 상세: 서비스별 5시간·7일(AGY는 버킷별) 잔여율과 초기화 시각, 마지막 수신 시각
 - Codex 상세에서 ChatGPT **사용 한도 재설정 권한**의 남은 횟수와 회차별 사용 기한 표시(읽기 전용)
-- 라이트·다크·시스템 테마, 로그인 시 자동 실행(앱이 `/Applications`에 있을 때)
+- 라이트·다크·시스템 테마, 로그인 시 자동 실행(앱이 `/Applications` 또는 `~/Applications`에 있을 때)
 
 ## 화면
 
@@ -123,7 +125,7 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 |---|---|---|
 | ![숫자형](Doc/images/menubar-numeric.png) | ![최소형](Doc/images/menubar-compact.png) | ![곰돌이형](Doc/images/menubar-bear.png) |
 
-- **숫자형:** 서비스마다 5시간 잔여율(크게·위)과 7일 잔여율(작게·아래), 그 아래 서비스 이름. AGY는 5시간/7일 창이 없어 가장 낮은 버킷 잔여율 하나만 표시합니다.
+- **숫자형:** 서비스마다 5시간 잔여율(크게·위)과 7일 잔여율(작게·아래), 그 아래 서비스 이름. AGY는 5시간/7일 창으로 나뉘어 오지 않으므로, 받은 버킷 중 가장 낮은 잔여율 하나만 표시합니다.
 - **최소형:** Codex의 5시간·7일 잔여율을 한 줄로 표시합니다.
 - **곰돌이형:** SceneKit으로 미리 렌더링한 3D 젤리 곰돌이가 잔여율만큼 차오르고, 안에 숫자, 아래 윤곽에 서비스 이름을 넣습니다.
 
@@ -162,7 +164,7 @@ AGY CLI ─────statusLine─▶ Tokenly --statusline agy ────▶
 |---|---|---|---|
 | 방식 | 공식 `codex app-server`의 읽기 전용 JSON-RPC `account/rateLimits/read` | Claude Code `statusLine` 명령이 넘기는 JSON | AGY CLI `statusLine` 명령이 넘기는 JSON |
 | 갱신 | Tokenly가 **능동 조회**(5분 주기 + 새로고침) | CLI가 상태줄을 갱신할 때만(**이벤트 기반**) | CLI가 상태줄을 갱신할 때만(**이벤트 기반**) |
-| 표시 값 | 5시간·7일 창, 재설정 권한 | 5시간·7일 한도 | 버킷별 잔여 비율(5시간/7일 아님) |
+| 표시 값 | 5시간·7일 창, 재설정 권한 | 5시간·7일 한도 | `quota`의 버킷별 잔여 비율·초기화 시각(버킷 구성은 계정·버전에 따라 다를 수 있음) |
 | 오래된 데이터 | 조회 실패 시 이전 값 표시 | 수신 후 15분 지나면 회색 | 수신 후 15분 지나면 회색 |
 
 - **공식 조회 vs 이벤트 기반:** Codex는 앱이 언제든 공식 인터페이스에 물어볼 수 있습니다. Claude·AGY는 CLI가 실행되며 상태줄을 그릴 때만 새 값이 오므로, CLI를 쓰지 않는 동안에는 값이 멈춰 있고 Tokenly는 이를 "이전 데이터"로 표시합니다. Tokenly의 새로고침은 로컬 파일을 다시 읽을 뿐 서비스에 요청하지 않습니다.
@@ -205,7 +207,10 @@ xcodebuild가 자동으로 만드는 스킴은 테스트 커버리지를 수집�
 | 실제 AGY CLI 세션(2026-10-26, 격리 환경) | 임시 HOME과 `sandbox-exec`로 실제 `~/.gemini` 읽기·쓰기를 막은 상태에서 계측 제거 빌드 `rc-20261026b`로 확인. 실제 AGY CLI가 Swift 브리지를 호출했고, quota 수신(0600, `remaining_fraction`·`reset_time`만 저장)·기존 statusLine 출력 전달 확인, `default.profraw` 생성 안 됨. 임시 HOME에서는 Keychain을 쓸 수 없어 AGY가 새 OAuth 인증을 진행했고, 임시 폴더에 저장된 토큰 파일은 삭제함(`Doc/IMP-PLAN.md` 56절) |
 | 개발자 Mac 실제 환경(2026-10-26) | `/Applications`에 새 번들 ID 설치(개발 빌드 0.1.0 (3)), 앱 안에서 로그인 항목 등록 성공(`enabled, allowed`, 옛 항목 중복 없음). 실제 Claude Code·AGY 전역 설정을 `--connect`로 Swift 브리지로 전환하고, 실제 세션에서 호출·수신(0600)·`stack_with_default` 유지·`default.profraw` 없음 확인. 빌드 3 설치 후 Codex·Claude·AGY 표시를 다시 확인. `--disconnect --dry-run`은 두 소스 모두 Python 브리지 복원을 안내(실제 해제는 복사본에서만 실행) |
 | 앱 목록(2026-10-26) | `release.sh`의 산출물 등록 해제 뒤 설치본이 빠짐 → 설치본 경로 재등록으로 복구. `release.sh`는 임시 번들 ID 빌드로 바꿔, 개발 빌드 3회에서 정식 ID 등록·해제 알림 0건 |
-| 다운로드한 ZIP의 Gatekeeper 첫 실행(새 사용자 계정·다른 Mac), 재로그인·재부팅 후 자동 실행 | 미검증 |
+| 최종 빌드 0.1.0 (3)(`release.sh --final 0.1.0`, 2026-10-26) | 최종 ZIP(SHA-256 `b2890dd1…0d124`)의 앱을 `/Applications`에 설치(설치본 내용 해시가 ZIP의 앱과 같음). 메뉴 막대·팝오버·설정 화면, Codex·Claude·AGY 실사용 표시를 개발자가 직접 확인. 기존 설정·연결 기록·백업 유지 |
+| 재로그인 후 자동 실행(2026-10-26) | 최종 빌드에서 앱 안 로그인 항목을 켠 상태(`enabled, allowed`)로 재로그인 → Tokenly가 자동으로 실행되는 것을 개발자가 직접 확인 |
+| 다운로드한 ZIP의 Gatekeeper 첫 실행(새 사용자 계정·다른 Mac, G2) | **미검증**(0.1.0에서는 생략) |
+| 재부팅 후 자동 실행 | 미검증 |
 
 테스트는 Codex 응답 파싱, Claude·AGY 수신 파일 파싱과 만료, 표시·숨김·stale 규칙, 재설정 권한 계산, 스타일 저장·이전, 숫자형·곰돌이형의 크기·정렬·잘림(픽셀 단위), statusLine 브리지·연결·해제(임시 홈) 등을 다룹니다(`src/TokenlyTests/`). 테스트용 설정 도메인은 임시 폴더에 만들어 `~/Library/Preferences`에 파일을 남기지 않습니다.
 
