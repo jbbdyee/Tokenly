@@ -3,30 +3,44 @@
 #
 #   scripts/release.sh                 development check (dirty tree allowed, marked as such)
 #   scripts/release.sh --final 0.1.0   release mode: clean tree and matching version required
+#   --replace                          move an existing output folder aside (nothing is deleted)
+#   --print-output                     resolve and check the output folder, print it, change nothing
 #
 # Output goes outside the repository (default ~/Developer/TokenlyRelease.noindex/<version>[-dev]/,
-# override with TOKENLY_RELEASE_DIR). Nothing is installed, committed, tagged or uploaded, and the
-# LaunchServices registration of /Applications/Tokenly.app is never touched.
+# override with TOKENLY_RELEASE_DIR; `~`, relative paths, `..` and symlinks are resolved first).
+# An existing output folder stops the script unless --replace is given.
+# Nothing is installed, committed, tagged or uploaded, and the LaunchServices registration of
+# /Applications/Tokenly.app is never touched.
 set -euo pipefail
 
 BUNDLE_ID="io.github.jbbdyee.tokenly"
+# Xcode registers every app it builds with LaunchServices, and unregistering or deleting such a copy makes
+# macOS's app list drop every app with that bundle ID, including the installed /Applications/Tokenly.app
+# (Doc/IMP-PLAN.md 52–53, 62). The Xcode product is therefore built under this temporary ID; only the staged
+# copy gets BUNDLE_ID, by replacing that one string in its Info.plist before signing.
+BUILD_ID="$BUNDLE_ID.release-build"
 CATEGORY="public.app-category.utilities"
 MIN_MACOS="14.0"
 REQUIRED_ARCHS="arm64 x86_64"
-LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+LSREGISTER="${TOKENLY_TEST_LSREGISTER:-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT_REAL="$(cd -P "$ROOT" && pwd -P)"
 INFO_PLIST="$ROOT/src/Tokenly/Info.plist"
 
 mode="dev"
 wanted_version=""
+replace=0
+print_only=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --final)
             mode="final"; shift
             if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then wanted_version="$1"; shift; fi ;;
         --dev) mode="dev"; shift ;;
-        -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+        --replace) replace=1; shift ;;
+        --print-output) print_only=1; shift ;;
+        -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 64 ;;
     esac
 done
@@ -54,23 +68,109 @@ if [ "$mode" = "final" ]; then
 fi
 
 suffix=""; [ "$mode" = "dev" ] && suffix="-dev"
-OUT="${TOKENLY_RELEASE_DIR:-$HOME/Developer/TokenlyRelease.noindex}/$version$suffix"
-case "$OUT/" in "$ROOT"/*) fail "output must be outside the repository: $OUT" ;; esac
 ZIP_NAME="Tokenly-$version-macOS-universal.zip"
-rm -rf "$OUT"; mkdir -p "$OUT"
+
+# Absolute, symlink-free form of a location that may not exist yet. `~`, relative paths, `.`, `..`, repeated
+# and trailing slashes are handled component by component; existing components are resolved physically, so a
+# symlink cannot hide a location inside the repository. Fails on control characters, `~user`, an existing
+# non-directory, or a dangling symlink.
+resolve_path() {
+    local input="$1" cur="/" part next exists=1
+    local -a parts
+    case "$input" in ""|*$'\n'*|*$'\r'*|*$'\t'*) return 1 ;; esac
+    case "$input" in "~") input="$HOME" ;; "~/"*) input="$HOME/${input#\~/}" ;; "~"*) return 1 ;; esac
+    case "$input" in /*) ;; *) input="$PWD/$input" ;; esac
+    IFS=/ read -r -a parts <<< "$input"
+    for part in "${parts[@]}"; do
+        case "$part" in
+            ""|.) continue ;;
+            ..) cur="$(dirname "$cur")"
+                if [ -d "$cur" ]; then cur="$(cd -P "$cur" && pwd -P)" || return 1; exists=1; fi ;;
+            *)  if [ "$cur" = / ]; then next="/$part"; else next="$cur/$part"; fi
+                if [ "$exists" = 1 ] && [ -e "$next" ]; then
+                    [ -d "$next" ] || return 1
+                    cur="$(cd -P "$next" && pwd -P)" || return 1
+                else
+                    [ ! -L "$next" ] || return 1
+                    exists=0; cur="$next"
+                fi ;;
+        esac
+    done
+    printf '%s\n' "$cur"
+}
+
+# Removes the LaunchServices records of bundles under $OUT that carry the temporary BUILD_ID. A record with
+# the real BUNDLE_ID is never unregistered (that would hide the installed app from the app list); it is only
+# reported. Records outside $OUT are never touched.
+ls_records_under_out() {  # prints "<bundle id>\t<path>" per registered bundle under $OUT
+    local dump
+    dump="$("$LSREGISTER" -dump 2>/dev/null)" || return 1
+    printf '%s\n' "$dump" | awk -v out="$OUT" '
+        function flush() { if (path != "" && (index(path, out "/") == 1 || index(path, "/private" out "/") == 1)) print id "\t" path; path = id = "" }
+        /^-{20,}/ { flush(); next }
+        /^path: / { p = $0; sub(/^path: +/, "", p); sub(/ \(0x[0-9a-f]+\)$/, "", p); path = p }
+        /^identifier: / { i = $0; sub(/^identifier: +/, "", i); id = i }
+        END { flush() }'
+}
+unregister_outputs() {
+    [ -x "$LSREGISTER" ] || return 0
+    local records id path
+    records="$(ls_records_under_out)" || return 0
+    [ -n "$records" ] || return 0
+    while IFS="$(printf '\t')" read -r id path; do
+        case "$id" in
+            "$BUILD_ID") "$LSREGISTER" -u "$path" 2>/dev/null && echo "  lsregister -u $path ($id)" >> "$LOG" ;;
+            *) echo "  left registered (not the temporary id): $path ($id)" >> "$LOG" ;;
+        esac
+    done <<< "$records"
+}
+
+requested="${TOKENLY_RELEASE_DIR:-$HOME/Developer/TokenlyRelease.noindex}"
+base="$(resolve_path "$requested")" || fail "unusable output location: $requested"
+[ "$base" != / ] || fail "unusable output location: $requested"
+OUT="$base/$version$suffix"
+case "$OUT/" in "$ROOT_REAL"/*|"$ROOT"/*) fail "output must be outside the repository: $requested → $OUT" ;; esac
+case "$ROOT_REAL/" in "$OUT"/*) fail "output folder would contain the repository: $OUT" ;; esac
+
+if [ -e "$OUT" ] || [ -L "$OUT" ]; then
+    [ "$replace" = 1 ] || fail "output folder already exists: $OUT
+      Nothing was changed. Choose a new location with TOKENLY_RELEASE_DIR, or pass --replace to move it aside."
+    # Moving a registered copy of the app unregisters it, which hides the installed app from the app list.
+    if [ ! -L "$OUT" ]; then
+        [ -x "$LSREGISTER" ] || fail "cannot check LaunchServices; $OUT was not moved"
+        registered="$(ls_records_under_out)" || fail "cannot read LaunchServices; $OUT was not moved"
+        registered="$(printf '%s\n' "$registered" | awk -F '\t' -v id="$BUNDLE_ID" '$1 == id {print "      " $2}')"
+        [ -z "$registered" ] || fail "$OUT contains app(s) registered with $BUNDLE_ID; moving them would hide the
+      installed app from the macOS app list. Nothing was changed. Registered:
+$registered"
+    fi
+    aside="$OUT.replaced-$(date +%Y%m%d-%H%M%S)"
+    [ ! -e "$aside" ] && [ ! -L "$aside" ] || fail "cannot move the existing output aside: $aside exists"
+    if [ "$print_only" = 1 ]; then echo "output: $OUT"; echo "existing folder would be moved aside to: $aside"; exit 0; fi
+    mv "$OUT" "$aside"
+    echo "existing output moved aside (not deleted): $aside"
+fi
+[ "$print_only" = 1 ] && { echo "output: $OUT"; exit 0; }
+mkdir -p "$OUT"
 LOG="$OUT/build-info.txt"
 DD="$OUT/DerivedData"; STAGE="$OUT/stage"; CHECK="$OUT/unzipped"; SMOKE="$OUT/smoke-home"
 APP="$STAGE/Tokenly.app"
 
-# Every app bundle the script produces lives under $OUT; only those registrations are removed.
-unregister_outputs() {
-    [ -x "$LSREGISTER" ] || return 0
-    "$LSREGISTER" -dump 2>/dev/null | sed -nE 's/^path: +(.*\.app) \(0x[0-9a-f]+\)$/\1/p' | sort -u |
-    while IFS= read -r path; do
-        case "$path" in
-            "$OUT"/*|/private"$OUT"/*) "$LSREGISTER" -u "$path" 2>/dev/null && echo "  lsregister -u $path" >> "$LOG" ;;
-        esac
-    done
+# Gives the staged copy the real bundle ID (see BUILD_ID above). The built Info.plist is XML; exactly one
+# <string>BUILD_ID</string> may occur, and nowhere else in the bundle.
+set_release_bundle_id() {
+    local app="$1" info="$1/Contents/Info.plist" head n hits
+    head="$(head -c 5 "$info")" || fail "cannot read $info"
+    [ "$head" = "<?xml" ] || fail "built Info.plist is not an XML property list"
+    n="$(grep -c -F "<string>$BUILD_ID</string>" "$info" || true)"
+    [ "$n" = 1 ] || fail "built Info.plist contains the temporary bundle id $n times (expected 1)"
+    hits="$(grep -rl -F "$BUILD_ID" "$app" || true)"
+    [ "$hits" = "$info" ] || fail "temporary bundle id found outside Info.plist: $hits"
+    sed -i '' "s#<string>${BUILD_ID//./\\.}</string>#<string>$BUNDLE_ID</string>#" "$info"
+    hits="$(grep -rl -F "$BUILD_ID" "$app" || true)"
+    [ -z "$hits" ] || fail "temporary bundle id still present: $hits"
+    [ "$(plist "$info" CFBundleIdentifier)" = "$BUNDLE_ID" ] || fail "staged bundle id is not $BUNDLE_ID"
+    ok "bundle id: Xcode product built as $BUILD_ID (keeps the installed app in the app list), staged copy set to $BUNDLE_ID"
 }
 trap unregister_outputs EXIT
 
@@ -100,13 +200,19 @@ echo "building…"
 # (-enableCodeCoverage NO is rejected for `build`.)
 xcodebuild -project "$ROOT/src/Tokenly.xcodeproj" -scheme Tokenly -configuration Release \
     -destination 'generic/platform=macOS' -derivedDataPath "$DD" \
-    ARCHS="$REQUIRED_ARCHS" ONLY_ACTIVE_ARCH=NO \
+    ARCHS="$REQUIRED_ARCHS" ONLY_ACTIVE_ARCH=NO PRODUCT_BUNDLE_IDENTIFIER="$BUILD_ID" \
     CLANG_COVERAGE_MAPPING=NO ENABLE_CODE_COVERAGE=NO clean build > "$OUT/xcodebuild.log" 2>&1 \
     || { tail -20 "$OUT/xcodebuild.log" >&2; fail "xcodebuild failed (see $OUT/xcodebuild.log)"; }
 ok "xcodebuild Release"
 mkdir -p "$STAGE"
 ditto --norsrc --noextattr --noacl "$DD/Build/Products/Release/Tokenly.app" "$APP"
 unregister_outputs
+set_release_bundle_id "$APP"
+# The unstripped Release executable keeps a debug map with absolute paths (source folders under the developer's
+# home, DerivedData object files). Strip debug symbols only (`strip -S`; the symbol table stays, so crash
+# reports still name functions): no personal paths ship, and the app no longer depends on the output folder.
+strip -S "$APP/Contents/MacOS/Tokenly" 2>> "$LOG" || fail "strip -S failed"
+ok "executable: debug symbols stripped (strip -S)"
 
 # ---------------------------------------------------------------- 3. bundle checks (staged and unzipped)
 verify_app() {
@@ -125,6 +231,10 @@ verify_app() {
         case "$loads" in *"sectname __llvm_prf"*) fail "$label: $a has LLVM profiling sections (coverage instrumentation)" ;; esac
     done
     ok "$label: no coverage instrumentation (no __llvm_prf sections in $REQUIRED_ARCHS)"
+    local paths
+    paths="$(LC_ALL=C grep -a -c -F -e "$HOME/" -e "$ROOT/" -e "/DerivedData/" "$exe" || true)"
+    [ "$paths" = 0 ] || fail "$label: executable contains $paths absolute build path(s) (home, repository or DerivedData)"
+    ok "$label: no absolute build paths in the executable"
     [ "$(plist "$info" CFBundleIdentifier)" = "$BUNDLE_ID" ] || fail "$label: bundle id is $(plist "$info" CFBundleIdentifier)"
     [ "$(plist "$info" CFBundleShortVersionString)" = "$version" ] || fail "$label: version mismatch"
     [ "$(plist "$info" LSUIElement)" = "true" ] || fail "$label: LSUIElement is not true"
@@ -140,9 +250,9 @@ verify_app() {
     ok "$label: AppIcon.icns, Assets.car, compatibility bridges, bear assets"
     if [ "$label" != "built" ]; then
         codesign --verify --deep --strict "$app" 2>> "$LOG" || fail "$label: codesign --verify failed"
-        local sig; sig="$(codesign -dv "$app" 2>&1)"
-        echo "$sig" | grep -qx "Identifier=$BUNDLE_ID" || fail "$label: signing identifier is not $BUNDLE_ID"
-        echo "$sig" | grep -qx "Signature=adhoc" || fail "$label: not ad-hoc signed"
+        local sig; sig="$(codesign -dv "$app" 2>&1)" || fail "$label: codesign -dv failed"
+        case $'\n'"$sig"$'\n' in *$'\n'"Identifier=$BUNDLE_ID"$'\n'*) ;; *) fail "$label: signing identifier is not $BUNDLE_ID" ;; esac
+        case $'\n'"$sig"$'\n' in *$'\n'"Signature=adhoc"$'\n'*) ;; *) fail "$label: not ad-hoc signed" ;; esac
         ok "$label: ad-hoc signature valid, identifier $BUNDLE_ID"
     fi
 }
@@ -189,6 +299,10 @@ tree_hash() { (cd "$1" && find . -type f -print0 | sort -z | xargs -0 shasum -a 
 [ "$(tree_hash "$APP")" = "$(tree_hash "$CHECK/Tokenly.app")" ] || fail "unzipped app differs from the signed app"
 ok "unzipped app is byte-identical to the signed app (content $(tree_hash "$APP"))"
 unregister_outputs
+real_records="$(ls_records_under_out)" || real_records="(LaunchServices could not be read)"
+real_records="$(printf '%s\n' "$real_records" | awk -F '\t' -v id="$BUNDLE_ID" '$1 == id || /could not be read/')"
+[ -z "$real_records" ] && ok "LaunchServices: no copy under the output folder is registered with $BUNDLE_ID" \
+    || echo "  warning: registered with $BUNDLE_ID under the output folder (left as is): $real_records" | tee -a "$LOG"
 
 # ---------------------------------------------------------------- 7. checksum, notes, record
 (cd "$OUT" && shasum -a 256 "$ZIP_NAME" > "$ZIP_NAME.sha256")
