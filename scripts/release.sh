@@ -3,12 +3,12 @@
 #
 #   scripts/release.sh                 development check (dirty tree allowed, marked as such)
 #   scripts/release.sh --final 0.1.0   release mode: clean tree and matching version required
-#   --replace                          move an existing output folder aside (nothing is deleted)
+#   --replace                          disabled: existing output folders cannot be replaced
 #   --print-output                     resolve and check the output folder, print it, change nothing
 #
-# Output goes outside the repository (default ~/Developer/TokenlyRelease.noindex/<version>[-dev]/,
+# Output goes outside the repository (default ~/Developer/Tokenly-Workspace/TokenlyRelease.noindex/<version>[-dev]/,
 # override with TOKENLY_RELEASE_DIR; `~`, relative paths, `..` and symlinks are resolved first).
-# An existing output folder stops the script unless --replace is given.
+# An existing output folder stops the script. --replace is disabled.
 # Nothing is installed, committed, tagged or uploaded, and the LaunchServices registration of
 # /Applications/Tokenly.app is never touched.
 set -euo pipefail
@@ -48,6 +48,7 @@ done
 fail() { echo "FAIL: $*" >&2; echo "FAIL: $*" >> "${LOG:-/dev/null}"; exit 1; }
 ok() { echo "  ok  $*"; echo "ok   $*" >> "$LOG"; }
 plist() { /usr/libexec/PlistBuddy -c "Print :$2" "$1" 2>/dev/null || true; }
+[ "$replace" = 0 ] || fail "--replace is disabled because LaunchServices dump completeness cannot be verified; no existing output folder was changed"
 
 # ---------------------------------------------------------------- 1. tree and version
 version="$(plist "$INFO_PLIST" CFBundleShortVersionString)"
@@ -125,30 +126,19 @@ unregister_outputs() {
     done <<< "$records"
 }
 
-requested="${TOKENLY_RELEASE_DIR:-$HOME/Developer/TokenlyRelease.noindex}"
+requested="${TOKENLY_RELEASE_DIR:-$HOME/Developer/Tokenly-Workspace/TokenlyRelease.noindex}"
 base="$(resolve_path "$requested")" || fail "unusable output location: $requested"
 [ "$base" != / ] || fail "unusable output location: $requested"
 OUT="$base/$version$suffix"
 case "$OUT/" in "$ROOT_REAL"/*|"$ROOT"/*) fail "output must be outside the repository: $requested → $OUT" ;; esac
 case "$ROOT_REAL/" in "$OUT"/*) fail "output folder would contain the repository: $OUT" ;; esac
+protected="$(resolve_path "$ROOT_REAL/../TokenlyRelease.noindex/final-build3")" \
+    || fail "cannot resolve protected final-build3 folder"
+case "$OUT" in "$protected"|"$protected"/*) fail "protected final-build3 output: $OUT" ;; esac
 
 if [ -e "$OUT" ] || [ -L "$OUT" ]; then
-    [ "$replace" = 1 ] || fail "output folder already exists: $OUT
-      Nothing was changed. Choose a new location with TOKENLY_RELEASE_DIR, or pass --replace to move it aside."
-    # Moving a registered copy of the app unregisters it, which hides the installed app from the app list.
-    if [ ! -L "$OUT" ]; then
-        [ -x "$LSREGISTER" ] || fail "cannot check LaunchServices; $OUT was not moved"
-        registered="$(ls_records_under_out)" || fail "cannot read LaunchServices; $OUT was not moved"
-        registered="$(printf '%s\n' "$registered" | awk -F '\t' -v id="$BUNDLE_ID" '$1 == id {print "      " $2}')"
-        [ -z "$registered" ] || fail "$OUT contains app(s) registered with $BUNDLE_ID; moving them would hide the
-      installed app from the macOS app list. Nothing was changed. Registered:
-$registered"
-    fi
-    aside="$OUT.replaced-$(date +%Y%m%d-%H%M%S)"
-    [ ! -e "$aside" ] && [ ! -L "$aside" ] || fail "cannot move the existing output aside: $aside exists"
-    if [ "$print_only" = 1 ]; then echo "output: $OUT"; echo "existing folder would be moved aside to: $aside"; exit 0; fi
-    mv "$OUT" "$aside"
-    echo "existing output moved aside (not deleted): $aside"
+    fail "output folder already exists: $OUT
+      Nothing was changed. Choose a new location with TOKENLY_RELEASE_DIR; --replace is disabled."
 fi
 [ "$print_only" = 1 ] && { echo "output: $OUT"; exit 0; }
 mkdir -p "$OUT"
