@@ -64,6 +64,9 @@ enum BridgeCommand {
                 text = "확인 불가 · \(error)"
             }
             print("  상태: \(text)")
+            if (try? StatusLineConnector.state(source: source, paths: paths)) == .connected {
+                print("  연결 해제 시: \(StatusLineConnector.disconnectDescription(source: source, paths: paths))")
+            }
             let quota = paths.quotaFile(source)
             if let data = FileManager.default.contents(atPath: quota.path),
                let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
