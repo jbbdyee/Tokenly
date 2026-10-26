@@ -2,10 +2,16 @@
 
 macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다.
 
-> **v0.1.0 개발자 미리보기(Pre-release)**
-> Apple Developer ID 서명과 공증(notarization)을 받지 않은 **ad-hoc 서명** 빌드입니다. 첫 실행 때 macOS가 실행을 막으며, 아래 [설치](#설치) 절차로 이 앱만 허용해야 합니다. 개발자 Mac 밖에서의 동작, 특히 내려받은 ZIP을 새 사용자 계정이나 다른 Mac에서 처음 여는 절차는 아직 확인하지 않았습니다([알려진 제한](#알려진-제한)).
->
-> **GitHub Pre-release로 발행할 준비 중이며, 아직 발행하지 않았습니다.** 발행 전에는 [소스에서 빌드](#빌드와-테스트)해 실행할 수 있고, 아래 ZIP 설치 절차는 Pre-release 발행 후 기준입니다.
+## 다운로드
+
+**[Tokenly 0.1.0 — Developer Preview 내려받기](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0)** (GitHub Pre-release, 2026-10-26)
+
+- macOS 14 Sonoma 이상, Apple silicon·Intel Mac 공용(universal) 앱입니다.
+- Release 페이지의 **Assets**에서 `Tokenly-0.1.0-macOS-universal.zip`을 받습니다. 자동으로 붙는 **Source code (zip / tar.gz)** 는 실행할 수 있는 앱이 아닙니다.
+- Apple Developer ID 서명과 공증(notarization)을 받지 않은 **ad-hoc 서명** 앱이라, 첫 실행 때 macOS 보안 경고가 나타나고 실행이 막힐 수 있습니다. 시스템 설정에서 이 앱만 허용하면 됩니다.
+- 상세 설치 방법은 [Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0)와 아래 [설치](#설치)에 있습니다.
+
+> **개발자 미리보기입니다.** 개발자 Mac 밖에서의 동작, 특히 내려받은 ZIP을 새 사용자 계정이나 다른 Mac에서 처음 여는 절차는 아직 확인하지 않았습니다([알려진 제한](#알려진-제한)).
 
 ## 요구 사항
 
@@ -15,9 +21,9 @@ macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** �
 
 ## 설치
 
-GitHub Pre-release의 ZIP 기준입니다(발행 전에는 `scripts/release.sh --final 0.1.0`이 만드는 같은 형식의 ZIP으로 확인할 수 있습니다).
+[v0.1.0 Pre-release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0)의 ZIP 기준입니다. 소스에서 직접 만들려면 [빌드와 테스트](#빌드와-테스트)를 참고하세요.
 
-1. [Releases](https://github.com/jbbdyee/Tokenly/releases)에서 `Tokenly-0.1.0-macOS-universal.zip`과 `Tokenly-0.1.0-macOS-universal.zip.sha256`을 받습니다.
+1. [v0.1.0 Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0)의 **Assets**에서 `Tokenly-0.1.0-macOS-universal.zip`과 `Tokenly-0.1.0-macOS-universal.zip.sha256`을 받습니다.
 2. (권장) 무결성 확인: 두 파일이 있는 폴더에서 `shasum -a 256 -c Tokenly-0.1.0-macOS-universal.zip.sha256` → `OK`가 나와야 합니다.
 3. ZIP을 열어 나온 `Tokenly.app`을 **응용 프로그램(`/Applications`) 폴더로 옮깁니다.** 다운로드 폴더에서 바로 실행하면 macOS가 임시 위치에서 실행해 자동 실행·CLI 연결이 동작하지 않습니다.
 4. `Tokenly.app`을 엽니다. 처음에는 "확인되지 않은 개발자" 또는 "Apple이 악성 소프트웨어가 없음을 확인할 수 없음" 경고가 나오고 열리지 않습니다. **완료**(또는 취소)를 누릅니다.
