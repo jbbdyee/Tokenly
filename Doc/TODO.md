@@ -526,19 +526,19 @@
 
 - [x] 결정 확정: 번들 ID `io.github.jbbdyee.tokenly`, Swift 네이티브 브리지, Claude statusLine 공존·복원, CLI 연결·해제, 시안 정리, ad-hoc Pre-release
 - [x] 1단계: 네이티브 브리지 실행 가능성 검증(격리 복사본 `~/Developer/TokenlyBridgeProbe.noindex/`, 자동 테스트 33개 Release·Debug 통과, XCTest 58개 통과, SIGPIPE 결함 발견·수정)
-- [ ] 1단계 미검증: 다운로드(격리 속성) 설치에서 CLI가 앱 실행 파일을 실행할 수 있는지, 실제 전역 설정에서의 호출(실제 Claude Code·AGY CLI 호출은 격리 환경에서 확인, IMP-PLAN 55·56절)
+- [x] 1단계 미검증이던 실제 전역 설정에서의 호출: 10-26 확인(IMP-PLAN 59절). 다운로드(격리 속성) 설치는 아래 G2 항목
 - [x] 2단계 구현(소스): `TokenlyMain` 진입점, 네이티브 브리지(`--statusline claude|agy`), Claude·AGY 기존 statusLine 공존 래퍼, 재귀 방지, 시간 제한·취소 정리, `--status`·`--connect`·`--disconnect`(미리보기·확인·백업·원래 값 기록·원문 서식 복원), 설정 화면 연결 명령 복사
 - [x] 2단계 테스트: XCTest 91개(기존 58 + 새 33) 3회 반복 전부 통과, Release 빌드로 임시 홈에서 연결→수신→해제 수동 확인, 실행 시간 중앙값 약 12 ms
-- [ ] 2단계 미검증: 실제 전역 설정에서의 호출, 다운로드(격리 속성) 설치에서 CLI의 실행 파일 호출, 새 빌드 설치(설치본 미교체). 실제 Claude Code·AGY CLI 호출은 격리 환경에서 확인(IMP-PLAN 55·56절)
+- [x] 2단계 미검증이던 실제 전역 설정 호출·새 빌드 설치: 10-26 확인(IMP-PLAN 58·59·61절). 다운로드 설치는 아래 G2 항목
 - [x] 3단계(소스, IMP-PLAN 49절): 번들 ID `io.github.jbbdyee.tokenly`(테스트 `….tests`), Keychain 서비스 이름 변경. Debug·Release 빌드(universal), XCTest 91개 통과, 임시 홈에서 브리지 명령 확인, 빌드 결과물 LaunchServices 등록 2개 해제
 - [x] 3단계 실제 환경 불변 확인: 설치본·실행 중 앱·`com.tokenly.app` 설정·로그인 항목·Claude·AGY 설정 그대로, 새 설정 도메인 없음
-- [ ] 개발자 Mac 설정 수동 이전(`defaults export`/`import`, 새 앱 첫 실행 전) — 승인 필요. 이전하지 않으면 Claude·AGY가 숨김으로 시작
-- [ ] 로그인 항목 전환(옛 앱에서 끄기 → 확인 → 새 앱 설치 → 새 앱에서 켜기 → 중복 없음 확인) — 승인 필요
-- [ ] 새 ID에서 메뉴 막대 허용·앱 목록 표시 확인, 이후 실제 Claude·AGY 연결 전환(별도 승인)
+- [x] 개발자 Mac 설정 이전: 사용자 설정 7개를 새 도메인에 기록(T3, 10-26)
+- [x] 로그인 항목 전환: 옛 항목 끔(T2) → 새 앱 설치 → 앱 안에서 켬(T5, `enabled, allowed`) → 중복 없음(10-26)
+- [x] 새 ID 메뉴 막대 표시, 실제 Claude·AGY 연결 전환(T6·T7, 10-26). 앱 목록은 아래 62절 항목
 - [x] 4단계(IMP-PLAN 50절): `scripts/release.sh`(개발 확인·`--final` 모드, universal 빌드·서명·검증·ZIP·압축 해제 재검증·SHA-256·릴리스 노트 초안·빌드 기록, 산출물 LaunchServices 등록 해제), README 설치 안내 재구성, `CHANGELOG.md`
 - [x] 4단계 산출물: `~/Developer/TokenlyRelease.noindex/0.1.0-dev/Tokenly-0.1.0-macOS-universal.zip`(SHA-256 `3160b196…7229dda`), 세 번 실행 ZIP 동일, 최종 모드 거부 조건 확인
 - [x] 테스트 임시 plist 423개 휴지통(`~/.Trash/TokenlyTests-plists-20261024/`)으로 정리, 테스트 설정 도메인을 임시 폴더 경로로 바꿔 누적 방지, XCTest 91개 통과
-- [ ] 커밋 후 `scripts/release.sh --final 0.1.0` 실행, CHANGELOG 날짜 확정, GitHub Pre-release 생성(승인 필요)
+- [ ] 최종 빌드와 발행(단계별 승인): `release.sh --final 0.1.0`(새 출력 경로) → 설치·GUI 확인(디버그 기호 제거로 개발 빌드 3과 실행 파일이 다름, 앱은 출력 폴더에서 직접 열지 않음) → CHANGELOG 날짜·릴리스 노트 정리 → push·태그·GitHub Pre-release
 - [ ] 다운로드한 ZIP으로 Gatekeeper "그래도 열기" 절차와 CLI 호출 확인(새 사용자 계정 또는 다른 Mac)
 - [x] 아이콘 시안 보관 정리: 커밋하지 않은 시안 60개를 `~/Developer/TokenlyDesignArchive.noindex/`로 이동(10-26, 이동 전후 SHA-256 일치, 목록·해시 `FILES.txt`·`SHA256SUMS`). 커밋된 원본·재생성 자료 27개는 그대로
 - [x] GitHub 반영 전 검증(IMP-PLAN 54절): 10-25 빌드·XCTest 91개 통과, 임시 홈 연결·해제 확인. 실제 설정은 Python 브리지 유지
@@ -550,22 +550,30 @@
 - [x] 새 번들 ID 앱 GUI 격리 검증 G1(IMP-PLAN 57절): 동시 실행 충돌 없음, Claude·AGY 기본 숨김, 자동 실행 토글 비활성·설치 안내, 새 도메인에만 기록, 기존 설정·데이터·로그인 항목 보존
 - [ ] 확인 필요: G1 중 설치본이 다시 실행됨(PID 50367 → 83087, 원인 미확인)
 - [x] README에 "팝오버·메뉴 막대에 표시하기"(설정 → AI 서비스, 표시와 statusLine 연결 구분) 추가, 설정 화면 AI 서비스 문구 2줄을 실제 동작에 맞게 수정(숫자형·곰돌이형은 표시 선택을 따르고 최소형은 Codex만). 기능 변경 없음, XCTest 91개 통과(10-26)
-- [ ] 설치 전환(`com.tokenly.app` → `io.github.jbbdyee.tokenly`), 실제 전역 설정으로 Swift 브리지 전환(Claude·AGY), 다운로드 ZIP Gatekeeper 검증(단계별 승인)
+- [x] 설치 전환(`com.tokenly.app` → `io.github.jbbdyee.tokenly`), 실제 전역 설정으로 Swift 브리지 전환(Claude·AGY) — IMP-PLAN 58·59절. 다운로드 ZIP Gatekeeper는 아래 G2
   - [x] T0 백업, T1 최종 빌드, T2 옛 앱 자동 실행 해제·종료, T3 사용자 설정 7개 이전, T4 앱 교체(첫 시도는 검증 스크립트 결함으로 자동 복원, 재시도 성공)
-  - [ ] T5: 설치본에서 자동 실행 토글이 비활성(`SMAppService.mainApp.status == .notFound`)으로 중단
+  - [x] T5: 빌드 1에서 토글 비활성(`.notFound`)으로 중단 → 빌드 2(아래 수정)에서 앱 안 등록 성공
+  - [x] T4′ 빌드 2 교체(로그인 항목 조회 시간 초과 → 조회 실패와 상태 불일치를 구분하도록 개선), T6 Claude·T7 AGY Swift 브리지 전환
 - [x] 자동 실행 최초 등록 수정: 설치본이면 `.notFound`에서도 등록 시도 가능, 등록 결과는 실제 상태로만 표시, 실패 시 시스템 오류 설명 표시. 임시 빌드 차단 유지. 가짜 컨트롤러 테스트 6개 추가, XCTest 97개 통과(10-26). 빌드 번호 2
-- [ ] 이 Mac의 설치본에서 앱 안 자동 실행 등록이 실제로 성공하는지 확인(빌드 2 설치 후)
+- [x] 이 Mac의 설치본에서 앱 안 자동 실행 등록 성공(빌드 2, 10-26)
 - [ ] 새 macOS 사용자 계정(G2)에서 다운로드 ZIP으로 첫 등록·Gatekeeper 확인
-- [ ] 개선 후보: `scripts/release.sh`의 `echo "$sig" | grep -qx …` 두 곳을 출력·종료 코드를 따로 확인하는 방식으로 변경(`set -o pipefail`에서 `grep -q` 조기 종료로 앞 명령이 SIGPIPE를 받으면 잘못 판정될 수 있음. 설치 전환 T4 첫 시도가 같은 패턴의 `codesign -dv | grep -qx`로 실패했다. release.sh에서는 아직 실패 사례 없음)
+- [x] (10-26 구현, 빌드 3 설치 후 실제 환경 미리 보기 확인, IMP-PLAN 60·61절) 개선 후보: Python 브리지에서 `--connect`로 전환한 뒤 `--disconnect`하면 이전 Python statusLine을 복원하지 않고 `statusLine`을 삭제한다. 연결 기록에 `original: null`만 남기기 때문이며, 안내 문구도 "연결 전에는 statusLine이 없었습니다"로 사실과 다르다(10-26 T6 준비 중 설정 복사본 리허설로 확인). 연결 시 Python 명령을 원래 값으로 기록해 해제 때 되돌리거나, 최소한 "Python 브리지 명령을 제거합니다"로 정확히 안내하고 백업 복원(`cp -p`) 방법을 보여 주기. 실제 T6 복원은 `--disconnect` 대신 백업 기반 복원 스크립트 사용
+- [x] (10-26 수정) 개선 후보: `scripts/release.sh`의 `echo "$sig" | grep -qx …` 두 곳을 출력·종료 코드를 따로 확인하는 방식으로 변경(`set -o pipefail`에서 `grep -q` 조기 종료로 앞 명령이 SIGPIPE를 받으면 잘못 판정될 수 있음. 설치 전환 T4 첫 시도가 같은 패턴의 `codesign -dv | grep -qx`로 실패했다. release.sh에서는 아직 실패 사례 없음)
 - [x] 17:44에 새로 생긴 백업본 LaunchServices 등록 해제(파일 보존, 다른 등록 변화 없음). 2단계 빌드 결과물 등록 2개도 해제 → `com.tokenly.app` 등록은 설치본 하나
 - [x] 5단계 진단(IMP-PLAN 51절, 읽기 전용): 앱 목록 주체(`Siri AI`의 `com.apple.spotlight:Apps`) 확인, 소실 시점이 같은 번들 ID 사본의 해제 알림과 겹침(새벽 2회는 같은 초), 다른 앱 설치로 폴더 스캔 후 복귀 — 가설 H1, 원인 미확정
 - [x] 개발 확인 ZIP 격리 검증(구조·서명·임시 홈 CLI·복원 바이트 동일), `TokenlyPreview.*.plist` 3개 조사(정리 안전, 삭제 대기)
 - [x] 17:51:49 당시 Tokenly 표시 여부: 확인 불가(사용자 기억 없음)
 - [x] 6단계 실험(IMP-PLAN 52절): E1에서 H1 재현(같은 ID 다른 사본 해제 → 정상 설치본이 있어도 목록에서 빠짐), H2 기각(중복 등록만으로는 안 숨겨짐), E2 기각(`/Applications` 스캔만으로 복구 안 됨)
-- [ ] 새 앱 `/Applications` 설치 후 GUI·메뉴 막대·앱 목록 확인, 설치 방식(임시 이름 사용 여부)과 이후 개발 빌드가 앱 목록에 주는 영향 확인
+- [x] 새 앱 `/Applications` 설치 후 GUI·메뉴 막대 확인(10-26). 개발 빌드(`release.sh` 산출물 해제)가 앱 목록에서 설치본을 빼는 것 확인 → 62·63절
 - [x] ListProbe 테스트 ID 등록 7개 정리(파일 보존), `TokenlyPreview.*.plist` 3개 휴지통 이동. `py-home/…/Xcode.app` 등록은 유지
 - [x] E3(IMP-PLAN 53절): 테스트 앱은 `/Applications` 경로 `lsregister -f` 재등록으로 앱 목록에 복귀(R1 확인), ListProbe 등록 정리
 - [x] Tokenly 앱 목록 표시: 10-25 사용자가 정상 표시 확인, 재등록은 실행 안 함. 다시 표시된 시점·계기는 미확인(E3 영향 근거 없음, Tokenly 레코드 02:08 그대로)
-- [ ] 개발 빌드가 설치본 앱 목록에 주는 영향 줄이기: Debug 번들 ID 접미사(`.dev`) 검토, `release.sh` 산출물 등록 해제 방식 재검토
-- [ ] 새 앱 설치·업데이트(같은 경로 교체) 후 앱 목록 유지 확인
+- [x] `release.sh`가 설치본 앱 목록에 주는 영향 제거: 임시 번들 ID로 빌드, 정식 ID 레코드는 해제하지 않음(10-26, 63절)
+- [ ] Xcode·XCTest Debug 빌드도 정식 ID로 등록됨: Debug 번들 ID 접미사(`.dev`) 검토. 세션 임시 폴더의 Debug 사본이 정리되면 앱 목록에서 다시 빠질 수 있음 → 그때 설치본 경로 재등록
+- [ ] 같은 경로 교체(업데이트)만으로 앱 목록이 유지되는지 확인(10-26 빌드 3 교체 때는 그 전에 `release.sh` 해제로 이미 빠져 있어 판단 불가)
 - [ ] `Preview/CodexResetCredits/render.swift`의 suite를 임시 폴더 경로로 바꿔 plist 재발 방지
+- [x] 빌드 3 설치(`t4e`, 빌드 2 보존)와 실사용 검증: 실행 경로·버전, `--status`·`--disconnect --dry-run`(두 소스 모두 Python 브리지 복원 안내), Codex·Claude·AGY 표시와 수신, 설정·연결 기록·로그인 항목 불변(10-26, IMP-PLAN 61절)
+- [x] 앱 목록 누락 재발(10-26): `release.sh`의 산출물 해제(09:36:56) 뒤 미표시 → 설치본 경로 `lsregister -f` 재등록으로 복구(사용자 확인, 62절)
+- [x] 배포 전 안정화(10-26, 63절): `release.sh` 출력 폴더 보호(`--replace`는 옆으로 옮김)·임시 ID 빌드·`strip -S`와 경로 검사, XCTest 5개 추가(112개, 3회 통과), README·CHANGELOG 갱신
+- [ ] 재로그인·재부팅 후 자동 실행 확인
+- [ ] 검토: `jsonEqual` 문자열 비교를 정규화 없는 비교(`utf8`)로 바꾸기, 출력 폴더와 무관하게 실행 파일 UUID까지 같은 빌드

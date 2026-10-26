@@ -375,7 +375,7 @@ B안:
 - `Tokenly --statusline claude|agy`: Claude Code·AGY가 상태줄 JSON을 표준입력으로 넘겨 실행한다. 허용 필드만 0600 파일로 저장하고, 연결 전에 쓰던 statusLine이 있으면 같은 입력으로 실행해 그 출력을 그대로 표시한다. Python이 필요 없다.
 - `Tokenly --status`: 연결 상태와 마지막 수신 시각만 보여 준다.
 - `Tokenly --connect claude|agy [--dry-run|--yes]`: 변경 내용을 보여 주고 확인을 받은 뒤 백업과 함께 연결한다. `/Applications` 또는 `~/Applications`에 설치한 앱에서만 실행한다.
-- `Tokenly --disconnect claude|agy [--dry-run|--yes]`: Tokenly가 설치한 statusLine일 때만 원래 상태로 되돌린다. 사용자가 나중에 바꾼 설정은 바꾸지 않는다.
+- `Tokenly --disconnect claude|agy [--dry-run|--yes]`: Tokenly가 설치한 statusLine일 때만 연결 직전 상태로 되돌린다(없었으면 제거, 사용자 명령·0.1.0 Python 브리지 명령이었으면 원문 복원). 사용자가 나중에 바꾼 설정은 바꾸지 않는다. 연결 직전 값이 없는 이전 형식(v1) 기록은 연결 때 만든 백업으로 판정하고, 판정할 수 없거나 복원할 Python 파일이 없으면 아무것도 바꾸지 않고 중단한다.
 - 설정 화면은 터미널 연결 명령을 복사만 하고 CLI 설정 파일을 직접 바꾸지 않는다.
 - 기존 0.1.0 Python 브리지는 호환을 위해 앱에 남는다.
 
