@@ -611,7 +611,7 @@ final class TokenlyTests: XCTestCase {
         defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         XCTAssertEqual(settings.menuBarStyle, .numeric)
-        for style in [MenuBarDisplayStyle.bear, .compact, .numeric, .bear] {
+        for style in [MenuBarDisplayStyle.compact, .numeric] {
             settings.menuBarStyle = style
             XCTAssertEqual(ProviderDisplaySettings(defaults: defaults).menuBarStyle, style)
         }
@@ -625,9 +625,9 @@ final class TokenlyTests: XCTestCase {
     }
 
     @MainActor
-    func testOnlyThreeStylesAndRemovedStylesMigrateToNumeric() throws {
-        XCTAssertEqual(MenuBarDisplayStyle.allCases, [.numeric, .compact, .bear])
-        for removed in ["icon", "heart"] {
+    func testSupportedStylesAndRemovedStylesMigrateToNumeric() throws {
+        XCTAssertEqual(MenuBarDisplayStyle.allCases, [.numeric, .compact])
+        for removed in ["icon", "heart", "bear"] {
             let suite = TestDefaults.suite("Migration.\(removed)")
             let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
             defer { TestDefaults.discard(defaults, suite: suite) }
@@ -653,189 +653,6 @@ final class TokenlyTests: XCTestCase {
     }
 
     @MainActor
-    func testBearStylePersistsAndSwitchesBack() throws {
-        let suite = TestDefaults.suite("Bear")
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { TestDefaults.discard(defaults, suite: suite) }
-        let settings = ProviderDisplaySettings(defaults: defaults)
-        settings.menuBarStyle = .bear
-        XCTAssertEqual(ProviderDisplaySettings(defaults: defaults).menuBarStyle, .bear)
-        settings.menuBarStyle = .numeric
-        XCTAssertEqual(ProviderDisplaySettings(defaults: defaults).menuBarStyle, .numeric)
-        settings.menuBarStyle = .compact
-        XCTAssertEqual(ProviderDisplaySettings(defaults: defaults).menuBarStyle, .compact)
-    }
-
-    @MainActor
-    func testBearAssetsAreTheOptionBSetForEveryServiceAndScale() throws {
-        let manifest = try XCTUnwrap(BearAssets.manifest)
-        XCTAssertEqual(manifest.version, 2)
-        XCTAssertEqual(manifest.earScale, 1.05, accuracy: 0.0001)
-        for scale in [2, 3] {
-            let frame = try XCTUnwrap(BearAssets.frame(scale: scale))
-            XCTAssertEqual(frame.width, 21)
-            for service in ["codex", "claude", "antigravity", "stale"] {
-                let set = try XCTUnwrap(BearAssets.set(service: service, scale: scale), "\(service)@\(scale)x")
-                XCTAssertEqual(set.empty.width, 21 * scale)
-                XCTAssertEqual(Double(set.empty.height) / Double(scale), frame.height, accuracy: 0.01)
-                XCTAssertEqual(set.full.width, set.empty.width)
-                XCTAssertLessThan(set.fillTop, set.fillBottom)
-            }
-        }
-    }
-
-    @MainActor
-    func testBearCompositorFillsFromBottomAndKeepsZeroDistinctFromFull() throws {
-        let set = try XCTUnwrap(BearAssets.set(service: "codex", scale: 2))
-        let w = set.empty.width
-        let empty = rgba(set.empty), full = rgba(set.full)
-        let zero = rgba(try XCTUnwrap(BearGaugeCompositor.image(set, fraction: 0)))
-        let missing = rgba(try XCTUnwrap(BearGaugeCompositor.image(set, fraction: nil)))
-        let whole = rgba(try XCTUnwrap(BearGaugeCompositor.image(set, fraction: 1)))
-        let half = rgba(try XCTUnwrap(BearGaugeCompositor.image(set, fraction: 0.5)))
-        XCTAssertEqual(zero, empty)
-        XCTAssertEqual(missing, empty)
-        XCTAssertNotEqual(zero, whole)
-        XCTAssertNotEqual(full, empty)
-        func row(_ pixels: [UInt8], _ y: Int) -> ArraySlice<UInt8> { pixels[(y * w * 4)..<((y + 1) * w * 4)] }
-        for y in (set.fillBottom - 6)..<set.fillBottom { XCTAssertEqual(row(half, y), row(whole, y), "row \(y) below the level") }
-        for y in set.fillTop..<(set.fillTop + 6) { XCTAssertEqual(row(half, y), row(empty, y), "row \(y) above the level") }
-    }
-
-    func testGaugeDigitsAreDigitsOnly() {
-        XCTAssertEqual(GaugeDigits.text(89), "89")
-        XCTAssertEqual(GaugeDigits.text(54.4), "54")
-        XCTAssertEqual(GaugeDigits.text(0), "0")
-        XCTAssertEqual(GaugeDigits.text(9), "9")
-        XCTAssertEqual(GaugeDigits.text(100), "100")
-        XCTAssertEqual(GaugeDigits.text(nil), "?")
-    }
-
-    @MainActor
-    func testBearRowsAreWholePointsTwentyTwoHighWithTwelvePointSpacing() throws {
-        XCTAssertEqual(MenuBarGaugeRow.spacing, 12)
-        let bears = [MenuBarBearItem(percent: 54, name: "Codex", service: "codex"),
-                     MenuBarBearItem(percent: 89, name: "Claude", service: "claude"),
-                     MenuBarBearItem(percent: 100, name: "AGY", service: "antigravity")]
-        for dark in [false, true] {
-            let image = try XCTUnwrap(MenuBarBearImage.make(bears, dark: dark))
-            // 1 + 3 × 21 + 2 × 12 + 1
-            XCTAssertEqual(image.size, CGSize(width: 89, height: 22))
-            XCTAssertFalse(image.isTemplate)
-        }
-        XCTAssertEqual(try XCTUnwrap(MenuBarBearImage.make([bears[0]], dark: false)).size, CGSize(width: 23, height: 22))
-    }
-
-    /// Nothing (rim, shadow, outline, name) may touch the bitmap's border, where it would be clipped.
-    @MainActor
-    func testBearRowsStayInsideTheBitmap() throws {
-        let bears = [MenuBarBearItem(percent: 100, name: "Codex", service: "codex"),
-                     MenuBarBearItem(percent: 0, name: "Claude", service: "claude"),
-                     MenuBarBearItem(percent: 61, name: "AGY", service: "stale")]
-        for dark in [false, true] {
-            for image in [try XCTUnwrap(MenuBarBearImage.make(bears, dark: dark))] {
-                var rect = CGRect(origin: .zero, size: image.size)
-                let cg = try XCTUnwrap(image.cgImage(forProposedRect: &rect, context: nil, hints: nil))
-                let px = rgba(cg), w = cg.width, h = cg.height
-                func a(_ x: Int, _ y: Int) -> UInt8 { px[(y * w + x) * 4 + 3] }
-                XCTAssertLessThanOrEqual((0..<w).map { max(a($0, 0), a($0, h - 1)) }.max() ?? 0, 5)
-                XCTAssertLessThanOrEqual((0..<h).map { max(a(0, $0), a(w - 1, $0)) }.max() ?? 0, 5)
-            }
-        }
-    }
-
-    /// For every service: digits centred within ½pt on their bear, ≥ 2px clear of the
-    /// silhouette edge, clear of the name; names horizontal (ink only a cap-height tall), centred and
-    /// black or white.
-    @MainActor
-    func testBearDigitsCentredAndNamesHorizontal() throws {
-        for value in [0.0, 9, 54, 89, 100] {
-            let bears = try XCTUnwrap(MenuBarBearImage.icons(["codex", "claude", "antigravity", "stale"].map {
-                MenuBarBearItem(percent: value, name: $0 == "claude" ? "Claude" : $0 == "antigravity" ? "AGY" : "Codex", service: $0)
-            }, scale: 2))
-            try checkIcons(bears, column: MenuBarBearImage.frameWidth, label: "bear \(value)")
-        }
-    }
-
-    @MainActor
-    private func checkIcons(_ icons: [GaugeIcon], column: CGFloat, label: String) throws {
-        func clear(_ like: CGImage) throws -> CGImage {
-            try XCTUnwrap(CGContext(data: nil, width: like.width, height: like.height, bitsPerComponent: 8, bytesPerRow: 0,
-                                    space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage())
-        }
-        func only(body: Bool, digits: Bool, name: Bool) throws -> [GaugeIcon] {
-            try icons.map { i in
-                GaugeIcon(body: body ? i.body : try clear(i.body), bodyFrame: i.bodyFrame, numberCenter: i.numberCenter,
-                          nameCenterY: i.nameCenterY, text: digits ? i.text : "", digitSize: i.digitSize, style: i.style,
-                          name: name ? i.name : "", outlineTone: i.outlineTone)
-            }
-        }
-        func render(_ list: [GaugeIcon], dark: Bool = false) throws -> (pixels: [UInt8], w: Int, h: Int) {
-            let image = try XCTUnwrap(MenuBarGaugeRow.render(list, columnWidth: column, scale: 2, dark: dark, strongOutline: false))
-            return (rgba(image), image.width, image.height)
-        }
-        let bodies = try render(try only(body: true, digits: false, name: false))
-        let digits = try render(try only(body: false, digits: true, name: false))
-        let names = try render(try only(body: false, digits: false, name: true))
-        let darkNames = try render(try only(body: false, digits: false, name: true), dark: true)
-        let w = bodies.w, h = bodies.h
-        func alpha(_ p: [UInt8], _ x: Int, _ y: Int) -> UInt8 { p[(y * w + x) * 4 + 3] }
-        func inside(_ x: Int, _ y: Int) -> Bool { x >= 0 && y >= 0 && x < w && y < h && alpha(bodies.pixels, x, y) >= 128 }
-        for (index, icon) in icons.enumerated() {
-            XCTAssertFalse(icon.text.contains("%"))
-            let x0 = Int(MenuBarGaugeRow.columnX(index, columnWidth: column) * 2)
-            let xs = max(0, x0 - 6)..<min(w, x0 + Int(column * 2) + 6)
-            func box(_ p: [UInt8]) -> (minX: Int, maxX: Int, minY: Int, maxY: Int)? {
-                var r: (Int, Int, Int, Int)?
-                for y in 0..<h { for x in xs where alpha(p, x, y) > 25 {
-                    r = r.map { (min($0.0, x), max($0.1, x), min($0.2, y), max($0.3, y)) } ?? (x, x, y, y) } }
-                return r.map { (minX: $0.0, maxX: $0.1, minY: $0.2, maxY: $0.3) }
-            }
-            let d = try XCTUnwrap(box(digits.pixels), "\(label) \(icon.name) digits")
-            let n = try XCTUnwrap(box(names.pixels), "\(label) \(icon.name) name")
-            let cx = CGFloat(d.minX + d.maxX + 1) / 4 - CGFloat(x0) / 2, cy = CGFloat(d.minY + d.maxY + 1) / 4
-            XCTAssertEqual(cx, icon.numberCenter.x, accuracy: 0.5, "\(label) \(icon.name) digits x")
-            XCTAssertEqual(cy, icon.numberCenter.y, accuracy: 0.5, "\(label) \(icon.name) digits y")
-            for y in d.minY...d.maxY {
-                for x in d.minX...d.maxX where alpha(digits.pixels, x, y) > 25 {
-                    let clear = (-2...2).allSatisfy { dx in (-2...2).allSatisfy { dy in inside(x + dx, y + dy) } }
-                    XCTAssertTrue(clear, "\(label) \(icon.name): digit ink at (\(x),\(y)) within 2px of the edge")
-                }
-            }
-            XCTAssertGreaterThanOrEqual(n.minY - d.maxY - 1, 3, "\(label) \(icon.name): digits and name too close")
-            // Horizontal, unbent name: its ink is one cap height tall and as wide as the laid-out line.
-            let lineInk = CTLineGetBoundsWithOptions(GaugeDigits.line(icon.name, size: MenuBarGaugeRow.nameFontSize, color: .black),
-                                                     .useGlyphPathBounds)
-            XCTAssertLessThanOrEqual(CGFloat(n.maxY - n.minY + 1) / 2, lineInk.height + 1, "\(label) \(icon.name) name height")
-            XCTAssertEqual(CGFloat(n.maxX - n.minX + 1) / 2, lineInk.width, accuracy: 1, "\(label) \(icon.name) name width")
-            XCTAssertEqual(CGFloat(n.minX + n.maxX + 1) / 4 - CGFloat(x0) / 2, column / 2, accuracy: 0.5)
-            // Black on light bars, white on dark bars; never the service colour.
-            func meanRGB(_ p: [UInt8]) -> Double {
-                var sum = 0.0, count = 0.0
-                for y in n.minY...n.maxY { for x in n.minX...n.maxX where alpha(p, x, y) > 200 {
-                    // Pixels are premultiplied: divide by alpha to get the drawn colour.
-                    let i = (y * w + x) * 4, a = Double(p[i + 3])
-                    sum += Double(Int(p[i]) + Int(p[i + 1]) + Int(p[i + 2])) / 3 * 255 / a; count += 1 } }
-                return count > 0 ? sum / count : -1
-            }
-            XCTAssertLessThan(meanRGB(names.pixels), 10, "\(label) \(icon.name) light name")
-            XCTAssertGreaterThan(meanRGB(darkNames.pixels), 245, "\(label) \(icon.name) dark name")
-        }
-    }
-
-    /// The bear keeps the chosen "강함" outline; the name clears it locally.
-    @MainActor
-    func testBearRowKeepsTheStrongOutline() throws {
-        let items = [MenuBarBearItem(percent: 54, name: "Codex", service: "codex")]
-        let icons = try XCTUnwrap(MenuBarBearImage.icons(items, scale: 2))
-        let with = rgba(try XCTUnwrap(MenuBarGaugeRow.render(icons, columnWidth: 21, scale: 2, dark: false, strongOutline: true)))
-        let without = rgba(try XCTUnwrap(MenuBarGaugeRow.render(icons, columnWidth: 21, scale: 2, dark: false, strongOutline: false)))
-        var ring = 0
-        for i in stride(from: 3, to: with.count, by: 4) where without[i] < 10 && with[i] > 20 { ring += 1 }
-        XCTAssertGreaterThan(ring, 40)
-    }
-
     // MARK: Numeric style (5h large/high, 7d 20% smaller/lower, name below)
 
     func testNumericItemsMapFiveHourAndSevenDayWithHeartVisibilityRules() {
@@ -882,7 +699,6 @@ final class TokenlyTests: XCTestCase {
         XCTAssertEqual(layout.drop, 2.0, accuracy: 0.001)
         XCTAssertEqual(layout.separatorGap, 1.2, accuracy: 0.001)
         XCTAssertEqual(layout.columnSpacing, 16, accuracy: 0.001)
-        XCTAssertEqual(MenuBarGaugeRow.spacing, 12, "bear spacing must not follow the numeric style")
         XCTAssertEqual(layout.primaryWeight, .semibold)
         XCTAssertEqual(layout.secondaryWeight, .medium)
         XCTAssertEqual(layout.nameWeight, .semibold)

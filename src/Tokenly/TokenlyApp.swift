@@ -1,3 +1,5 @@
+import AppKit
+import Combine
 import SwiftUI
 
 /// Started by `TokenlyMain` (the process entry point) when no command-line mode was requested.
@@ -7,11 +9,22 @@ struct TokenlyApp: App {
     @StateObject private var displaySettings: ProviderDisplaySettings
     @StateObject private var externalStore: ExternalProviderStore
     private let settingsWindow = SettingsWindowManager()
+    /// System Monitor. Only the controller is observed here (it publishes on on/off changes); the store and the
+    /// process scanner it owns are observed by the system widget labels alone, so their 1 s updates never
+    /// re-evaluate this body or the AI labels.
+    @StateObject private var systemWidgets: SystemWidgetController
+    private let systemWidgetImages = SystemWidgetImageCache()
+    private let appearanceApplier: AppAppearanceApplier
+    private let processIcons = ProcessIconProvider()
+    private let quitMenu = MenuBarQuitMenu()
 
     init() {
         let display = ProviderDisplaySettings()
         _displaySettings = StateObject(wrappedValue: display)
+        appearanceApplier = AppAppearanceApplier(settings: display)
         _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display))
+        _systemWidgets = StateObject(wrappedValue: SystemWidgetController(store: SystemMonitorStore(),
+                                                                          processTop: ProcessTopStore()))
     }
 
     var body: some Scene {
@@ -19,36 +32,100 @@ struct TokenlyApp: App {
             UsageMenuView(store: store, externalStore: externalStore,
                           displaySettings: displaySettings, settingsWindow: settingsWindow)
                 .onAppear { store.start(); externalStore.start() }
-                .preferredColorScheme(displaySettings.appearance.colorScheme)
         } label: {
             let label = MenuBarPresentation.text(style: displaySettings.menuBarStyle,
                                                  snapshot: store.snapshot,
                                                  isRefreshing: store.isRefreshing,
                                                  hasError: store.errorMessage != nil)
-            if displaySettings.menuBarStyle == .bear {
-                MenuBarBearLabel(readings: HeartGauge.readings(store: store, externalStore: externalStore,
-                                                               settings: displaySettings))
-                    .onAppear { store.start(); externalStore.start() }
-            } else if displaySettings.menuBarStyle == .numeric {
+            if displaySettings.menuBarStyle == .numeric {
                 MenuBarNumericLabel(items: NumericGauge.items(store: store, externalStore: externalStore,
                                                               settings: displaySettings),
                                     fallback: label)
                     // Claude/AGY values are needed before the popover is first opened.
-                    .onAppear { store.start(); externalStore.start() }
+                    .onAppear { store.start(); externalStore.start(); quitMenu.install() }
             } else {
                 Text(label)
                     .monospacedDigit()
                     .accessibilityLabel("Tokenly, \(label)")
-                    .onAppear { store.start() }
+                    .onAppear { store.start(); quitMenu.install() }
             }
         }
         .menuBarExtraStyle(.window)
 
+        SystemMonitorMenuBarScenes(controller: systemWidgets, cache: systemWidgetImages, settingsWindow: settingsWindow,
+                                   processIcons: processIcons)
+
         Settings {
             TokenlySettingsView(loginItem: loginItem, displaySettings: displaySettings,
-                                externalStore: externalStore, usageStore: store)
+                                externalStore: externalStore, usageStore: store, systemWidgets: systemWidgets)
                 .background(SettingsWindowCapture(manager: settingsWindow))
-                .preferredColorScheme(displaySettings.appearance.colorScheme)
+        }
+        .commands {
+            CommandGroup(replacing: .appTermination) {
+                Button("Tokenly 종료") { NSApp.terminate(nil) }
+                    .keyboardShortcut("q", modifiers: [.command])
+            }
+        }
+    }
+}
+
+/// SwiftUI's window-style MenuBarExtra owns its status item and offers no right-click menu API.
+/// A local right-button monitor handles only this app's status-bar windows, before SwiftUI can open a popover.
+/// No global event monitor or accessibility permission is involved.
+@MainActor
+final class MenuBarQuitMenu: NSObject {
+    private var monitor: Any?
+
+    func install() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] event in
+            guard let self, let window = event.window, window.level == .statusBar,
+                  let view = window.contentView else { return event }
+            let menu = NSMenu()
+            let item = NSMenuItem(title: "Tokenly 종료", action: #selector(self.quit), keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+            NSMenu.popUpContextMenu(menu, with: event, for: view)
+            return nil
+        }
+    }
+
+    @objc private func quit() { NSApp.terminate(nil) }
+
+    deinit {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+    }
+}
+
+extension AppAppearance {
+    /// nil follows macOS.
+    var windowAppearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
+}
+
+/// Applies Tokenly's appearance setting app-wide through `NSApp.appearance`, the one place every window (settings,
+/// the AI popover, the system popovers) takes its appearance from.
+///
+/// It replaces `.preferredColorScheme` on the settings and AI popover content and the CPU popover's own
+/// `NSWindow.appearance`. Reproduced on 2026-10-28 with a SwiftUI `Settings` scene: `.preferredColorScheme` left
+/// black text on a dark window after light → system, and per-window `NSWindow.appearance` was overridden by SwiftUI
+/// (window dark, SwiftUI scheme light). Only `NSApp.appearance` kept background and text matched in every sequence
+/// tested (dark↔light, via system, open and reopened); menu bar labels kept following the menu bar.
+@MainActor
+final class AppAppearanceApplier {
+    private var subscription: AnyCancellable?
+
+    /// `apply` is injectable for tests; the app sets `NSApplication.shared.appearance`.
+    init(settings: ProviderDisplaySettings,
+         apply: @escaping @MainActor (NSAppearance?) -> Void = { NSApplication.shared.appearance = $0 }) {
+        // `$appearance` delivers the current value at once, so the stored setting applies at launch.
+        subscription = settings.$appearance.sink { mode in
+            MainActor.assumeIsolated { apply(mode.windowAppearance) }
         }
     }
 }
@@ -62,7 +139,7 @@ enum MenuBarPresentation {
         }
         let value: String
         switch style {
-        case .numeric, .bear:
+        case .numeric:
             value = full
         case .compact:
             value = UsageWindowKind.allCases.map { kind in
@@ -70,34 +147,6 @@ enum MenuBarPresentation {
             }.joined(separator: " · ")
         }
         return hasError ? "이전 · \(value)" : value
-    }
-}
-
-/// Bear style label. Uses the shared HeartGauge readings and hiding rules; names follow the menu bar's
-/// own appearance (the label's colorScheme), not the app theme, which only applies to the popover.
-struct MenuBarBearLabel: View {
-    let readings: [(provider: HeartGaugeProvider, reading: HeartGaugeReading)]
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        if readings.isEmpty {
-            Image(systemName: "heart")
-                .accessibilityLabel("Tokenly, 표시할 곰돌이 없음")
-        } else {
-            let items = readings.map {
-                MenuBarBearItem(percent: $0.reading.percent, name: $0.provider.shortTitle,
-                                service: BearAssets.service(for: $0.provider, stale: $0.reading.isStale))
-            }
-            Group {
-                if let image = MenuBarBearImage.make(items, dark: colorScheme == .dark) {
-                    Image(nsImage: image)
-                } else {
-                    Text(readings.map { "\($0.provider.shortTitle) \($0.reading.percentText)" }.joined(separator: " "))
-                }
-            }
-            .accessibilityLabel("Tokenly, " + readings.map { $0.reading.accessibilityText(for: $0.provider) }
-                .joined(separator: ", "))
-        }
     }
 }
 

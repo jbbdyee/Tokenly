@@ -23,6 +23,9 @@ CATEGORY="public.app-category.utilities"
 MIN_MACOS="14.0"
 REQUIRED_ARCHS="arm64 x86_64"
 LSREGISTER="${TOKENLY_TEST_LSREGISTER:-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister}"
+# Preserve generated intermediates when validating the release path without deleting temporary files.
+KEEP_INTERMEDIATES="${TOKENLY_KEEP_INTERMEDIATES:-0}"
+case "$KEEP_INTERMEDIATES" in 0|1) ;; *) echo "TOKENLY_KEEP_INTERMEDIATES must be 0 or 1" >&2; exit 64 ;; esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT_REAL="$(cd -P "$ROOT" && pwd -P)"
@@ -234,10 +237,10 @@ verify_app() {
     plutil -lint -s "$info" || fail "$label: Info.plist does not lint"
     ok "$label: Info.plist ($BUNDLE_ID $version, LSUIElement, utilities, macOS $MIN_MACOS+, AppIcon)"
     [ -s "$app/Contents/Resources/AppIcon.icns" ] && [ -s "$app/Contents/Resources/Assets.car" ] || fail "$label: AppIcon resources missing"
-    for r in ClaudeStatusLineBridge.py AGYStatusLineBridge.py BearGauge/bear-assets.json; do
+    for r in ClaudeStatusLineBridge.py AGYStatusLineBridge.py; do
         [ -s "$app/Contents/Resources/$r" ] || fail "$label: resource $r missing"
     done
-    ok "$label: AppIcon.icns, Assets.car, compatibility bridges, bear assets"
+    ok "$label: AppIcon.icns, Assets.car, compatibility bridges"
     if [ "$label" != "built" ]; then
         codesign --verify --deep --strict "$app" 2>> "$LOG" || fail "$label: codesign --verify failed"
         local sig; sig="$(codesign -dv "$app" 2>&1)" || fail "$label: codesign -dv failed"
@@ -250,7 +253,13 @@ verify_app() {
 # The executable's command-line modes must work from the package, using a throwaway home only.
 smoke_test() {
     local app="$1" label="$2" exe="$1/Contents/MacOS/Tokenly" out
-    rm -rf "$SMOKE"; mkdir -p "$SMOKE/.claude"
+    if [ "$KEEP_INTERMEDIATES" = 1 ]; then
+        SMOKE="$OUT/smoke-$label"
+        [ ! -e "$SMOKE" ] || fail "$label: temporary home already exists"
+    else
+        rm -rf "$SMOKE"
+    fi
+    mkdir -p "$SMOKE/.claude"
     run() { env -i HOME="$SMOKE" TOKENLY_HOME="$SMOKE" PATH=/usr/bin:/bin LANG=en_US.UTF-8 "$@"; }
     run "$exe" --help > /dev/null || fail "$label: --help failed"
     run "$exe" --status > /dev/null || fail "$label: --status failed"
@@ -260,7 +269,7 @@ smoke_test() {
     [ -s "$SMOKE/Library/Application Support/Tokenly/claude-quota.json" ] || fail "$label: --statusline stored nothing"
     [ "$(stat -f %Lp "$SMOKE/Library/Application Support/Tokenly/claude-quota.json")" = "600" ] || fail "$label: quota file not 0600"
     [ ! -e "$SMOKE/.claude/settings.json" ] || fail "$label: a dry run wrote settings"
-    rm -rf "$SMOKE"
+    [ "$KEEP_INTERMEDIATES" = 1 ] || rm -rf "$SMOKE"
     ok "$label: --help, --status, --connect --dry-run, --statusline (temporary home)"
 }
 
@@ -329,7 +338,7 @@ notes="$OUT/RELEASE-NOTES.md"
 } > "$notes"
 ok "release notes draft $(basename "$notes")"
 
-rm -rf "$DD"
+[ "$KEEP_INTERMEDIATES" = 1 ] || rm -rf "$DD"
 {
     echo
     echo "artifacts:"

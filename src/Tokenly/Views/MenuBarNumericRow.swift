@@ -24,17 +24,22 @@ enum MenuBarNumericImage {
         var secondaryWeight: NSFont.Weight = .heavy
         var separatorWeight: NSFont.Weight = .semibold
         var nameWeight: NSFont.Weight = .heavy
-        /// Space between service columns (numeric style only; bear/heart use MenuBarGaugeRow.spacing).
+        /// Space between service columns in the numeric style.
         var columnSpacing: CGFloat = 12
+        /// How far a lone number (AGY, the only column without a 7-day slot) sits above the middle of the
+        /// two-number band. Its name and every two-number column are not moved.
+        var singleNumberLift: CGFloat = 0
 
         /// The first numeric design (heavy, 0.7pt gaps, 1.5pt drop), kept for comparison.
         static let first = Layout()
         /// Chosen in Preview/Numeric/72 next to the menu bar's own text: lighter weights (5h Semibold,
         /// 7d and "/" Medium; names Semibold so 6pt stays legible), 1.2pt around "/", 2pt drop, and 16pt
         /// between services (the user's "more space" meant between Codex/Claude/AGY, not around "/").
+        /// AGY's number 0.5pt higher (2026-10-28, Doc/SYSTEM-MONITOR.md §7.3): centred in the band its top sat
+        /// 1pt below the Codex/Claude 5h digits and read as low.
         static let standard = Layout(drop: 2.0, separatorGap: 1.2, primaryWeight: .semibold,
                                      secondaryWeight: .medium, separatorWeight: .medium, nameWeight: .semibold,
-                                     columnSpacing: 16)
+                                     columnSpacing: 16, singleNumberLift: 0.5)
     }
 
     static let height: CGFloat = 22
@@ -93,7 +98,7 @@ enum MenuBarNumericImage {
         // AGY's one) shares the same 5h baseline and the names line up across the row.
         let v = vertical(layout)
         var runs = placed.map { run -> Run in
-            let baseline = item.hasSecondarySlot ? v.primaryBaseline + run.3 : v.singleBaseline
+            let baseline = item.hasSecondarySlot ? v.primaryBaseline + run.3 : v.singleBaseline - layout.singleNumberLift
             return Run(line: run.0, x: (width - digitsWidth) / 2 + run.1 - run.2.minX, baseline: baseline)
         }
         runs.append(Run(line: nameLine, x: (width - n.width) / 2 - n.minX, baseline: v.nameBaseline))

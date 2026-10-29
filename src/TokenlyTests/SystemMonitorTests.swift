@@ -104,23 +104,46 @@ final class SystemMonitorTests: XCTestCase {
         XCTAssertGreaterThan(memory.usedBytes, 0)
         XCTAssertTrue((0...1).contains(memory.usedFraction))
 
-        try await Task.sleep(nanoseconds: 200_000_000)
-        let second = await sampler.sample()
-        let cpu = try XCTUnwrap(second.cpu.value)
-        XCTAssertTrue((0...100).contains(cpu.totalPercent))
-        XCTAssertGreaterThanOrEqual(second.sampledAt, first.sampledAt)
+        // HOST_CPU_LOAD_INFO advances in bursts: on macOS 27 (Apple silicon) the counters were seen standing still for
+        // up to ~1 s, so a 200 ms interval often had no ticks at all. Wait longer than that, and retry only for the two
+        // reasons the tracker skips an interval by design; any other reason fails at once and is reported.
+        var reasons: [SystemMetricUnavailableReason] = []
+        var cpu: CPUUsage?
+        var previous = first
+        for _ in 0..<3 where cpu == nil {
+            try await Task.sleep(nanoseconds: 1_100_000_000)
+            let next = await sampler.sample()
+            XCTAssertGreaterThanOrEqual(next.sampledAt, previous.sampledAt)
+            previous = next
+            switch next.cpu {
+            case .available(let usage):
+                cpu = usage
+            case .unavailable(let reason):
+                reasons.append(reason)
+                guard reason == .noElapsedTicks || reason == .counterReset else {
+                    return XCTFail("CPU unavailable after a baseline: \(reason)")
+                }
+            }
+        }
+        if !reasons.isEmpty { print("MACH_CPU_SKIPPED_INTERVALS reasons=\(reasons)") }
+        let usage = try XCTUnwrap(cpu, "No CPU value in 3 intervals of 1.1 s; unavailable reasons: \(reasons)")
+        XCTAssertTrue((0...100).contains(usage.totalPercent))
     }
 
     func testRepeatedSamplingDoesNotLeakHostPortReferences() async throws {
         let host = mach_host_self()
-        defer { mach_port_deallocate(mach_task_self_, host) }
-        func sendRefs() -> mach_port_urefs_t {
+        XCTAssertNotEqual(host, mach_port_t(MACH_PORT_NULL))
+        defer { XCTAssertEqual(mach_port_deallocate(mach_task_self_, host), KERN_SUCCESS) }
+        func sendRefs(file: StaticString = #filePath, line: UInt = #line) -> mach_port_urefs_t {
             var refs: mach_port_urefs_t = 0
-            mach_port_get_refs(mach_task_self_, host, MACH_PORT_RIGHT_SEND, &refs)
+            XCTAssertEqual(mach_port_get_refs(mach_task_self_, host, MACH_PORT_RIGHT_SEND, &refs), KERN_SUCCESS, file: file, line: line)
             return refs
         }
+        let withoutSampler = sendRefs()
+        XCTAssertGreaterThan(withoutSampler, 0)
         var sampler: MachSystemSampler? = MachSystemSampler()
         let withSampler = sendRefs()
+        XCTAssertEqual(withSampler, withoutSampler + 1)
         for _ in 0..<1_000 { _ = await sampler?.sample() }
         XCTAssertEqual(sendRefs(), withSampler)
         sampler = nil
@@ -128,10 +151,12 @@ final class SystemMonitorTests: XCTestCase {
     }
 
     @MainActor
-    func testStoreBecomesReadyWithMachSnapshot() async throws {
-        let store = SystemMonitorStore(sampler: MachSystemSampler())
-        await store.refresh()?.value
-        guard case .ready(let snapshot) = store.state else { return XCTFail("Expected ready state, got \(store.state)") }
-        XCTAssertNotNil(snapshot.memory.value)
+    func testStoreSamplesMemoryWithMachSampler() async throws {
+        let store = SystemMonitorStore()
+        store.setEnabled(.memory, true)
+        defer { store.setEnabled(.memory, false) }
+        await store.pendingSample?.value
+        XCTAssertNotNil(store.memory?.value)
+        XCTAssertEqual(store.memoryHistory.points.count, 1)
     }
 }

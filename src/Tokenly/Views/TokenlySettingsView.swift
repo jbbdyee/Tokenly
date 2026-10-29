@@ -16,6 +16,7 @@ struct TokenlySettingsView: View {
     @ObservedObject var displaySettings: ProviderDisplaySettings
     @ObservedObject var externalStore: ExternalProviderStore
     @ObservedObject var usageStore: UsageStore
+    @ObservedObject var systemWidgets: SystemWidgetController
     @StateObject private var form = ServiceConnectionForm()
     private let adminKeys = KeychainAdminKeyStore()
 
@@ -29,6 +30,8 @@ struct TokenlySettingsView: View {
                 .tabItem { Label("메뉴 막대", systemImage: "menubar.rectangle") }
             themes
                 .tabItem { Label("테마", systemImage: "paintpalette") }
+            SystemMonitorSettingsView(controller: systemWidgets)
+                .tabItem { Label("시스템", systemImage: "cpu") }
         }
         .frame(width: 440, height: 300)
         .onAppear {
@@ -63,11 +66,11 @@ struct TokenlySettingsView: View {
         ScrollView {
           VStack(alignment: .leading, spacing: 10) {
             Text("AI 서비스").font(.headline)
-            Text("팝오버에 표시할 서비스를 선택합니다. 숫자형·곰돌이형 메뉴 막대도 이 선택을 따르고, 최소형은 항상 Codex만 표시합니다.")
+            Text("팝오버에 표시할 서비스를 선택합니다. 숫자형 메뉴 막대도 이 선택을 따르고, 최소형은 항상 Codex만 표시합니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Toggle("Codex", isOn: $displaySettings.showsCodex)
-            Text("연결 가능 · 숨겨도 5분 조회는 계속됩니다. 숫자형·곰돌이형 메뉴 막대에서는 함께 숨겨집니다.")
+            Text("연결 가능 · 숨겨도 5분 조회는 계속됩니다. 숫자형 메뉴 막대에서는 함께 숨겨집니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(codexConnectionStatus)
@@ -163,10 +166,7 @@ struct TokenlySettingsView: View {
             .pickerStyle(.radioGroup)
             HStack {
                 Text("미리보기").foregroundStyle(.secondary)
-                if displaySettings.menuBarStyle == .bear {
-                    MenuBarBearLabel(readings: HeartGauge.readings(store: usageStore, externalStore: externalStore,
-                                                                   settings: displaySettings))
-                } else if displaySettings.menuBarStyle == .numeric {
+                if displaySettings.menuBarStyle == .numeric {
                     MenuBarNumericLabel(items: NumericGauge.items(store: usageStore, externalStore: externalStore,
                                                                   settings: displaySettings),
                                         fallback: MenuBarPresentation.text(style: .numeric, snapshot: usageStore.snapshot,
@@ -186,9 +186,6 @@ struct TokenlySettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text("최소형은 Codex의 5시간·7일 잔여율만 한 줄로 표시합니다.")
                 .font(.caption).foregroundStyle(.secondary)
-            Text("곰돌이형은 Codex → Claude → AGY 순서로 3D 렌더링한 젤리 곰돌이 안에 잔여율 숫자를 표시하고, 서비스 이름은 아래 윤곽에 가로로 넣습니다. 이름은 메뉴 막대가 밝으면 검은색, 어두우면 흰색이며, 회색 곰돌이는 이전 데이터입니다. 표시를 끈 서비스와 유효한 데이터를 받은 적 없는 서비스는 숨깁니다.")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -203,6 +200,8 @@ struct TokenlySettingsView: View {
             .pickerStyle(.radioGroup)
             Text("팝오버와 설정 창에 적용됩니다. 메뉴 막대 자체는 macOS 외관을 따릅니다.")
                 .font(.caption).foregroundStyle(.secondary)
+            SystemWidgetLayoutPicker(controller: systemWidgets)
+            BatteryFramePicker(controller: systemWidgets)
         }
     }
 

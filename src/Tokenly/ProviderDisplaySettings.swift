@@ -2,13 +2,12 @@ import Foundation
 import SwiftUI
 
 enum MenuBarDisplayStyle: String, CaseIterable, Identifiable {
-    case numeric, compact, bear
+    case numeric, compact
     var id: String { rawValue }
     var title: String {
         switch self {
         case .numeric: "숫자형"
         case .compact: "최소형"
-        case .bear: "곰돌이형"
         }
     }
 }
@@ -85,7 +84,7 @@ final class ProviderDisplaySettings: ObservableObject {
         claudeExpanded = defaults.object(forKey: Self.claudeExpandedKey) as? Bool ?? false
         let storedStyle = defaults.string(forKey: Self.menuBarStyleKey)
         menuBarStyle = MenuBarDisplayStyle(rawValue: storedStyle ?? "") ?? .numeric
-        // v1.0 removed the icon and heart styles: a saved value that no longer exists becomes numeric,
+        // Removed styles (including bear) become numeric,
         // written back once so it does not linger. Other settings are untouched.
         if let storedStyle, MenuBarDisplayStyle(rawValue: storedStyle) == nil {
             defaults.set(MenuBarDisplayStyle.numeric.rawValue, forKey: Self.menuBarStyleKey)

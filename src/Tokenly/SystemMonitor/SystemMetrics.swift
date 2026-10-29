@@ -20,8 +20,15 @@ enum SystemMetricUnavailableReason: Equatable {
     case noElapsedTicks
     /// Values were internally inconsistent (e.g. used memory larger than physical memory, zero page size).
     case inconsistentValues
-    /// The Mach call failed with this kern_return_t.
+    /// The Mach/IOKit call failed with this kern_return_t (or, for BSD calls such as `proc_listpids`, this errno).
     case readFailed(kern_return_t)
+    /// This Mac has no battery (no AppleSmartBattery service, or it reports no installed battery).
+    case noBattery
+    /// The value is not provided on this Mac, or its unit and source cannot be verified.
+    case unsupported
+    /// Too few valid, fresh reads in an averaging window (GPU: fewer than 5 of ~10 per second, or a window dropped
+    /// because a stall or sleep made its reads stale).
+    case insufficientSamples
 }
 
 // MARK: - CPU
@@ -91,6 +98,34 @@ struct VMPageCounters: Equatable {
 /// used = app + wired + compressed, where app = anonymous (internal) − purgeable. File cache (external + purgeable) is reclaimable
 /// and excluded. This follows Activity Monitor's "Memory Used" breakdown, but Activity Monitor samples at its own time
 /// and may round differently, so the numbers can differ slightly. Swap is not included.
+/// macOS memory pressure, as the kernel reports it in `kern.memorystatus_vm_pressure_level`. The values are the
+/// public `DispatchSource.MemoryPressureEvent` levels (1 normal, 2 warning, 4 critical). Pressure is not usage: a
+/// Mac can be at 80 % used with normal pressure, or under pressure at lower use.
+enum MemoryPressure: Equatable {
+    case normal, warning, critical
+
+    /// Any other value is not guessed at (in particular never shown as normal).
+    static func from(level: Int32) -> SystemMetric<MemoryPressure> {
+        switch level {
+        case 1: .available(.normal)
+        case 2: .available(.warning)
+        case 4: .available(.critical)
+        default: .unavailable(.inconsistentValues)
+        }
+    }
+
+    /// One sysctl read (about 2 µs). A failure is `readFailed(errno)`; nothing is logged.
+    static func readSystem() -> SystemMetric<MemoryPressure> {
+        var level: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        guard sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &size, nil, 0) == 0 else {
+            return .unavailable(.readFailed(errno))
+        }
+        guard size == MemoryLayout<Int32>.size else { return .unavailable(.inconsistentValues) }
+        return from(level: level)
+    }
+}
+
 struct MemoryUsage: Equatable {
     let totalBytes: UInt64
     let usedBytes: UInt64
