@@ -376,12 +376,12 @@ struct UsageMenuView: View {
         return "초기화 \(CompactDateTime.string(for: date))"
     }
 
-    /// Remaining-limit bar colour. Healthy uses RAM's mint (UI colour harmony, 2026-10-29; was system green);
-    /// caution and low keep the system orange and red, so a warning never looks like the normal state.
+    /// Remaining-limit bar colour. Healthy uses RAM's mint (UI colour harmony, 2026-10-29; was system green; the
+    /// gradient is drawn over it), caution RAM's soft warning amber (was system orange), low keeps the system red.
     private func color(for level: RemainingLevel) -> Color {
         switch level {
         case .healthy: HarmonyPalette.mint(dark: colorScheme == .dark).color
-        case .caution: .orange
+        case .caution: HarmonyPalette.amber(dark: colorScheme == .dark).color
         case .low: .red
         }
     }
@@ -467,8 +467,8 @@ enum ResetCreditText {
 /// The healthy remaining-limit bars get RAM's mint → blue → lavender as a fill (UI colour harmony, 2026-10-29).
 /// The native linear `ProgressView` takes one tint colour only, so the bar itself is kept (size, track, rounding,
 /// position and accessibility unchanged) and the gradient is drawn over its fill: a capsule of the track's height,
-/// vertically centred, whose width is the remaining fraction, starting at the leading edge like the native fill. Caution (orange) and
-/// low (red) bars are left exactly as they were.
+/// vertically centred, whose width is the remaining fraction, starting at the leading edge like the native fill.
+/// Caution uses HarmonyPalette.amber; low retains the system red tint.
 extension View {
     func healthyGradientFill(percent: Double, level: RemainingLevel, dark: Bool) -> some View {
         overlay(alignment: .leading) {

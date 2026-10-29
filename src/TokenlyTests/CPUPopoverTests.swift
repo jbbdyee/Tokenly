@@ -322,6 +322,9 @@ final class CPUPopoverTests: XCTestCase {
         XCTAssertEqual(HealthyGradientFill.fraction(-5), 0)
         XCTAssertEqual(HealthyGradientFill.fraction(140), 1)
         XCTAssertEqual(HealthyGradientFill.fraction(.nan), 0)
+        // Caution bars: RAM's warning amber (dark) and a same-hue deeper shade (light); low stays system red.
+        XCTAssertEqual(HarmonyPalette.amber(dark: true), RAMPopoverView.pressureBadge(.available(.warning), dark: true).text, "#F4D39A")
+        XCTAssertEqual(HarmonyPalette.amber(dark: false), HarmonyPalette.hex(0xB37914))
         XCTAssertEqual(RemainingLevel(percent: 51), .healthy, "Thresholds unchanged")
         XCTAssertEqual(RemainingLevel(percent: 50), .caution)
         XCTAssertEqual(RemainingLevel(percent: 20), .low)
