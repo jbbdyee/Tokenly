@@ -1439,3 +1439,19 @@ XCTest 107개 3회 통과 후 빌드 번호 3으로 개발 확인 빌드를 만�
 - **설계 위험:** 팝오버 반복 열기·절전 복귀 직후 오류가 이어지면 Codex CLI 프로세스가 연속 실행될 수 있다. 기존 `UsageStore`의 진행 중 요청 방지는 유지하고, 조건부 경로에 마지막 성공 조회 60초 및 최근 조회 시도 60초 경계를 적용한다. 수동 버튼과 기존 300초 타이머는 이 제한을 받지 않는다.
 - **구현:** `UsageStore.refreshIfStale()`가 기존 `snapshot.fetchedAt`과 최근 시도 시각을 확인한다. AI 팝오버 `onAppear`와 `NSWorkspace.didWakeNotification`만 이 경로를 호출한다. 성공한 snapshot은 갱신 중 유지하고 실패해도 지우지 않는다. 시계·절전 알림 센터를 주입할 수 있어 실제 계정 접근 없이 테스트한다. Claude·AGY의 `ExternalProviderStore`는 변경하지 않는다.
 - **검증 상태:** 관련 `TokenlyTests` 61개와 전체 392개 통과(신규 4개). Debug·Release 빌드와 `git diff --check` 통과. 테스트는 60초 경계, 진행 중 중복, 실패 뒤 값 유지와 반복 시도 제한, 수동 우회, 절전 알림, 300초 타이머 경로를 다룬다. 실제 메뉴 막대 팝오버 재열기와 Mac 절전 복귀의 화면 동작은 아직 확인하지 않았다. 설치된 v0.2.0 앱은 이 변경 전 빌드다.
+
+## 67. 갱신 시각 문구와 Claude·AGY 조회 경로 검토 (2026-10-30)
+
+- Codex 팝오버·설정의 `마지막 성공`을 `마지막 갱신 시간`으로 바꾼다. 값은 기존 `UsageSnapshot.fetchedAt`이며 성공한 로컬 조회 시각이다. 실패 시 snapshot을 유지하므로 표시 시각도 유지된다. 서버 자체의 집계 시각은 알 수 없다. Claude·AGY는 로컬 상태줄의 `captured_at`을 뜻하는 `마지막 수신`을 유지한다.
+- `ExternalProviderStore`의 300초 타이머와 수동 버튼은 Claude·AGY의 로컬 JSON 파일을 다시 읽는다. `ClaudeSubscriptionProvider`·`AGYStatusLineProvider`는 각 파일의 `captured_at`이 15분을 넘으면 stale로 판정한다. CLI가 새 상태줄 이벤트를 만들지 않는 동안 파일 재읽기만으로 최신 서버 사용량을 얻을 수 없다.
+- 공식 문서 조사: Claude Code의 상태줄 JSON에는 조건부로 5시간·7일 한도가 실리고, 상태줄 실행은 로컬이며 모델 토큰을 쓰지 않는다([공식 문서](https://code.claude.com/docs/en/statusline)). Anthropic의 Usage and Cost API는 조직 API 사용량용이며 관리자 자격이 필요해 개인 Claude 구독 한도와 동일한 소스로 취급할 수 없다([공식 문서](https://platform.claude.com/docs/en/manage-claude/usage-cost-api)). AGY의 `/usage`는 백엔드를 새로 확인하는 공식 대화형 TUI 명령이지만, 현재 확인한 문서에는 Tokenly가 안정적으로 소비할 비대화형 JSON 출력 계약이 없다([공식 문서](https://antigravity.google/docs/cli/commands/usage)). 새 조회 방식은 구현하지 않는다.
+- **검증:** `CompactDateTime.lastRefreshText`의 문구 테스트를 추가했다. 전체 392개 자동 테스트, Debug·Release 빌드, `git diff --check` 통과. 실제 설치 앱의 새 문구와 절전 복귀 동작은 미검증이다.
+
+## 68. Codex 1분 자동 갱신 및 Claude·AGY 공식 조회 재조사 (2026-10-30)
+
+- **Codex 설계:** `UsageStore`의 타이머 간격을 300초에서 60초로 줄이고 타이머도 `refreshIfStale()` 조건을 사용한다. 팝오버 열림·절전 복귀와 동일한 마지막 성공 60초·최근 시도 60초 제한으로 동시 트리거를 막는다. 실패 상태의 자동 타이머는 최근 시도 후 300초가 지나야 재시도해 실패 반복 시 CLI 프로세스 실행을 제한한다. 팝오버·복귀는 기존 60초 제한, 수동 버튼은 제한 없는 즉시 조회를 유지한다. 진행 중 요청은 건너뛴다. 타이머가 최근 조회 때문에 건너뛰면 다음 tick에서 다시 확인하므로 정확히 60초마다 서버 응답을 받는다는 뜻은 아니다. Claude·AGY의 300초 로컬 파일 재읽기는 유지한다.
+- **설치 CLI 확인:** `claude --version`은 2.1.292, `agy --version`은 1.4.8이었다. 각각의 `--help`에 구독 한도를 비대화형 구조화 값으로 반환하는 전용 옵션·하위 명령은 확인되지 않았다. 실제 로그인 상태·인증 파일은 읽지 않았고, 모델 턴이나 `/usage`를 실행하지 않았다.
+- **Claude 공식 근거:** [상태줄 문서](https://code.claude.com/docs/en/statusline)는 `rate_limits.five_hour`·`seven_day`가 Pro/Max에서 첫 API 응답 이후에만 나타날 수 있고 각 창이 없을 수도 있다고 설명한다. `refreshInterval`은 상태줄 명령 재실행 옵션이며, 오래된 백엔드 한도를 새로 조회한다는 계약은 없다. [Usage and Cost API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api)는 조직 API 사용량용으로 개인 구독 한도와 구분한다.
+- **AGY 공식 근거:** [`/usage` 문서](https://antigravity.google/docs/cli/commands/usage)는 대화형 패널을 열 때 디스크·백엔드 쿼터를 새로 확인한다고 명시한다. [상태줄 문서](https://antigravity.google/docs/cli/statusline)는 `quota`의 `remaining_fraction`·`reset_time`을 JSON stdin 필드로 제공하지만 에이전트 상태 변화에 따른 이벤트다. [헤드리스 문서](https://antigravity.google/docs/cli/headless/)는 `-p`와 JSON 출력 형식을 설명하지만 `/usage`의 안정적인 쿼터 JSON 스키마는 제시하지 않으며, `/usage`를 stream-json 입력에 넣으면 이벤트 흐름이 깨진다고 명시한다. `agy -p /usage`의 안전성·출력 스키마·토큰 미소비 여부는 아직 실증하지 못했으므로 Tokenly 조회 경로로 채택하지 않는다.
+- **후속 검증:** 제공자 측의 문서화된 비대화형 사용량 조회 계약 또는 공식 상태줄의 백엔드 갱신 이벤트 계약이 확인되면, 격리 설정·가짜 자격·출력 스키마·무대화/무토큰 증거를 먼저 검증한 뒤 별도 설계 승인을 받는다. 기존 인증정보 추출·내부 API·쿠키 재사용은 제외한다.
+- **자동 검증:** 전체 393개 테스트 통과(이전 392개 + 타이머/팝오버 상호작용 1개). 60초 타이머가 최근 성공을 중복하지 않는지, 실패 뒤 300초 자동 재시도 제한과 수동 즉시 조회를 테스트했다. Debug·Release 빌드 및 `git diff --check` 통과. 실제 설치 앱 갱신과 절전 복귀, 장시간 CLI 실행 비용은 미검증이다.

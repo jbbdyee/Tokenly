@@ -77,7 +77,7 @@ struct RateLimitResetCredits: Equatable {
     }
 
     /// The backend count, minus any listed available credit whose expiry has already passed
-    /// (the snapshot can be up to five minutes old). Never negative.
+    /// (the snapshot may be old after a failed or delayed refresh). Never negative.
     func usableCount(now: Date = Date()) -> Int {
         let expired = (credits ?? []).filter { $0.status == .available && ($0.expiresAt.map { $0 <= now } ?? false) }.count
         return max(0, availableCount - expired)

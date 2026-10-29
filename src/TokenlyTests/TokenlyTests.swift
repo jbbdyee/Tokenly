@@ -873,6 +873,8 @@ final class TokenlyTests: XCTestCase {
         let later = calendar.date(from: DateComponents(year: 2027, month: 1, day: 3, hour: 9))!
         XCTAssertTrue(CompactDateTime.string(for: tomorrow, now: now, locale: locale, timeZone: zone).contains("내일"))
         XCTAssertTrue(CompactDateTime.string(for: later, now: now, locale: locale, timeZone: zone).contains("2027"))
+        XCTAssertEqual(CompactDateTime.lastRefreshText(for: tomorrow, now: now, locale: locale, timeZone: zone),
+                       "마지막 갱신 시간 \(CompactDateTime.string(for: tomorrow, now: now, locale: locale, timeZone: zone))")
     }
 
     @MainActor
@@ -982,18 +984,51 @@ final class TokenlyTests: XCTestCase {
     }
 
     @MainActor
-    func testFiveMinuteTimerPathRemainsIndependentOfAttentionCooldown() async {
+    func testOneMinuteTimerBacksOffFailuresAndManualBypassesIt() async {
         let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
-        let provider = SequenceProvider(responses: [.failure(.connection), .failure(.connection)])
+        let provider = SequenceProvider(responses: [.failure(.connection), .failure(.connection), .failure(.connection)])
         let store = UsageStore(provider: provider, now: { clock.date })
         if let task = store.refresh() { await task.value }
         XCTAssertNil(store.refreshIfStale(), "No success must still respect the recent attempt cooldown")
-        clock.date.addTimeInterval(300)
+        clock.date.addTimeInterval(59)
+        XCTAssertNil(store.refreshOnTimer(), "A timer tick near an attention attempt must not duplicate the CLI call")
+        clock.date.addTimeInterval(1)
+        XCTAssertNil(store.refreshOnTimer(), "A failed automatic request waits five minutes")
+        clock.date.addTimeInterval(239)
+        XCTAssertNil(store.refreshOnTimer())
+        clock.date.addTimeInterval(1)
         if let task = store.refreshOnTimer() { await task.value } else { XCTFail("Periodic refresh must still run") }
+        XCTAssertNil(store.refreshOnTimer(), "A second tick in the same minute must be skipped")
         let periodicCount = await provider.fetchCount
         XCTAssertEqual(periodicCount, 2)
-        XCTAssertEqual(UsageStore.automaticRefreshInterval, 300)
+        if let task = store.refresh() { await task.value } else { XCTFail("Manual refresh should bypass cooldown") }
+        let manualCount = await provider.fetchCount
+        XCTAssertEqual(manualCount, 3)
+        XCTAssertEqual(UsageStore.automaticRefreshInterval, 60)
+        XCTAssertEqual(UsageStore.failedAutomaticRetryInterval, 300)
     }
+
+    @MainActor
+    func testTimerDoesNotRepeatRecentPopoverSuccess() async {
+        let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let first = UsageSnapshot(providerName: "Codex", windows: [], fetchedAt: clock.date)
+        let second = UsageSnapshot(providerName: "Codex", windows: [], fetchedAt: clock.date.addingTimeInterval(60))
+        let third = UsageSnapshot(providerName: "Codex", windows: [], fetchedAt: clock.date.addingTimeInterval(120))
+        let provider = SequenceProvider(responses: [.success(first), .success(second), .success(third)])
+        let store = UsageStore(provider: provider, now: { clock.date })
+        if let task = store.refresh() { await task.value }
+        clock.date.addTimeInterval(60)
+        if let task = store.refreshIfStale() { await task.value } else { XCTFail("Expected popover refresh") }
+        clock.date.addTimeInterval(1)
+        XCTAssertNil(store.refreshOnTimer())
+        let afterPopover = await provider.fetchCount
+        XCTAssertEqual(afterPopover, 2)
+        clock.date.addTimeInterval(59)
+        if let task = store.refreshOnTimer() { await task.value } else { XCTFail("Expected next periodic refresh") }
+        let afterTimer = await provider.fetchCount
+        XCTAssertEqual(afterTimer, 3)
+    }
+
 }
 
 private final class FakeLoginItemController: LoginItemControlling {

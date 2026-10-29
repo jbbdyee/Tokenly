@@ -150,7 +150,7 @@ struct TokenlySettingsView: View {
             return usageStore.snapshot == nil ? "조회 실패" : "조회 실패 · 이전 데이터"
         }
         if let snapshot = usageStore.snapshot {
-            return "마지막 성공 \(CompactDateTime.string(for: snapshot.fetchedAt))"
+            return CompactDateTime.lastRefreshText(for: snapshot.fetchedAt)
         }
         return "조회 대기"
     }

@@ -40,7 +40,7 @@ struct UsageMenuView: View {
 
             Divider()
             HStack {
-                Text("5분마다 갱신 · 상태줄은 로컬 재읽기").font(.caption2).foregroundStyle(.secondary)
+                Text("Codex 1분 갱신 · 상태줄 5분 로컬 재읽기").font(.caption2).foregroundStyle(.secondary)
                 Spacer()
                 Button("종료") { NSApp.terminate(nil) }.buttonStyle(.borderless)
             }
@@ -142,7 +142,7 @@ struct UsageMenuView: View {
             if let snapshot = store.snapshot, !snapshot.windows.isEmpty {
                 ForEach(UsageWindowKind.allCases) { kind in codexWindow(kind, snapshot: snapshot) }
                 resetCreditsSection(snapshot.resetCredits)
-                Text("마지막 성공 \(CompactDateTime.string(for: snapshot.fetchedAt))")
+                Text(CompactDateTime.lastRefreshText(for: snapshot.fetchedAt))
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(CompactDateTime.fullString(for: snapshot.fetchedAt))
@@ -388,6 +388,12 @@ struct UsageMenuView: View {
 }
 
 enum CompactDateTime {
+    /// A successful local retrieval time, not the service's internal accounting time.
+    static func lastRefreshText(for date: Date, now: Date = Date(),
+                                locale: Locale = .current, timeZone: TimeZone = .current) -> String {
+        "마지막 갱신 시간 \(string(for: date, now: now, locale: locale, timeZone: timeZone))"
+    }
+
     static func string(for date: Date, now: Date = Date(),
                        locale: Locale = .current, timeZone: TimeZone = .current) -> String {
         var calendar = Calendar.current

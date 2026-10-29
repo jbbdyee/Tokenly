@@ -23,7 +23,8 @@ final class UsageStore: ObservableObject {
     private var wakeSubscription: AnyCancellable?
     private var lastAttemptAt: Date?
     static let attentionRefreshInterval: TimeInterval = 60
-    static let automaticRefreshInterval: TimeInterval = 300
+    static let automaticRefreshInterval: TimeInterval = 60
+    static let failedAutomaticRetryInterval: TimeInterval = 300
 
     init(provider: any UsageProvider, now: @escaping @MainActor () -> Date = Date.init,
          wakeNotifications: NotificationCenter = NSWorkspace.shared.notificationCenter) {
@@ -44,8 +45,8 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    /// Popover opens and wake notifications may be frequent. Keep the five-minute timer and manual refresh
-    /// independent; an attention refresh needs both old successful data and at least a minute since any attempt.
+    /// Popover opens, wakes and timer ticks may cluster. Conditional refresh needs both
+    /// old successful data and at least a minute since any attempt; manual refresh bypasses this gate.
     @discardableResult
     func refreshIfStale() -> Task<Void, Never>? {
         guard !isRefreshing else { return nil }
@@ -62,7 +63,13 @@ final class UsageStore: ObservableObject {
     }
 
     @discardableResult
-    func refreshOnTimer() -> Task<Void, Never>? { refresh() }
+    func refreshOnTimer() -> Task<Void, Never>? {
+        if errorMessage != nil, let lastAttemptAt {
+            let elapsed = now().timeIntervalSince(lastAttemptAt)
+            if elapsed >= 0 && elapsed < Self.failedAutomaticRetryInterval { return nil }
+        }
+        return refreshIfStale()
+    }
 
     @discardableResult
     func refresh() -> Task<Void, Never>? {

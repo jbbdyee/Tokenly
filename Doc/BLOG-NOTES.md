@@ -1,5 +1,13 @@
 # Tokenly 기술 블로그 자료
 
+## Codex 1분 조건부 갱신 재검증 (2026-10-30)
+
+- **설계 판단 [코드 확인]:** `UsageStore` 타이머는 60초마다 `refreshOnTimer()`를 호출한다. 마지막 성공 시각과 최근 시도가 모두 60초 이상 경과해야 조회한다. 팝오버 재열기와 절전 복귀는 같은 `refreshIfStale()`를 호출하므로 동시 트리거가 CLI 요청을 중복시키지 않는다. 진행 중 요청도 `isRefreshing`으로 차단한다. 타이머 tick은 조회 가능 여부를 확인하는 시점이므로 정확히 매분 성공한다는 뜻은 아니다.
+- **실패 정책 [코드·테스트 확인]:** 실패 후 자동 타이머 재시도는 마지막 시도부터 300초를 기다린다. 팝오버·복귀 조건부 경로의 최근 시도 제한은 60초이며 수동 버튼은 그 제한을 우회한다. 실패 시 snapshot과 `fetchedAt`을 지우지 않고 오류 표시와 이전 성공값을 함께 유지한다. `마지막 갱신 시간`은 로컬 성공 조회 시각이며 서버 집계 시각이 아니다.
+- **이번 세션 검증 [실행 결과]:** 샌드박스 내 첫 `xcodebuild test`는 SwiftUI 매크로 서버 malformed response로 컴파일에 실패했고, `simctl`은 CoreSimulatorService 연결 거부 및 로그 쓰기 거부를 보고했다. 승인된 승격 실행에서는 전체 XCTest 393개, Debug·Release 빌드, `git diff --check`가 통과했다. `testOneMinuteTimerBacksOffFailuresAndManualBypassesIt`, `testTimerDoesNotRepeatRecentPopoverSuccess`, 절전 알림·실패 후 이전 데이터 유지 테스트가 통과했다. 제품 회귀나 Xcode 설치 손상으로 단정할 근거는 없다.
+- **남은 제약:** 설치된 v0.2.0 앱에는 이 변경이 없다. 실제 앱의 팝오버 재열기·절전 복귀·수동 새로고침 표시 및 장시간 CLI 실행 비용은 이번 자동 검증으로 확인되지 않았다. Claude·AGY 수집 경로, RAM 계산식, 색상은 변경하지 않았다.
+- **📸 캡처 추천:** 후속 실제 앱 검증 시 새 빌드의 Codex 팝오버를 열어 `마지막 갱신 시간`과 실패 뒤 이전값 표시를 함께 기록한다. 시점은 성공 조회 직후와 실패 직후로 구분하고 계정·토큰·사용자 경로는 가린다. 이번 작업에서 캡처는 제작하지 않았다.
+
 ## 외부 사용량 불일치 제보: 증거가 없는 숫자를 고치지 않은 이유 (2026-10-29)
 
 - **확인:** 코드와 fixture 테스트에서 Codex의 `100 − usedPercent`, Claude의 `100 − used_percentage`, AGY의 `remaining_fraction × 100`과 버킷 최솟값 대표 표시를 확인했다. RAM 사용률은 `internal − purgeable + wired + compressor`를 물리 메모리로 나눈 값이다. 제보에는 서비스·같은 시각·계정 일치 여부·비교 지표가 없어 실제 불일치의 원인은 미확정이다.
