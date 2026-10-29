@@ -46,7 +46,7 @@ struct CodexUsageProvider: UsageProvider {
 
         var reader = JSONLineReader(handle: output.fileHandleForReading)
         try send(["method": "initialize", "id": 1,
-                  "params": ["clientInfo": ["name": "tokenly", "title": "Tokenly", "version": "0.1.0"]]],
+                  "params": ["clientInfo": ["name": "tokenly", "title": "Tokenly", "version": Self.clientVersion]]],
                  to: input.fileHandleForWriting)
         let initialized = try readResponse(id: 1, from: &reader, deadline: deadline)
         guard initialized["error"] == nil else { throw UsageProviderError.requestFailed }
@@ -80,6 +80,9 @@ struct CodexUsageProvider: UsageProvider {
         }
         throw UsageProviderError.timeout
     }
+
+    /// The app's own version for `clientInfo` (was a fixed "0.1.0" until 0.2.0), read from the bundle.
+    static let clientVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
 
     static func findCLI(environment: [String: String] = ProcessInfo.processInfo.environment,
                         isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }) -> URL? {

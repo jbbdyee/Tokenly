@@ -339,6 +339,13 @@ final class TokenlyTests: XCTestCase {
         }
     }
 
+    /// 0.2.0: the version Tokenly reports to `codex app-server` is the app's own version, not a fixed string.
+    func testCodexClientVersionIsTheAppVersion() throws {
+        let version = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
+        XCTAssertEqual(CodexUsageProvider.clientVersion, version)
+        XCTAssertNotNil(version.range(of: #"^\d+\.\d+\.\d+$"#, options: .regularExpression), version)
+    }
+
     func testCLIResolutionUsesPath() {
         let url = CodexUsageProvider.findCLI(environment: ["PATH": "/example/bin"],
                                             isExecutable: { $0 == "/example/bin/codex" })
