@@ -1,5 +1,7 @@
 # Tokenly 제품 사양 (가칭)
 
+> **현재 앱 상태(2026-10-28):** 이 문서의 곰돌이형 관련 절은 당시 디자인·검증 기록이다. Stage 6-6에서 메뉴 막대 스타일은 숫자형·최소형만 지원하고, 저장된 곰돌이형은 숫자형으로 전환한다. Stage 6-6B에서 전용 제품 코드·에셋을 삭제했으며 `Preview/Heart3D/` 제작 자료는 보존했다. 최신 System Monitor UI와 실기기 검증 상태는 `SYSTEM-MONITOR.md` 및 `HANDOFF.md`를 참조한다.
+
 ## 1. 개요와 목표
 
 Tokenly는 macOS 메뉴 막대에서 **여러 AI 서비스의 사용량과 잔여 한도**를 한곳에서 확인하는 독립적인 네이티브 앱이다. 사용자는 **Codex와 Google Antigravity(AGY)의 실제 한도 표시 성공**, 아코디언 팝오버 열림·AGY 접기/펼치기를 보고했다. AGY 최신 수신이 끊겼을 때의 새 안내 문구는 GUI 미검증이다. OpenAI API 연동은 보류 중이며 Claude 구독 한도와 Gemini는 자동 조회를 지원한다고 확정하지 않는다. AGY는 Gemini API나 Gemini CLI와 별도 서비스로 다룬다. Routine Scout의 코드·캐릭터·디자인·설정은 재사용하지 않는다. 이전에 확인한 수치는 앱에 고정하지 않는다.

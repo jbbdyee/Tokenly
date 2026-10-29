@@ -2,9 +2,11 @@
 
 앱에는 포함되지 않는 개발 기록입니다. 각 폴더의 `run*.sh`는 앱 소스를 읽기 전용으로 컴파일해 이미지를 만듭니다.
 
+바탕화면의 Tokenly 팝오버·간격 Preview 폴더 8개는 Stage 6-8C에서 대표 시안·실제 화면·측정 기록만 Workspace 로컬 보관소로 옮기고 원본을 휴지통으로 이동했다. 이 저장소의 `Preview/` 자료도 앱 빌드 산출물로 취급해 삭제하지 않는다. 현재 사용 여부와 과거 시안 여부는 아래 표를 따른다.
+
 | 폴더 | 내용 | 스크립트 상태 |
 |---|---|---|
-| `Heart3D/` | 3D 하트·곰돌이 렌더링, **앱 곰돌이 에셋 생성(`run-bear-b.sh` → `assets-b/`)**, 외곽선·숫자·이름 통합 시안 | `run-bear-b.sh`·`run.sh`·`run-bear.sh` 실행 가능. `run-gauge-rows.sh`·`run-numbers.sh`·`run-outline.sh`·`run-name-outline.sh`는 이후 제거·변경된 앱 API(하트 렌더러, `BearNumber`, `MenuBarBearRow`)를 써서 **현재 실행되지 않음**(결과 이미지는 보존) |
+| `Heart3D/` | 3D 하트·곰돌이 렌더링, **과거 앱 곰돌이 에셋 생성(`run-bear-b.sh` → `assets-b/`)**, 외곽선·숫자·이름 통합 시안. 현재 제품의 곰돌이형 코드·에셋은 Stage 6-6B에서 삭제 | `run-bear-b.sh`·`run.sh`·`run-bear.sh`는 시안 제작용. `run-gauge-rows.sh`·`run-numbers.sh`·`run-outline.sh`·`run-name-outline.sh`는 제거·변경된 앱 API를 써서 **현재 실행되지 않음**(결과 이미지는 보존) |
 | `Numeric/` | 숫자형 위계·굵기·간격 비교 | 실행 가능 |
 | `CodexResetCredits/` | Codex 재설정 권한 팝오버 오프라인 렌더(가짜 응답, 네트워크 없음) | 실행 가능 |
 | `ReadmeImages/` | README용 메뉴 막대 이미지(`Doc/images/`) | 실행 가능 |

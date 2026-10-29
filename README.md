@@ -78,7 +78,7 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 2. **AI 서비스** 탭에서 **Claude를 팝오버에 표시**, **AGY를 팝오버에 표시**를 켭니다.
    - AGY는 수신 파일이 생긴 뒤에만 켤 수 있습니다. 연결 후 AGY CLI를 한 번 사용한 다음 **연결 확인**을 누르세요.
    - Claude는 언제든 켤 수 있지만, 값은 연결 후 Claude Code 세션의 첫 응답부터 들어옵니다. **수신 확인**으로 수신 파일이 있는지 볼 수 있습니다.
-3. 숫자형·곰돌이형 메뉴 막대도 이 선택을 따릅니다. 최소형은 항상 Codex만 표시합니다. Codex를 숨겨도 5분 조회는 계속됩니다.
+3. 숫자형 메뉴 막대도 이 선택을 따릅니다. 최소형은 항상 Codex만 표시합니다. Codex를 숨겨도 5분 조회는 계속됩니다.
 
 공개 전 개발 빌드(`com.tokenly.app`)에서 옮겨 온 경우에도 설정이 이어지지 않으므로 같은 방법으로 다시 켭니다.
 
@@ -117,7 +117,10 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 ## 주요 기능
 
-- 메뉴 막대 스타일 3종: **숫자형(기본)**, **최소형**, **곰돌이형**
+- AI 메뉴 막대 스타일 2종: **숫자형(기본)**, **최소형**. 이전 곰돌이형 저장값은 숫자형으로 전환됩니다.
+- 독립적인 시스템 메뉴 막대 위젯 5개(CPU·RAM·Disk·GPU·배터리). 설정 → 시스템에서 각각 스위치로 켜고 끌 수 있습니다. 기본값은 모두 꺼짐입니다.
+- CPU·RAM·Disk·GPU·Battery 상세 팝오버. 배터리 온도는 문서화되지 않은 레지스트리 값을 이용하므로 정확도에 한계가 있습니다.
+- 활성화된 Tokenly에서 ⌘Q 종료, AI 팝오버의 기존 종료 버튼, 메뉴 막대 항목 우클릭 `Tokenly 종료`. 최신 Debug 앱에서 사용자가 세 종료 경로를 직접 확인했습니다.
 - 서비스별 표시 선택, 연결되지 않은 서비스 숨김, 오래된 데이터는 반투명/회색으로 구분
 - 팝오버 상세: 서비스별 5시간·7일(AGY는 버킷별) 잔여율과 초기화 시각, 마지막 수신 시각
 - Codex 상세에서 ChatGPT **사용 한도 재설정 권한**의 남은 횟수와 회차별 사용 기한 표시(읽기 전용)
@@ -127,19 +130,18 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 > 아래 이미지는 **앱의 실제 렌더링 코드로 생성한 이미지**이며, 메뉴 막대를 화면 캡처한 스크린샷이 아닙니다. 실제 스크린샷은 추후 추가합니다.
 
-| 숫자형 (기본) | 최소형 | 곰돌이형 |
-|---|---|---|
-| ![숫자형](Doc/images/menubar-numeric.png) | ![최소형](Doc/images/menubar-compact.png) | ![곰돌이형](Doc/images/menubar-bear.png) |
+| 숫자형 (기본) | 최소형 |
+|---|---|
+| ![숫자형](Doc/images/menubar-numeric.png) | ![최소형](Doc/images/menubar-compact.png) |
 
 - **숫자형:** 서비스마다 5시간 잔여율(크게·위)과 7일 잔여율(작게·아래), 그 아래 서비스 이름. AGY는 5시간/7일 창으로 나뉘어 오지 않으므로, 받은 버킷 중 가장 낮은 잔여율 하나만 표시합니다.
 - **최소형:** Codex의 5시간·7일 잔여율을 한 줄로 표시합니다.
-- **곰돌이형:** SceneKit으로 미리 렌더링한 3D 젤리 곰돌이가 잔여율만큼 차오르고, 안에 숫자, 아래 윤곽에 서비스 이름을 넣습니다.
 
 ## 사용 기술과 구조
 
 - Swift 5 · SwiftUI `MenuBarExtra` · AppKit(`NSImage`, `NSStatusItem` 라벨) · Core Graphics · Core Text
 - ServiceManagement(`SMAppService`, 로그인 항목) · Security(Keychain, 보류 중인 OpenAI API 연동용)
-- SceneKit(3D 곰돌이 에셋 제작, **앱 런타임에는 사용하지 않음**) · POSIX(`posix_spawn`, 명령줄 statusLine 브리지)
+- POSIX(`posix_spawn`, 명령줄 statusLine 브리지)
 - XCTest(호스트 앱 테스트)
 
 ```
@@ -149,7 +151,8 @@ AGY CLI ─────statusLine─▶ Tokenly --statusline agy ────▶
                                                                                  │
                      HeartGauge / NumericGauge (표시·숨김·stale 규칙, 대표값) ◀──┘
                                   │
-        MenuBarNumericRow · MenuBarGaugeRow(곰돌이) · 최소형 텍스트 ─▶ 메뉴 막대
+        MenuBarNumericRow · 최소형 텍스트 ─▶ AI 메뉴 막대
+        SystemMonitorStore ─▶ 시스템 위젯 5개 ─▶ 각 상세 팝오버
         UsageMenuView ─▶ 팝오버 상세(Codex 재설정 권한 포함)
 ```
 
@@ -159,9 +162,9 @@ AGY CLI ─────statusLine─▶ Tokenly --statusline agy ────▶
 | Codex 조회 | `src/Tokenly/Providers/CodexUsageProvider.swift` |
 | Claude·AGY 조회 | `src/Tokenly/Providers/ClaudeSubscriptionProvider.swift`, `AGYStatusLineProvider.swift`, `ExternalProviderStore.swift` |
 | 상태줄 브리지·연결 | `src/Tokenly/BridgeCommand.swift`, `StatusLineBridge.swift`, `StatusLineConnector.swift`(호환용 0.1.0 Python 브리지 `ClaudeStatusLineBridge.py`, `AGYStatusLineBridge.py`) |
-| 표시 규칙 | `src/Tokenly/Models/HeartGauge.swift`(이름은 초기 하트 시안에서 유래, 현재 숫자형·곰돌이형 공용), `NumericGauge.swift` |
-| 렌더링 | `src/Tokenly/Views/MenuBarNumericRow.swift`, `MenuBarGaugeRow.swift`, `BearGaugeView.swift`, `UsageMenuView.swift` |
-| 곰돌이 3D 에셋 제작 | `Preview/Heart3D/`(`HeartMesh.swift`, `BearModel.swift`, `BearExportB.swift`, `run-bear-b.sh`) → `src/Tokenly/Resources/BearGauge/` |
+| 표시 규칙 | `src/Tokenly/Models/HeartGauge.swift`(이름은 초기 하트 시안에서 유래, 숫자형의 표시·숨김 규칙에서 사용), `NumericGauge.swift` |
+| 렌더링 | `src/Tokenly/Views/MenuBarNumericRow.swift`, `UsageMenuView.swift`, `src/Tokenly/SystemMonitor/UI/`의 메뉴 막대·팝오버 뷰 |
+| 과거 곰돌이 시안 | `Preview/Heart3D/`에 제작·비교 자료 보존. 전용 앱 코드·에셋은 Stage 6-6B에서 삭제 |
 | 앱 아이콘 | `src/Tokenly/Assets.xcassets/AppIcon.appiconset/` ← 콘셉트 보드 D안에서 추출한 `Preview/AppIconConcepts/D-original-extracted/`(추출·검증 스크립트 `source/`) |
 
 ## 서비스별 연동 방식
@@ -193,18 +196,22 @@ scripts/release.sh                  # 개발 확인: Release universal 빌드 �
 scripts/release.sh --final 0.1.0    # 배포용: 깨끗한 작업 트리, Info.plist·CHANGELOG 버전 일치가 필요
 ```
 
-`release.sh`는 저장소 밖 `~/Developer/Tokenly-Workspace/TokenlyRelease.noindex/<버전>[-dev]/`(환경 변수 `TOKENLY_RELEASE_DIR`로 변경)에 ZIP, `.sha256`, 릴리스 노트 초안, `build-info.txt`(빌드 환경과 검증 결과)를 만듭니다. `TOKENLY_RELEASE_DIR`의 `~`·상대 경로·`..`·심볼릭 링크는 실제 절대 경로로 바꾼 뒤 저장소 안이면 거부합니다(`--print-output`은 결정된 경로만 보여 주고 아무것도 바꾸지 않음). 출력 폴더가 이미 있으면 빌드를 중단하므로 새 출력 위치가 필요하면 `TOKENLY_RELEASE_DIR`로 지정할 수 있습니다. `--replace`는 안전을 위해 비활성화되어 있으며 지정하면 오류로 중단합니다. 아키텍처(arm64·x86_64), 번들 ID, Info.plist(LSUIElement·유틸리티 카테고리·macOS 14·AppIcon), 리소스, 코드 커버리지 계측이 없는지(arm64·x86_64 실행 파일에 LLVM 프로파일 섹션 `__llvm_prf`가 없어야 함)는 빌드 직후·서명 직후·ZIP을 푼 뒤 세 번, 서명 식별자와 무결성, 명령줄 모드(임시 홈)는 서명 직후와 ZIP을 푼 뒤 두 번 검사합니다. 파일 시각은 HEAD 커밋 시각으로 고정합니다. 설치·커밋·태그·업로드는 하지 않습니다.
+**Stage 6-8B 개발 기록:** 곰돌이 제품 에셋 제거 후 남았던 `release.sh`의 옛 필수 리소스 검사는 Stage 6-8B에서 수정했습니다. 저장소 밖 임시 위치에서 개발용 universal Release ZIP의 빌드·서명·리소스·명령줄 스모크·압축 해제 후 내용 동일성·체크섬 검증이 통과했습니다. 실제 게시·설치 검증은 아닙니다. 아래 표의 배포 결과는 이전 버전의 기록입니다.
+
+`release.sh`는 저장소 밖 `$HOME/Developer/Tokenly-Workspace/TokenlyRelease.noindex/<버전>[-dev]/`(환경 변수 `TOKENLY_RELEASE_DIR`로 변경)에 ZIP, `.sha256`, 릴리스 노트 초안, `build-info.txt`(빌드 환경과 검증 결과)를 만듭니다. `TOKENLY_RELEASE_DIR`의 `~`·상대 경로·`..`·심볼릭 링크는 실제 절대 경로로 바꾼 뒤 저장소 안이면 거부합니다(`--print-output`은 결정된 경로만 보여 주고 아무것도 바꾸지 않음). 출력 폴더가 이미 있으면 빌드를 중단하므로 새 출력 위치가 필요하면 `TOKENLY_RELEASE_DIR`로 지정할 수 있습니다. `--replace`는 안전을 위해 비활성화되어 있으며 지정하면 오류로 중단합니다. 아키텍처(arm64·x86_64), 번들 ID, Info.plist(LSUIElement·유틸리티 카테고리·macOS 14·AppIcon), 리소스, 코드 커버리지 계측이 없는지(arm64·x86_64 실행 파일에 LLVM 프로파일 섹션 `__llvm_prf`가 없어야 함)는 빌드 직후·서명 직후·ZIP을 푼 뒤 세 번, 서명 식별자와 무결성, 명령줄 모드(임시 홈)는 서명 직후와 ZIP을 푼 뒤 두 번 검사합니다. 파일 시각은 HEAD 커밋 시각으로 고정합니다. 설치·커밋·태그·업로드는 하지 않습니다.
+
+정리·검증 작업에서 임시 홈과 DerivedData를 남기려면 `TOKENLY_KEEP_INTERMEDIATES=1`을 지정할 수 있습니다. 기본 배포 절차의 임시 파일 처리는 그대로입니다.
 
 - **설치본 앱 목록 보호:** Xcode는 빌드한 앱을 LaunchServices에 등록하고, 그 사본이 해제·삭제되면 같은 번들 ID의 설치본이 앱 목록에서 빠집니다. 그래서 Xcode 산출물은 임시 번들 ID(`io.github.jbbdyee.tokenly.release-build`)로 빌드하고, 배포할 사본의 Info.plist에서 그 문자열 하나만 정식 ID로 바꾼 뒤 서명합니다. 스크립트가 해제하는 등록은 출력 폴더 안의 임시 ID 레코드뿐이며, 정식 ID 레코드는 해제하지 않고 보고만 합니다.
 - **개인 경로 제거:** Release 실행 파일의 디버그 맵에는 개발자 홈 아래의 소스 경로와 DerivedData 경로가 들어 있습니다. 서명 전에 `strip -S`로 디버그 기호만 지우고(함수 기호는 유지), 실행 파일에 홈·저장소·DerivedData 경로가 없는지 검사합니다. 출력 폴더가 다르면 실행 파일의 UUID(와 서명)만 다르고 나머지는 같습니다.
 
 xcodebuild가 자동으로 만드는 스킴은 테스트 커버리지를 수집하도록 설정돼 있어 모든 빌드에 커버리지 계측(`CLANG_COVERAGE_MAPPING = YES`)이 들어갑니다. 계측된 실행 파일은 종료할 때 현재 폴더에 `default.profraw`를 쓰므로, Claude Code가 상태줄을 실행할 때마다 사용자의 프로젝트 폴더에 파일이 생깁니다. `release.sh`는 Release 빌드에 `CLANG_COVERAGE_MAPPING=NO ENABLE_CODE_COVERAGE=NO`를 지정해 계측을 끄고(`-enableCodeCoverage NO`는 `build`에서 쓸 수 없음), 위 검사로 확인합니다. Xcode·`xcodebuild`로 만드는 개발 빌드와 XCTest 커버리지 수집은 그대로입니다(`Doc/IMP-PLAN.md` 55절).
 
-마지막 확인(개발자 Mac, macOS 27.0.1, Xcode 27.1, Swift 6.4):
+개발 기록의 이전 배포 확인(개발자 Mac, macOS 27.0.1, Xcode 27.1, Swift 6.4)은 아래와 같습니다. **Stage 6-6B 소스**는 2026-10-28에 곰돌이 전용 파일 정리 후 전체 379개 자동 테스트와 Debug·Release 빌드가 통과했습니다. 이후 해당 Debug 앱에서 사용자는 CPU·RAM·Disk·Battery 좌클릭 팝오버, AI 좌·우클릭, 시스템 우클릭 종료 메뉴, 시스템 스위치 5개, Battery `최대 용량`·ⓘ, 숫자형·최소형, 다크·라이트·시스템 테마, 설정 재실행 복원, 기존 종료 버튼·우클릭 종료·⌘Q 종료를 직접 확인했습니다. 최신 Stage 6-7 디자인·0.85배 스위치가 반영된 Debug 앱에서는 시스템 팝오버 5개와 스위치의 **다크 계열 화면 디자인**을 사용자 시각 확인·승인했습니다. 이 빌드의 스위치 조작·VoiceOver·키보드·재실행 복원·라이트 테마는 별도 검증이 필요합니다. 전체 자동 테스트 380개와 Debug·Release 빌드는 Stage 6-8C에서 다시 통과했습니다. 과거 미커밋 상태는 당시의 기록이며 현재 GitHub 반영 여부는 원격 커밋 기록으로 확인해야 합니다. 자세한 범위는 `Doc/HANDOFF.md`를 참조하세요.
 
 | 항목 | 결과 |
 |---|---|
-| Debug·Release 빌드(arm64·x86_64, 2026-10-25) | 성공. 경고는 `BearGaugeView.swift:198`의 `let` 권고 1건 |
+| Debug·Release 빌드(arm64·x86_64, 2026-10-25) | 당시 성공. 곰돌이 렌더러는 Stage 6-6에서 타깃에서 제외 |
 | XCTest(2026-10-26) | 112개, 3회 반복 모두 통과(실패·건너뜀 0) |
 | 명령줄 연결·해제(임시 홈, Release 빌드, 2026-10-25) | 기존 statusLine 보존 연결 → 브리지 실행 시 기존 출력 그대로 표시·한도 저장 → 재연결은 변경 없음 → 해제 후 설정 파일이 연결 전과 바이트 단위로 동일 |
 | `release.sh` 개발 확인(2026-10-26, 계측 제거 후) | 모든 검사 통과(새 계측 검사 포함). 빌드 로그의 계측 플래그 0개, `__llvm_prf` 섹션 0개, 빈 폴더에서 명령줄 실행 후 `default.profraw` 생성 안 됨. ZIP 재현성은 2026-10-24에 **같은 출력 경로**에서 세 번 실행해 같은 SHA-256으로 확인. 출력 경로가 다르면 실행 파일 UUID(와 서명)가 달라져 SHA-256도 달라집니다(2026-10-26 확인) |
@@ -218,7 +225,7 @@ xcodebuild가 자동으로 만드는 스킴은 테스트 커버리지를 수집�
 | 다운로드한 ZIP의 Gatekeeper 첫 실행(새 사용자 계정·다른 Mac, G2) | **미검증**(0.1.0에서는 생략) |
 | 재부팅 후 자동 실행 | 미검증 |
 
-테스트는 Codex 응답 파싱, Claude·AGY 수신 파일 파싱과 만료, 표시·숨김·stale 규칙, 재설정 권한 계산, 스타일 저장·이전, 숫자형·곰돌이형의 크기·정렬·잘림(픽셀 단위), statusLine 브리지·연결·해제(임시 홈) 등을 다룹니다(`src/TokenlyTests/`). 테스트용 설정 도메인은 임시 폴더에 만들어 `~/Library/Preferences`에 파일을 남기지 않습니다.
+테스트는 Codex 응답 파싱, Claude·AGY 수신 파일 파싱과 만료, 표시·숨김·stale 규칙, 재설정 권한 계산, 스타일 저장·이전, 숫자형의 크기·정렬·잘림(픽셀 단위), System Monitor의 측정·표시, statusLine 브리지·연결·해제(임시 홈) 등을 다룹니다(`src/TokenlyTests/`). 테스트용 설정 도메인은 임시 폴더에 만들어 `~/Library/Preferences`에 파일을 남기지 않습니다.
 
 ## 향후 계획
 
