@@ -2,7 +2,17 @@
 
 `Doc/logs/`의 원본 성능 로그와 Workspace의 `.noindex` 보관소는 로컬 전용 자료다. 아래 절의 과거 미커밋·실행 PID·임시 경로는 당시 상태를 기록한 것이며 현재 Git·앱 상태는 별도 확인한다.
 
-최종 갱신: 2026-10-29 (Stage 6-14 릴리즈 문서·브랜치 운영 규칙, Claude)
+최종 갱신: 2026-10-29 (feature/ui-color-harmony 색상 검증·사용량 불일치 조사, Codex)
+
+## feature/ui-color-harmony 검증과 외부 사용량 불일치 조사 (2026-10-29, Codex)
+
+- **작업 시작 상태:** `feature/ui-color-harmony` / `d92858b`. 기존 미커밋 변경 7파일(주의 앰버·테스트·문서)과 미추적 `Doc/logs/`를 보존했다. 설치본 `/Applications/Tokenly.app`과 별도 색상 미리보기 앱은 실행 중이었으며 종료·교체하지 않았다. 색상 미리보기 번들 ID `dev.local.tokenly.colorpreview`, 표시 이름 `Tokenly 색상 미리보기`, AI 메뉴 막대 라벨에 `미리보기` 표식이 있다. Keychain 서비스와 Claude·AGY 수신 파일 경로는 임시 위치로 분리돼 있다. 이 앱의 실제 팝오버를 자동 조작하거나 보지는 못했다.
+- **색상 확인:** Codex·Claude·AGY 막대는 모두 `UsageMenuView.color(for:)`를 사용한다. 주의(잔여 21~50%)는 다크 `#F4D39A`, 라이트 `#B37914`; 여유(50% 초과)는 기존 민트→블루→라벤더 오버레이, 부족(20% 이하)은 시스템 빨강이다. 임계값·파서·측정 로직은 변경하지 않았다. 지정된 라이트 트랙 `#E8E8E8`에 대한 계산 대비는 두 앰버가 각각 약 1.17:1·3.03:1이다. 실제 창의 tint·재질·가독성은 미검증이며 macOS 14·15의 8pt 트랙 높이도 미검증이다.
+- **독립 자동 검증:** 전체 `/private/tmp/tokenly-color-harmony-verify.xcresult`에서 **388개 통과·실패/건너뜀 0**, Debug·Release 빌드 성공. 이전부터 있던 `RAMPopoverTests.swift:47` 불필요한 `try` 경고가 보였다. `git diff --check` 통과. 이번에는 코드 설명의 옛 '주의 주황 유지' 주석과 문서의 변경 전 픽셀 비교/대비 수치를 실제 변경 상태에 맞게 바로잡았다. 제품의 계산 코드는 수정하지 않았다.
+- **외부 사용량 제보 — 확인된 구현:** Codex는 `account/rateLimits/read`의 `rateLimitsByLimitId["codex"]`를 우선하고 없으면 `rateLimits`를 사용한다. `primary`·`secondary`를 위치만으로 5시간·7일이라고 단정하지 않고 `windowDurationMins`(300·10080)로 분류하며 `100 − usedPercent`를 잔여로 표시한다. Claude는 상태줄 `five_hour`·`seven_day`의 `used_percentage`를 같은 방식으로 변환하며 수신 후 15분 초과·이미 지난 초기화 시각을 최신값에서 제외한다. AGY는 각 `quota` 버킷의 `remaining_fraction × 100`을 표시하고 메뉴 막대 대표값은 버킷의 **최솟값**이다. Claude·AGY 조회 실패 시 이전 데이터는 별도 상태로 표시된다. RAM은 `(internal − purgeable) + wired + compressor`를 사용량으로, `external + purgeable`을 Cached Files로 계산한다. 이 값은 메모리 압박·프로세스 footprint·스왑과 서로 다른 지표다.
+- **원인 미확정:** 외부 제보에는 서비스·계정·비교 화면·시각·윈도우/버킷·두 값이 없다. Codex CLI 계정과 비교 계정 불일치, `codex` 버킷이 없을 때의 상위 `rateLimits` 대체, Claude/AGY 수신 지연·이전 데이터, AGY 대표 최저 버킷과 특정 버킷 비교, RAM 지표·측정 시각 차이는 **확인할 가설**이지 원인으로 확정하지 않았다. 실제 인증·계정 파일과 라이브 응답은 읽지 않았다. 증거가 모이기 전 계산식은 바꾸지 않는다.
+- **최소 진단 정보:** 서비스명, 비교한 공식 화면 이름, 두 화면의 같은 시각(시간대 포함)·값·사용/잔여 단위·5시간/7일 또는 버킷명, Tokenly의 '마지막 수신/성공' 시각과 '이전 데이터' 여부, 같은 계정인지 사용자가 확인한 결과를 요청한다. 계정 이름 대신 일치/불일치만 받고 토큰·쿠키·인증 파일·원본 응답은 요청하지 않는다. RAM은 비교한 Activity Monitor 항목명과 시각을 추가로 받는다.
+- **다음 단계:** 색상 미리보기 앱에서 실제 다크·라이트 주의 막대의 색·대비를 사용자 확인한다. 외부 사용량 제보의 위 최소 정보가 오면 민감정보를 제거한 재현 fixture로 조사하고, 결함이 확인되면 테스트를 먼저 만든다. 데이터 정확성 조사 기록은 색상 변경 커밋과 분리한다. `test`·`main` 병합, Push, 릴리즈는 진행하지 않았다.
 
 ## Stage 6-14 v0.2.0 발행 후 문서와 브랜치 운영 (2026-10-29, Claude)
 
