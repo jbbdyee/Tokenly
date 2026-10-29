@@ -1,5 +1,13 @@
 # Tokenly 기술 블로그 자료
 
+## Codex app-server 읽기 전용 초기화 실패의 분해 (2026-10-30)
+
+- **실측 조건:** 공식 CLI `0.164.0-alpha.11.1`을 자식 `sandbox-exec`에서 실행했다. 실제 사용자 홈 쓰기를 전부 차단하고 `.codex` 읽기만 허용했다. RPC 원문·인증값·계정·사용량은 출력하거나 저장하지 않았고, stderr는 메모리에서 민감한 줄을 제거한 뒤 오류 종류만 확인했다.
+- **확인된 첫 원인:** 기본 상태 위치의 app-server는 initialize 응답 전에 `failed to initialize sqlite state runtime under ~/.codex`로 종료 코드 1. `codex --version`은 같은 제한에서 실행됐다. 이는 CLI 파일 실행 실패나 인증 실패 판정이 아니라 SQLite 런타임 초기화 실패다.
+- **공식 설정 적용:** [Codex 설정 참조](https://learn.chatgpt.com/docs/config-file/config-reference)의 `sqlite_home`을 임시 디렉터리로 옮기자 SQLite 오류는 없어졌다. 그러나 다음 EPERM으로 여전히 종료했다. 실제 `CODEX_HOME`을 명시하면 해당 경로 정규화가 거부됐고, 홈 상위 경로 메타데이터 읽기를 열어도 일반 EPERM이 남았다. 두 번째 거부의 정확한 파일·syscall은 미확정이다.
+- **대조군:** 빈 임시 `CODEX_HOME`과 임시 `HOME`·`TMPDIR`·`sqlite_home`에서는 동일 app-server의 initialize가 성공했다. 이 결과는 임시 쓰기 저장소 설계가 가능함을 보여주지만 인증이 없어 서버 사용량을 조회하지 못한다. 인증 파일 복사·원본 수정·홈 쓰기 허용은 하지 않았다.
+- **남은 검증:** 실제 Codex 인증 재사용, 사용량 최초 성공 조회, 60초 자동 갱신과 마지막 성공 시각, 중복 프로세스, 실제 CLI 실행 비용 및 화면은 모두 미검증. 별도 EPERM의 경로를 안전하게 식별하기 전에는 제품 코드 수정이나 실계정 앱 실행을 진행하지 않는다.
+
 ## 실제 Codex CLI 인증 재사용 시도의 경계 (2026-10-30)
 
 - **설계 판단:** 기존 인증 파일을 복사하거나 열지 않고 공식 CLI가 스스로 읽도록 하되, 기존 사용자 홈 전체의 쓰기를 차단했다. `.codex` 읽기만 허용한 자식 샌드박스의 `codex --version`은 성공했다.

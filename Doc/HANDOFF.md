@@ -4,6 +4,14 @@
 
 최종 갱신: 2026-10-30 (Codex 조건부 사용량 갱신 구현·검증, Codex)
 
+## Codex app-server 권한 오류 조사 (2026-10-30, CLI 0.164.0-alpha.11.1)
+
+- 시작 상태: `feature/usage-refresh-label-and-sources`, HEAD `c62c874`; GPU 실측 로그 2개는 미추적 상태로 보존. 설치 앱·설정·Keychain·Codex 로그인 상태는 변경하지 않았다. CLI는 `/opt/homebrew/bin/codex`의 `0.164.0-alpha.11.1`로 앞선 기록의 `0.163.0-alpha.11`에서 달라졌다.
+- 실제 홈 쓰기 전부 차단, `.codex` 읽기 허용, 기본 SQLite 위치인 조건에서 `app-server --listen stdio://`는 initialize 응답 전 종료 코드 1로 실패했다. 민감한 줄을 제거한 stderr는 `~/.codex` 아래 SQLite state runtime 초기화 실패를 가리켰다. 따라서 **첫 번째 확인된 실패 위치는 SQLite 상태 DB 초기화**다. 로그인 유효성이나 네트워크 요청에는 도달하지 않았다.
+- [공식 설정 참조](https://learn.chatgpt.com/docs/config-file/config-reference)의 `sqlite_home`을 `/private/tmp/tokenly-codex-sqlite-20261030`으로 지정하면 이 구체적 오류는 없어졌지만, 다음 `Operation not permitted (os error 1)`로 여전히 initialize 전에 종료했다. `CODEX_HOME`을 실제 `.codex`로 명시하고 `HOME`·`TMPDIR`을 임시 경로로 바꾸면 `.codex` 정규화 단계가 거부됐다. 홈 상위 경로의 메타데이터 읽기만 허용해도 일반 EPERM이 남았다. **두 번째 실패의 정확한 syscall·경로는 미확정**이다. macOS 통합 로그는 Codex 거부 경로를 노출하지 않았고 `fs_usage`는 이 권한에서 실행되지 않았다.
+- 대조군: 실제 홈 접근을 차단한 채 빈 임시 `CODEX_HOME`, 임시 `HOME`·`TMPDIR`, 임시 `sqlite_home`을 쓰면 app-server `initialize`가 성공했다. 이는 app-server 실행 자체와 임시 SQLite 경로가 동작함을 보여주지만, 인증이 없는 홈이라 실제 사용량 조회 증거는 아니다. `log_dir`은 공식적으로 별도 지정 가능하나 plaintext 로그 가능성을 고려해 이번에는 사용하지 않았다.
+- 안전한 실계정 검증 환경은 **부분적으로만 준비**됐다. SQLite 쓰기는 임시 경로로 분리할 수 있지만 실제 `.codex`를 읽기 전용으로 사용하는 초기화는 성공하지 못했다. 인증 파일 복사·원본 수정·홈 쓰기 허용은 하지 않았다. 실제 사용량 최초 조회, 성공 후 60초 자동 재조회, 화면 시각·중복 요청은 미검증. 제품 코드 변경·새 빌드·XCTest 없음. 다음은 사용자 승인된 진단 환경에서 두 번째 EPERM의 경로를 비밀정보 없이 확인하는 일이다.
+
 ## 실제 Codex 인증 재사용 안전성 점검 (2026-10-30)
 
 - 브랜치 `feature/usage-refresh-label-and-sources`, HEAD `4bebea2`. 앞선 세션의 문서 6개 미커밋 변경과 GPU 원본 로그 2개를 보존했다. `/Applications/Tokenly.app`은 변경하거나 종료하지 않았다.
