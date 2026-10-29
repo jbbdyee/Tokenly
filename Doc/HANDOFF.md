@@ -2,7 +2,64 @@
 
 `Doc/logs/`의 원본 성능 로그와 Workspace의 `.noindex` 보관소는 로컬 전용 자료다. 아래 절의 과거 미커밋·실행 PID·임시 경로는 당시 상태를 기록한 것이며 현재 Git·앱 상태는 별도 확인한다.
 
-최종 갱신: 2026-10-29 (Stage 6-9C 자동 검증 중심 최종 안정화, Claude)
+최종 갱신: 2026-10-29 (Stage 6-13A v0.2.0 커밋·Push, Claude)
+
+## Stage 6-13A v0.2.0 최종 검토·커밋·Push (2026-10-29, Claude)
+
+- **사용자 직접 확인:** 사용자가 설치된 `0.2.0 (4)`의 실제 UI를 직접 조작했고 이상이 없다고 보고했다. 어떤 항목을 각각 확인했는지는 별도 기록이 없으므로 "사용자 보고"로만 남긴다(자동 테스트·자동 UI 검증 결과가 아님).
+- **검증 구분:** 자동 테스트 386개 통과 / 자동 UI 검증은 6-9C(격리 앱 메뉴 막대 표시·숨김·재실행 복원·`bear` 마이그레이션)와 6-12(설치본 메뉴 막대 표시·값 갱신) 범위만 / 사용자 직접 확인: 설치본 UI 조작 이상 없음 / **미검증 유지:** 키보드·VoiceOver 접근성, 로그인 항목 재승인·재로그인 자동 실행, AGY 신규 데이터 수신, OpenAI 키 저장 시 Keychain 재허용, 외부 배포(서명·공증).
+- **반영:** 6-10~6-12 문서 변경과 `0.2.0 (4)` 버전·Codex 클라이언트 버전 동기화를 커밋 2개로 `main`에 Push(해시는 Git 기록 참조). 태그·GitHub Release는 만들지 않았다.
+
+## Stage 6-12 v0.2.0 (4) 실제 설치와 업데이트 검증 (2026-10-29, Claude)
+
+- **상태:** 설치 **완료**, 실행 검증 **완료**, 설정 보존 검증 **완료**, AI 서비스 검증 **부분 완료**(Claude 실시간 수신·Codex 조회 확인, AGY는 데이터 읽기만), 팝오버·스위치 클릭 등 실제 UI **미검증**, 외부 배포 **보류**. 새 앱은 실행 중으로 유지했다. 커밋·태그·Release 변경 없음.
+- **사전 확인:** RC ZIP SHA-256(`d3986e8d…cc1e`) 일치, 앱 `0.2.0 (4)`·번들 ID·서명 유효, 격리(quarantine) 속성 없음(provenance만). 설치 전 앱 `0.1.0 (3)`.
+- **백업(저장소 밖, 소유자만 읽기):** `TokenlyRelease.noindex/backup-0.1.0-installed-20261029-115433/` — `Tokenly.app`(설치본 `ditto` 복사, 내용 해시 동일·서명 유효), `settings.plist`(`defaults export`, 키 22개)와 `settings-read-before/after.txt`, `data/`(Tokenly 데이터 폴더 6개 파일, `diff -r` 동일), `status-before/after.txt`(`--status`), `replaced/Tokenly.app`(교체하며 **옮긴** 원래 0.1.0, 백업 복사본과 동일), `rc-0.2.0-from-zip/`(설치에 쓴 검증된 ZIP 해제본). Keychain 비밀값과 Codex·Claude·AGY 인증 파일은 복사하지 않았다.
+- **종료:** PID 28707이 Tokenly Debug 빌드임을 확인한 뒤 AppleEvent 일반 종료, 약 1초 만에 종료, 다른 프로세스 영향 없음.
+- **설치:** 검증된 ZIP을 새로 풀어 RC와 내용 동일 확인 → 기존 `/Applications/Tokenly.app`을 백업 폴더로 이동 → 새 앱 `ditto` 복사. 설치본 = RC 내용, 서명 유효, `0.2.0 (4)`.
+- **실행:** `open`으로 실행, `/Applications/Tokenly.app/Contents/MacOS/Tokenly` 단일 프로세스, Gatekeeper 경고 없이 실행(로컬 생성 ZIP이라 격리 속성 없음), 새 크래시 리포트 없음, 60초 CPU 0.88% 코어.
+- **설정:** 업데이트 전후 `defaults read`·export 비교 **완전히 동일**(키 22개, 추가·삭제·변경 0). 시스템 위젯 저장값(켜짐·꺼짐), 표시 방식, 배터리 테두리, 메뉴 막대 스타일, 화면 모드, AI 서비스 표시·펼침 그대로. 신규 기본값이 적용되지 않았다(저장된 키가 우선).
+- **AI 서비스:** `--status` 전후 동일(Claude Code·AGY 모두 "연결됨", 상태 줄은 `/Applications/Tokenly.app` 경로를 그대로 사용해 재연결 불필요). 설치 후 Claude Code 세션의 상태 줄이 **새 실행 파일로** `claude-quota.json`을 갱신(권한 600 유지). Codex는 새로 실행한 앱의 메뉴 막대에 값이 표시됨(디스크 캐시가 없어 실시간 조회 결과). AGY는 기존 수신 데이터 표시만 확인(설치 후 AGY 세션 없음). OpenAI Admin 키는 Keychain에 없어 확인 대상 없음.
+- **시스템 모니터:** 메뉴 막대에 저장된 켜짐·꺼짐 설정 그대로 표시(새 기본값 미적용). 1분 간격 캡처에서 RAM 값 변화(갱신 확인). 메뉴 막대 항목 순서는 새 프로세스에서 macOS가 다시 배치했다.
+- **미검증:** 팝오버 열기·스위치 클릭·테마 전환·종료 버튼·키보드·VoiceOver(접근성 권한 없음), 로그인 항목의 재승인 필요 여부와 재로그인 자동 실행, AGY 실시간 수신, 실제 OpenAI 키 사용 시 Keychain 재허용 여부.
+- **복구 방법:** Tokenly 종료 → `/Applications/Tokenly.app`(0.2.0)을 옆으로 옮김 → 백업의 `replaced/Tokenly.app` 또는 `Tokenly.app`을 `/Applications/Tokenly.app`으로 `ditto` → 실행. 설정은 현재 값과 비교해 달라졌을 때만 `defaults import io.github.jbbdyee.tokenly <백업>/settings.plist`.
+
+## Stage 6-11 v0.2.0 (4) 준비와 개인 업데이트 사전 검증 (2026-10-29, Claude)
+
+- **상태:** 버전 변경·CHANGELOG·RC 생성 **완료**, 자동 검증 **완료**, 실제 UI(최종 빌드) **미검증**, RC **준비 완료**, 개인 설치 **대기**(승인 필요), 외부 배포 **보류**(서명·공증 없음). 미커밋(커밋·태그·Release 생성 안 함). v0.1.0 태그·GitHub Release·기존 Release 폴더는 그대로.
+- **버전 소스:** `src/Tokenly/Info.plist`의 `CFBundleShortVersionString`·`CFBundleVersion`만 실제 값이다(프로젝트 파일에 `MARKETING_VERSION` 등 없음, `release.sh`는 Info.plist를 읽음). `0.2.0`·`4`로 변경. 번들 ID·최소 macOS(14.0, `MACOSX_DEPLOYMENT_TARGET`)는 그대로. Codex `app-server`에 보내던 고정 `"0.1.0"`을 `CodexUsageProvider.clientVersion`(번들 버전)으로 바꾸고 테스트 1개 추가. 다른 `0.1.0` 문자열은 0.1.0 Python 브리지 형식을 가리키는 호환 코드라 그대로 둔다.
+- **CHANGELOG:** `[0.2.0] - 미출시 (빌드 4)` 추가(System Monitor 위젯·팝오버·기본값 정책·설정 보존, 테마 옵션, 종료 경로, 스타일 정리, release.sh 보호, 385→386 테스트, 미검증 항목). `[0.1.0]` 머리말의 "미발행"을 실제 발행일(2026-10-26 Pre-release)로 고쳤다.
+- **RC:** 깨끗한 로컬 clone(`2e7f832`)에 작업 트리 변경을 patch로 적용해 `scripts/release.sh`(개발 모드, 미커밋이라 final 불가)를 실행. 출력 `TokenlyRelease.noindex/rc-v0.2.0-build4/0.2.0-dev/`: `Tokenly-0.2.0-macOS-universal.zip`(3,040,068 B), `.sha256`, `RELEASE-NOTES.md`(개발 빌드 초안 표시, 0.2.0 변경 내용 포함), `build-info.txt`(commit `2e7f832` + dirty 7 paths), `stage/`·`unzipped/Tokenly.app`. SHA-256 `d3986e8d203e0abe9b1bbc5783b3b06c34d12b0c9787c39ecebc3071066bcc1e`.
+- **RC 검증:** `0.2.0 (4)`, `io.github.jbbdyee.tokenly`, macOS 14.0+, universal `x86_64 arm64`, 리소스·아이콘 포함, 디버그 심볼·빌드 경로·커버리지 계측 없음, ad-hoc 서명 유효(팀 ID 없음), ZIP 해제본 = 서명본, CLI 스모크(임시 HOME) 통과, 출력 폴더에 실제 번들 ID LaunchServices 등록 없음. Gatekeeper **rejected**, 공증 티켓 없음. 기존 `0.1.0/`·`final-build3/0.1.0/`·`rc-20261029-2e7f832/` ZIP 체크섬 일치(보존).
+- **자동 검증(저장소):** 전체 **386개** 통과(실패·건너뜀 0, 385 + 버전 테스트 1), Debug·Release 빌드 성공(둘 다 `0.2.0 (4)`), `git diff --check` 통과, Preferences Tokenly 파일 10개 그대로·테스트 임시 폴더 0개, 실제 설정·PID 28707 그대로.
+
+### 개인 앱 업데이트 사전 조사 (읽기만 함)
+
+- **실행 중:** PID 28707은 `/Applications` 설치본이 아니라 임시 폴더의 Debug 빌드(같은 번들 ID)다. `/Applications/Tokenly.app`은 `0.1.0 (3)`이며 실행 중이 아니다. 둘은 같은 설정 도메인·데이터 폴더를 쓴다.
+- **유지되는 것:** 설정 도메인 `io.github.jbbdyee.tokenly`(시스템 위젯 키 5개가 이미 저장돼 있어 새 기본값이 적용되지 않음), `~/Library/Application Support/Tokenly/`(quota·연결 기록·백업), Codex CLI 인증(앱 밖). Claude Code·AGY 상태 줄 명령이 모두 `/Applications/Tokenly.app/Contents/MacOS/Tokenly`를 가리키므로 **같은 경로에 교체하면** 재연결이 필요 없다(교체 중 몇 초는 호출 실패 가능).
+- **Keychain:** OpenAI Admin 키 항목(`io.github.jbbdyee.tokenly.openai.admin`)이 현재 없어 재허용 창 위험은 없다. 키를 저장해 둔 경우 ad-hoc 서명이 바뀌면 접근 허용을 다시 물을 수 있다.
+- **위험:** 같은 번들 ID 앱 두 개(Debug 28707 + 새 앱) 동시 실행 시 메뉴 막대 항목 중복·설정 동시 쓰기. 로그인 항목은 같은 경로·번들 ID라 유지될 것으로 보이나 서명 변경으로 시스템 설정에서 재승인이 필요할 수 있다(미확인). 로컬에서 만든 ZIP이라 격리(quarantine) 속성이 없어 첫 실행 Gatekeeper 차단은 없을 것으로 보인다(미확인).
+
+### 업데이트 절차 (다음 단계에서 승인 후)
+
+1. 확인: RC ZIP 체크섬(`shasum -a 256 -c`), 실행 중인 Tokenly 프로세스 목록.
+2. 백업: `ditto /Applications/Tokenly.app <TokenlyRelease.noindex>/backup-0.1.0-installed-<날짜>/Tokenly.app`, `defaults export io.github.jbbdyee.tokenly <백업 폴더>/settings.plist`, 데이터 폴더 `~/Library/Application Support/Tokenly`를 같은 백업 폴더로 `ditto`.
+3. 종료: Tokenly(Debug 28707 포함)를 일반 종료(우클릭 `Tokenly 종료` 또는 AppleEvent quit). 강제 종료는 하지 않는다.
+4. 교체: 기존 `/Applications/Tokenly.app`을 백업 폴더로 **옮긴 뒤**(덮어쓰기 금지) RC의 `unzipped/Tokenly.app`을 `ditto`로 `/Applications/Tokenly.app`에 복사.
+5. 실행·확인: 버전 `0.2.0 (4)`, 설정 내보내기와 비교, Codex·Claude·AGY 표시, 시스템 위젯 5개, 로그인 항목 상태, `--status`.
+6. 복구: Tokenly 종료 → 0.2.0 앱을 옆으로 옮김 → 백업한 0.1.0 앱을 `/Applications/Tokenly.app`으로 `ditto` → 실행. 설정이 손상된 경우에만 `defaults import`. 공개 ZIP(`final-build3/0.1.0/`, GitHub v0.1.0)도 그대로 있다.
+
+## Stage 6-10 최신 코드 Release Candidate (2026-10-29, Claude)
+
+- **기준:** `main` = `origin/main` = `2e7f832`. 작업 트리에는 미추적 `Doc/logs/`(GPU 원본 로그 2개, 보존)만 있다.
+- **기존 Release(보존, 변경 없음):** 워크스페이스의 `TokenlyRelease.noindex/`(저장소 밖, Git 비추적). 발행된 v0.1.0 Pre-release(2026-10-26, 태그 `v0.1.0` = `85fe894`)의 ZIP은 `final-build3/0.1.0/`의 `0.1.0 (3)` 산출물(빌드 커밋 `5fa3e9b`)과 크기·체크섬이 같다. `0.1.0/`은 이전 `0.1.0 (1)` final. 그 밖의 `rc-*`·`install-staging-*`·`lsfix-*`·`pathtest` 등은 당시 검증 폴더. `0.1.0/`·`final-build3/0.1.0/` ZIP 체크섬을 다시 확인해 일치했다. `/Applications/Tokenly.app`은 `0.1.0 (3)`(ad-hoc)이며 건드리지 않았다.
+- **방법:** 작업 트리가 미추적 로그 때문에 "dirty"이고 stash·clean은 금지라서, `2e7f832`를 저장소 밖 임시 폴더에 로컬 clone(깨끗한 트리)해 기존 `scripts/release.sh`를 **개발 모드**로 실행했다. `--final 0.1.0`은 태그 `v0.1.0`이 다른 커밋이라 쓸 수 없고 버전은 바꾸지 않았다. 출력은 새 폴더 `TokenlyRelease.noindex/rc-20261029-2e7f832/0.1.0-dev/`(기존 폴더가 있으면 스크립트가 멈추는 구조).
+- **RC 산출물:** `Tokenly-0.1.0-macOS-universal.zip`(3,039,132 B, 스크립트 기본 이름 — 발행된 0.1.0과 이름이 같으므로 혼동 주의)과 같은 바이트의 `Tokenly-0.1.0-rc-20261029-2e7f832-macOS-universal.zip`, 각 `.sha256`, `RELEASE-NOTES.md`(개발 빌드 초안 표시), `build-info.txt`. SHA-256 `c468ebff992efae35f189440191db5515220c75effc5d3780973d91be015c18f`.
+- **검증(스크립트 + 추가):** universal `x86_64 arm64`, 번들 ID `io.github.jbbdyee.tokenly`, `0.1.0 (3)`, macOS 14.0+, LSUIElement, AppIcon·Assets.car·브리지 스크립트 포함, 디버그 심볼 제거·절대 빌드 경로 없음·커버리지 계측 없음, ad-hoc 서명 유효(TeamIdentifier 없음), ZIP 해제본이 서명본과 바이트 동일, CLI 모드(`--help`·`--status`·`--connect --dry-run`·`--statusline`)를 임시 HOME에서 실행 성공, LaunchServices에 출력 폴더의 실제 번들 ID 등록 없음(빌드는 임시 ID로). `spctl` Gatekeeper 평가 **rejected**, 공증 티켓 없음 — 서명·공증 전에는 정상이다.
+- **실행하지 않은 것:** RC의 GUI 실행. 실제 앱과 번들 ID가 같아 같은 UserDefaults·Keychain·데이터 폴더를 쓰므로, PID 28707(같은 번들 ID의 Debug 빌드)과 동시에 띄우면 메뉴 막대 항목이 겹치고 설정을 함께 쓴다. 정적 검사와 임시 HOME CLI 실행으로 대신했다.
+- **설정·인증 보존 분석(코드 기준):** 설정 도메인 `io.github.jbbdyee.tokenly`, Keychain 서비스 `io.github.jbbdyee.tokenly.openai.admin`(OpenAI Admin 키), Codex는 로컬 CLI 인증을 그대로 사용, Claude·AGY는 상태 줄 브리지가 쓰는 `~/Library/Application Support/Tokenly/*-quota.json`을 읽는다. 업데이트해도 이 위치들은 그대로다. 시스템 위젯은 저장값이 없는 키만 새 기본값을 쓰므로, 시스템 모니터가 없던 0.1.0 사용자는 업데이트 후 CPU·RAM·Disk·Battery가 켜진 상태로 보이고 GPU는 꺼져 있다. ad-hoc 서명은 빌드마다 코드 해시가 달라 **Keychain 항목 접근 허용을 다시 묻는 창**이 뜰 수 있다(미확인).
+- **자동 검증(저장소):** 전체 385개 통과(실패·건너뜀 0), Debug·Release 빌드 성공, `git diff --check` 통과, Preferences Tokenly 파일 10개 그대로·테스트 임시 폴더 0개, 실제 설정·PID 28707 그대로.
+- **문서 불일치(수정 안 함, 결정 필요):** `CHANGELOG.md`의 0.1.0 항목이 아직 "미발행"이고 시스템 모니터 변경이 기록돼 있지 않다. RC와 발행본이 둘 다 `0.1.0 (3)`이다.
 
 ## Stage 6-9C 자동 검증 중심 최종 안정화 (2026-10-29, Claude)
 
