@@ -281,7 +281,103 @@ System Monitor(CPU·RAM·Battery·Disk·GPU) 개발 중의 기술적 근거를 �
 ### 9.3 RAM: 활동 모니터 기준과 압축 메모리
 
 - [확인] used = App(internal − purgeable) + Wired + Compressed(compressor가 차지한 물리 페이지). Cached Files는 회수할 수 있어 제외했다. 16 GiB Apple Silicon에서 페이지 수가 `vm_stat` 출력(wired 162,022 / compressor 360,056 / anonymous − purgeable 275,071 페이지 × 16 KiB)과 일치했다.
-- [추정] 활동 모니터와는 측정 시점·반올림 차이로 조금 다를 수 있다. 같은 순간에 나란히 비교하지는 않았다.
+- [과거 추정] 초기 검증 때는 같은 화면 비교가 없어 측정 시점·반올림 차이를 예상했다. 위의 사용자 제공 동일 캡처가 이 설명만으로는 부족함을 보여 준다.
+
+#### 별도 조사 주제: 세부 항목은 맞는데 전체 RAM만 다른 이유 (조사 종료·원인 미확정)
+
+1. **문제 발견 [사용자 제공 값]:** 동일 캡처에서 물리 메모리 양쪽 24GB, 활성 상태 보기/Tokenly 전체 18.00/16.59GB. 앱 9.30/9.31GB, 와이어드 2.73/2.73GB, 압축 4.55/4.55GB. Apple 세부값 합도 16.58GB다. 캡처 원본은 이번 조사에서 직접 확인하지 않았다.
+2. **가설 [미검증]:** 전체값의 분류 기준이 다르거나 세부 세 항목 밖의 영역이 있다. GB/GiB, 표시 반올림, 갱신 시점은 보조 가설이다. 특정 영역(GPU·커널 등)이나 Apple 내부 산식은 단정하지 않는다.
+3. **검증 [확인]:** `SystemMetrics.swift`의 `MemoryUsage.calculate`는 `(internal_page_count − purgeable_count + wire_count + compressor_page_count) × pageSize`를 사용한다. `MachSystemSampler.swift`는 `HOST_VM_INFO64`를 읽고, `RAMPopoverView.swift`는 같은 `usedBytes`를 전체값으로 표시한다. Apple 활성 상태 보기 [사용 설명](https://support.apple.com/en-lb/guide/activity-monitor/actmntr1004/mac)은 각 항목의 의미를 설명하지만 전체 계산식은 제시하지 않는다. [XNU vm_statistics.h](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/mach/vm_statistics.h)에서 speculative는 free에 이미 포함되며, [host.c](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/host.c)는 internal/external을 pageable 카운터에서 채운다. 이 코드만으로 Apple 앱의 전체 산식은 알 수 없다.
+4. **다음 안전 진단 [설계]:** 제보된 Mac에서 활성 상태 보기의 전체·앱·와이어드·압축·Cached Files와 Tokenly 화면을 동시에 캡처한다. 바로 전후에 `date -u '+%Y-%m-%dT%H:%M:%SZ'; vm_stat; sysctl -n hw.memsize`를 실행해 페이지 크기와 free·speculative·internal(Anonymous)·external(File-backed)·purgeable·wired·compressor 및 물리 용량만 기록한다. 가능하면 짧은 간격으로 2~3회 반복해 갱신 지연을 구분한다. 프로세스 목록·계정·인증 정보·환경변수는 수집하지 않는다. 분석은 원시 바이트 기준으로 `Tokenly used`, `Tokenly Cached Files=(external+purgeable)×pageSize`, `total−used−cached−free`를 각각 산출한다. 마지막 값은 **미분류 차이**일 뿐 Apple 사용량의 누락분이라고 부르지 않는다. speculative를 free에 다시 더하지 않는다.
+5. **원인·해결 [미확정]:** 같은 시점의 원시 카운터로 재현 가능한 계산 오류가 확인되면 먼저 반례 fixture 테스트를 추가한 뒤 최소 수정안을 제안한다. 서로 다른 지표라면 수치 보정 없이 Tokenly의 합산 기준과 활성 상태 보기 전체값과의 비교 한계를 UI 도움말에 밝히는 방안을 제안한다. 어느 경우에도 사용자 승인 전 RAM 계산식·UI는 변경하지 않는다.
+6. **회귀 테스트 [계획]:** 기존 `SystemMonitorTests.swift`의 페이지 수·오버플로 검증과 `RAMPopoverTests.swift`의 구성 합산 검증을 기준선으로 삼는다. 확정된 원인에 맞는 원시 카운터 fixture, 0/상한·중복 집계·단위 변환·표시 문구 테스트만 추가한다. 이번 조사에서 새 테스트나 실제 수정 전후 결과는 없다.
+
+**RAM-02 실측 [개발 Mac, 2026-10-29]:** 저장소 밖 `/private/tmp/tokenly_ram02_diagnostic.swift`가 `host_statistics64(HOST_VM_INFO64)`와 `host_page_size`, `ProcessInfo.physicalMemory`만 읽었다. macOS 27.0.1, 물리 17,179,869,184B(16GiB), 페이지 16,384B. UTC 05:50:36.484 / 37.494 / 38.500의 연속 3회에서 Tokenly 식 사용량은 14,095,466,496 / 14,116,896,768 / 14,169,833,472B, Cached Files **후보식**은 2,367,537,152 / 2,345,254,912 / 2,286,108,672B였다. 세부 합계는 매번 사용량과 정확히 같았다. `total−used−cached후보−free`는 603,373,568 / 597,016,576 / 595,607,552B(약 0.56GiB)였다. 이는 XNU 카운터 간 **잔차**이지 Apple 사용량의 누락분으로 확인된 값이 아니다. 제보 캡처의 Mac은 24GB로 이 개발 Mac과 다르며, 이번 3회에 대응하는 활성 상태 보기 GUI 값·Apple Cached Files 값은 없다. `ByteCountFormatter(.memory)`의 GB 표기는 이 환경에서 1024³B 기준으로 나타났으므로 표시 단위도 별도로 대조해야 한다. 제품 코드·UI·테스트는 변경하지 않았다.
+
+**실측 원시 카운터 (free에 speculative 포함, 페이지 수):** ① internal 222,458 / purgeable 0 / wired 201,134 / compressor 436,727 / external 144,503 / free 6,927 / speculative 1,879. ② 223,395 / 0 / 201,473 / 436,759 / 143,143 / 7,367 / 2,267. ③ 225,967 / 0 / 204,404 / 434,487 / 139,533 / 7,832 / 2,418. 프로세스·계정·파일·인증 자료는 수집하지 않았다.
+
+**RAM-02 추가 화면 증빙 [사용자 제공 표시값, 캡처 시각 미제공]:** 같은 화면의 16.00GB Mac에서 활성 상태 보기 전체 13.88GB / Tokenly 13.29GB(83%), 양쪽 앱 4.97GB·와이어드 2.94GB·압축 5.37GB, Apple Cached Files 2.05GB·스왑 5.85GB. 세부 표시값 합계는 13.28GB로 Tokenly 전체와 0.01GB 차이(표시 반올림 가능)지만 Apple 전체보다 0.60GB 낮다. 전체 표시 차이 0.59GB는 **이 화면에서 확인된 현상**이다. 원본 이미지·캡처 시각은 이번 조사에서 직접 확인하지 못했다. 스왑은 디스크 공간이므로 RAM 합계에 단순 가산하지 않는다. `16.00−13.88−2.05=0.07GB`는 표시값만의 산술 관계이며 Apple 산식의 증거가 아니다.
+
+**RAM-02 추가 원시 측정 [이 개발 Mac, UTC 06:02:37.502 / 38.512 / 39.517]:** `date -u`는 직전 06:01:40Z, `sysctl -n hw.memsize`는 17,179,869,184B, 별도 `vm_stat`는 16,384B 페이지·free 5,988·anonymous 256,524·purgeable 27·wired 206,871·compressor occupied 393,002·file-backed 147,480이었다. 이 명령들은 순차 실행이므로 서로 같은 순간의 샘플이 아니다. 이어서 같은 `HOST_VM_INFO64` 호출에서 읽은 3회 결과는 아래와 같다. 단위는 페이지 수 또는 원시 바이트다.
+
+| UTC 시각 | internal / purgeable / wired / compressor / external / free / speculative (페이지) | Tokenly used = 세부 합계 (B) | Cached Files 후보 (B) | total−used−cache후보−free (B) |
+|---|---|---:|---:|---:|
+| 06:02:37.502 | 264,014 / 0 / 199,046 / 384,458 / 157,246 / 6,955 / 1,877 | 13,885,734,912 | 2,576,318,464 | 603,865,088 |
+| 06:02:38.512 | 261,388 / 1,260 / 205,154 / 383,534 / 154,422 / 7,209 / 1,837 | 13,907,001,344 | 2,550,693,888 | 604,061,696 |
+| 06:02:39.517 | 256,430 / 8 / 214,049 / 381,250 / 152,135 / 7,858 / 1,852 | 13,954,596,864 | 2,492,710,912 | 603,815,936 |
+
+**가설 평가:** 세부 합산과 원시 카운터의 매핑은 이 3회에서 일치했다. 잔차는 약 0.604GB(십진)로 안정적이지만 캡처의 0.59GB와 시각이 연결되지 않아 동일 영역이라고 확정할 수 없다. `Cached Files` 후보도 같은 순간 Apple 2.05GB와 직접 비교하지 못했다. GB/GiB·1초 Tokenly 갱신·활성 상태 보기 갱신/반올림의 기여도도 미확정이다. Apple 전체 계산식·잔차의 정체·계산 오류 여부는 여전히 미확정이며 고정 보정값을 쓰지 않는다. 다음에는 캡처 UTC 시각을 포함해 원시 샘플 바로 전후 화면값을 짝지어 비교한다. 제품 계산식·UI는 수정하지 않았다.
+
+**동시 측정 준비 [완료, 이후 사용자 실행]:** 저장소 밖 `/private/tmp/tokenly_ram02_simultaneous.swift`를 `swiftc -typecheck`한 뒤 사용자에게 전달했다. 5초 준비 시간 뒤 1초 간격 12회, 각 회의 UTC·원시 페이지 카운터·물리 RAM·Tokenly 식 세부값/합계·Cached Files 후보·잔차를 바이트/십진 GB/이진 GiB로 출력한다. 이 준비 단계에서는 실행하지 않았고, 이후 사용자가 실행해 아래 결과를 제공했다.
+
+**RAM-02 12회 로그 분석 [사용자 실행 결과, UTC 06:12:35.528~46.572]:** 원본 `/private/tmp/tokenly-ram02-simultaneous.txt`의 12회 모두 물리 17,179,869,184B(16GiB), 페이지 16,384B. 표의 사용량·캐시는 GiB(1024³B), 잔차는 십진 GB(10⁹B)와 GiB를 병기했다. 매회 앱+와이어드+압축=Tokenly 식 사용량이다.
+
+| # | UTC 시:분:초 | Tokenly 식 GiB | Cached Files 후보 GiB | 잔차 GB / GiB |
+|---:|---|---:|---:|---:|
+| 1 | 06:12:35.528 | 13.508 | 1.774 | 0.604 / 0.563 |
+| 2 | 06:12:36.534 | 13.461 | 1.855 | 0.601 / 0.560 |
+| 3 | 06:12:37.539 | 13.498 | 1.831 | 0.601 / 0.559 |
+| 4 | 06:12:38.544 | 13.571 | 1.757 | 0.628 / 0.585 |
+| 5 | 06:12:39.550 | 13.518 | 1.793 | 0.627 / 0.584 |
+| 6 | 06:12:40.551 | 13.545 | 1.758 | 0.628 / 0.585 |
+| 7 | 06:12:41.556 | 13.531 | 1.786 | 0.629 / 0.586 |
+| 8 | 06:12:42.559 | 13.535 | 1.741 | 0.631 / 0.588 |
+| 9 | 06:12:43.560 | 13.606 | 1.726 | 0.630 / 0.587 |
+| 10 | 06:12:44.565 | 13.489 | 1.784 | 0.630 / 0.587 |
+| 11 | 06:12:45.570 | 13.572 | 1.734 | 0.630 / 0.586 |
+| 12 | 06:12:46.572 | 13.594 | 1.734 | 0.628 / 0.584 |
+
+**같은 화면 비교 [사용자 제공 표시값, 캡처 UTC 미확인]:** Apple 전체 14.12GB / Tokenly 13.49GB, Apple 세부 4.40+3.10+5.98=13.48GB, Tokenly 세부 4.41+3.10+5.98=13.49GB, Apple Cached Files 1.85GB. 표시 전체 차이 0.63GB. #10의 Tokenly 식 13.489GiB는 전체 표시 13.49에 수치상 가장 가깝지만 원시 세부 앱/와이어드/압축이 3.368/3.398/6.723GiB라 화면의 4.41/3.10/5.98과 맞지 않는다. #12는 사용량 13.594GiB, 세부 3.662/3.353/6.579GiB로 역시 화면값과 다르다. 12회 중 어느 샘플도 세부값을 동시에 재현하지 않으므로 화면과 특정 원시 샘플을 같은 시점의 값으로 연결할 수 없다. #8의 `used+잔차` 14.123GiB가 Apple 전체 14.12와 수치상 가까운 것도 공식 산식의 증거가 아니다.
+
+**가설 평가 [원인 미확정]:** 잔차는 0.601~0.631 **십진 GB**(0.559~0.588GiB), 사용량은 13.461~13.606GiB, 캐시 후보는 1.726~1.855GiB로 변했다. 이전 별도 3회 잔차 약 0.604GB와 이번 #1~3은 가까웠고, #4부터 약 0.628GB로 올라 안정됐다. 앞선 화면 전체 차이 0.59와 이번 0.63은 모두 **표시 GB**이며, 원시 잔차의 십진 GB와 단위를 확인하지 않고 숫자만 비교하면 안 된다. Tokenly `ByteCountFormatter(.memory)`는 이 환경에서 이진 단위를 GB로 표기했다. Apple 표시 단위·반올림·화면 갱신 시각은 아직 확인되지 않았다. [XNU vm_statistics.h](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/mach/vm_statistics.h)는 `speculative`가 free에 포함되고 `total_uncompressed_pages_in_compressor`는 압축 전 페이지 수라고 정의한다. [XNU host.c](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/host.c)가 `active`/`inactive`를 페이지 큐에서, internal/external을 pageable 분류에서 채우는 점을 보면 서로 독립된 잔차 항목처럼 더해서는 안 된다(코드에서의 추론). `HOST_VM_INFO64`에는 잔차와 직접 대응한다고 확인된 단일 필드가 없다. 메모리 예약·VM 관리 범주가 후보일 수 있지만 이 로그로 특정할 수 없다. Apple [활성 상태 보기 설명](https://support.apple.com/en-lamr/guide/activity-monitor/actmntr1004/mac)은 전체의 정확한 산식을 공개하지 않는다. 고정 보정값·RAM 계산식·UI 변경 없음.
+
+**다음 검증:** 원본 캡처에서 보이는 `SAMPLE #`와 UTC를 확인해 같은 프레임의 화면값을 특정한다. 그래도 세부 항목이 어긋나면 1초보다 빠른 화면 갱신을 단정하지 말고, 같은 구도의 짧은 연속 화면 기록으로 두 앱의 값 변화와 로그 시각을 짝짓는다. 캡처 ③(원인 확정 후 회귀 테스트)은 아직 필요하지 않다.
+
+**RAM-02 갱신 시점 코드 추적 [2026-10-29, 정적 검증]:** `SystemWidgetController.init`는 RAM 저장값이 ON이면 앱 시작 때 `SystemMonitorStore.setEnabled(.memory, true)`를 호출한다. Store는 CPU/RAM 공용 1초 타이머(허용 오차 0.1초)를 만들고 즉시 첫 Task를 시작한다. 이미 Task가 있으면 다음 tick을 건너뛴다. `MachSystemSampler.sample()`은 CPU tick을 읽고 `SystemSnapshot(sampledAt: Date(), ..., memory: readMemory())`를 반환한다. `readMemory()`에서 `HOST_VM_INFO64`를 읽어 즉시 `MemoryUsage.calculate`를 호출하므로 `sampledAt`은 RAM 읽기보다 조금 앞선 시각이다. Store는 Task 완료 후 메인 액터에서 `memory`를 게시하고, `RAMPopoverView`의 `@ObservedObject`가 다음 SwiftUI 렌더에서 그 값을 쓴다. Store는 RAM 읽기·게시 시각을 별도 저장하거나 팝오버에 표시하지 않는다. 팝오버의 열림/닫힘은 `ProcessTopStore`의 프로세스 TOP 5만 제어하고 전체 RAM 측정을 새로 시작하거나 멈추지 않는다. 팝오버 전용 세부값 캐시는 없으나 다음 게시 전까지 기존 `store.memory`가 유지된다. 읽기 실패는 `—`로 바꾸며, 위젯 OFF는 값을 지운다. 긴 Task·메인 루프 지연이 있다면 값이 오래 보일 여지는 있지만 그 발생은 이번 로그에서 확인되지 않았다. 메뉴 막대 숫자 이미지는 정수 퍼센트가 같으면 재사용하므로 GB 세부값 변화와 메뉴 막대 이미지 갱신을 혼동하지 않는다.
+
+**가설별 반례:** 12개 원시 샘플의 앱 메모리는 3.232~3.677GiB, 압축은 6.579~6.946GiB였다. 사용자 화면의 Tokenly 앱 4.41GB·압축 5.98GB는 이 범위 밖이며, 같은 화면의 전체 13.49GB와 수치상 가까운 #10도 세부값은 3.368/3.398/6.723GiB다. 0.01GB 표시 반올림으로 설명되지 않는다. 1초 갱신과 오래된 게시값은 **가능한 시점 차이 경로**지만, 화면이 어느 시점의 Store 샘플인지 현재 코드·로그로 증명할 수 없다. 원본 캡처에서 터미널의 UTC와 `SAMPLE #`가 보이는지 먼저 확인하고, 필요할 때만 짧은 화면 기록으로 변화 순서를 대조한다. 정확한 앱 내부 연결에는 UI를 바꾸지 않는 격리 Debug 빌드에서 RAM 읽기 직후와 Store 게시 직후의 UTC·집계 바이트만 기록하는 진단이 필요하다. 설치 앱·설정·제품 계산식·UI는 변경하지 않는다.
+
+**RAM-02 표시 시각 진단 설계 [준비, 추가 측정 전]:** 기존 캡처의 터미널에는 #11(06:12:45.570Z)·#12(06:12:46.572Z)가 보인다. 이는 화면이 그 시각 부근에 캡처됐다는 단서일 뿐, Tokenly 상세값이 두 원시 호출 중 하나에서 왔다는 증거가 아니다. #11의 앱/와이어드/압축은 3.528/3.340/6.703GiB, #12는 3.662/3.353/6.579GiB로 화면의 4.41/3.10/5.98GB와 일치하지 않는다. 터미널 출력 시각과 화면 렌더 시각도 별도로 계측하지 않았고, 캡처 원본의 메타데이터는 이 조사에서 확인하지 못했다. **가능한 설명**은 화면이 더 이전 Store 값이거나 독립 수집 스크립트와 앱의 위상이 다른 것, 캡처·로그 시점의 차이 등이다. 이 중 어느 것도 현재 증거로 확정되지 않았다.
+
+제품과 설치 앱을 건드리지 않는 **격리 Debug 복사본 진단안**: 저장소 밖 소스 복사본과 다른 번들 ID·UserDefaults 도메인·AI 수신 경로·Keychain 서비스로 빌드한다. 앱 이름과 메뉴 막대 라벨도 진단용으로 구분하고 실제 계정 조회·상태줄 연결은 비활성화한 것을 먼저 확인한다. Debug 복사본에만 일정한 `sampleID`를 부여하고 CPU/RAM 타이머 콜백(시작 또는 진행 중 Task 때문에 건너뜀), `MachSystemSampler`의 RAM `host_statistics64` 호출 직전/직후, `MemoryUsage.calculate` 완료, `SystemMonitorStore.apply` 직전/직후, RAM 팝오버가 새 Store 값을 관찰한 시점을 UTC와 단조 시계로 기록한다. 각 단계에 같은 ID와 앱/와이어드/압축/전체 원시 바이트를 남겨 연결한다. 실제 화면 반영은 SwiftUI 관찰 콜백만으로 증명되지 않으므로 같은 ID·값이 보이는 진단용 별도 화면 기록 또는 프레임 관찰 지점과 타임스탬프를 대조한다. 기존 RAM UI에는 진단 표식을 추가하지 않는다. 로그에는 시스템 메모리 수치·시각·ID만 넣고 계정·프로세스·경로·인증 정보는 넣지 않는다. 현재 진단 빌드·측정은 아직 실행하지 않았다.
+
+**판정 기준:** `tick`은 왔으나 `samplingTask != nil`이면 **건너뛴 tick**으로 직접 센다. tick 자체가 늦게 도착한 것은 timer tolerance/메인 런 루프 지연으로 따로 기록한다. `readEnd−readStart`는 Mach 호출 비용, `calcEnd−readEnd`는 계산 시간, `publish−calcEnd`는 Task 완료/메인 액터 게시 대기, `viewObserved−publish`는 SwiftUI 관찰 지연의 상한 후보로 나눈다. 화면 캡처 프레임에서 읽힌 세부값 세 개를 **동시에** 특정 `sampleID`의 표시 반올림값과 맞춰야 화면과 샘플을 짝지을 수 있다. 한 항목만 같거나 전체값만 비슷하면 연결 실패다. 화면에 보인 ID의 게시 시각과 캡처 시각의 차이로 값의 나이를 계산하고, 1초 주기보다 긴 공백이 실제 있는지 본다. 0.1초 timer tolerance만으로 1초 넘는 지연을 설명하지 않는다. Apple 화면은 별도 갱신 주기이므로 같은 프레임의 값도 같은 커널 호출이라는 뜻은 아니다. 다음 단계 측정이 필요할 때 짧은 동시 화면 기록과 위 진단 로그를 함께 수집한다. 이 단계에서는 실행하지 않고 사용자에게 방법을 안내한 뒤 결과를 기다린다. Apple 공식 산식·잔차 정체·계산 오류·실제 UI 지연은 계속 **미확정**이다.
+
+**격리 Debug 계측 준비 [2026-10-29, 실제 측정 전]:** `/private/tmp/tokenly-ram02-timing-src/src`에 제품 `src`의 별도 복사본을 만들고, 진단 앱 번들 ID `dev.local.tokenly.ram02timing`, 표시 이름 `Tokenly RAM-02 진단`, 별도 UserDefaults suite `dev.local.tokenly.ram02timing.settings`, 별도 Keychain 서비스 및 `TOKENLY_HOME` 경로로 분리했다. 임시 `TokenlyApp` 진입점은 RAM 팝오버·System Monitor만 생성하며 AI Store/Provider, 설정·로그인 항목, 상태줄 연결을 시작하지 않는다. 진단용 앱은 실제 사용자 앱과 다른 메뉴 막대 항목으로 나타난다. `@TaskLocal sampleID`가 Store Task에서 Mach 읽기까지 전달되고, 전용 로컬 로그 `/private/tmp/tokenly-ram02-timing-data/events.log`에 UTC 밀리초·단조 ns·원시 페이지·세부/전체 바이트 및 tick/skip/read/calculated/published/viewObserved를 기록하도록 임시 복사본에만 계측했다. View 관찰 이벤트는 화면 픽셀 출력 시각이 아니므로 실제 화면과의 연결은 후속 짧은 화면 기록에서 세부값을 대조해야 한다. 원본 저장소의 Swift·RAM 계산식·UI는 수정하지 않았다.
+
+**자동 검증:** 격리 Debug 빌드 성공. 격리 복사본의 `SystemMonitorStoreTests` 11개 통과(기존 10개 + 진단용 가짜 샘플 ID/건너뛰기 테스트 1개). 별도 검증기 `/private/tmp/tokenly_ram02_verify_timing.py --self-test`는 **가짜 데이터만** 사용해 이벤트 순서·ID·건너뛰기·시간차·세부 합계 일치를 통과시켰고 불일치를 거부했다. 실제 Mach 호출, 실제 SwiftUI 렌더링 및 화면 표시 지연은 아직 실행·검증하지 않았다. 빌드 첫 시도는 Xcode 모듈 생성의 샌드박스 오류로 실패했으며 허용된 별도 빌드로 성공했다. 후속 격리 테스트 첫 시도는 임시 진입점에서 테스트가 참조하는 `AppAppearanceApplier` 정의를 빠뜨려 컴파일 실패했고, 임시 복사본에 원본 보조 정의를 추가한 뒤 통과했다. `RAMPopoverTests.swift:47`의 불필요한 `try`는 기존 경고다. 사용자 실행용 `/private/tmp/tokenly_ram02_run_timing.sh`는 문법·번들 ID 검사 후 앱을 직접 실행하도록 준비했지만 **실행하지 않았다**. 설치 앱·인증·기존 설정은 건드리지 않았다. 후속 측정에서 로그 검증기는 `python3 /private/tmp/tokenly_ram02_verify_timing.py /private/tmp/tokenly-ram02-timing-data/events.log`로 실행한다.
+
+**격리 UI 표시 후속 [2026-10-29, 실행 결과]:** 사용자가 초기 진단 앱의 메뉴 막대 아이콘을 찾지 못해 상태를 재확인했다. 초기 격리 앱 PID 94549는 실행 중이고 Mach 읽기·Store 게시 로그가 계속 있었으므로 앱 시작 실패는 아니었다. 그 시점에 메뉴 막대 항목이 실제로 화면에 보였는지는 접근성 권한이 없어 확인하지 못했고, 기존 SwiftUI `MenuBarExtra`가 왜 찾기 어려웠는지도 확정하지 않는다. 격리 복사본만 `NSStatusBar.system.statusItem`의 명시적 `RAM-02` 텍스트 항목으로 바꾸고, 메뉴 막대 공간과 무관하게 RAM 화면을 보여주는 별도 진단 창을 추가했다. 새 빌드 `/private/tmp/tokenly-ram02-timing-build-v3/Build/Products/Debug/Tokenly.app` PID 96645에서 `status_item_created button=1`, `diagnostic_window_opened`, 매초 `view_observed`가 기록됐다. Core Graphics 창 목록에서 `RAM-02 진단 — 격리 앱` 창의 `onscreen=1`, 위치 (735,33), 크기 340×334를 확인했다. 같은 실행의 로그 검증기는 sampleID·계산/게시/View 바이트 일치 검사에 통과했다. 이는 **격리 진단 창의 Store→View 관찰 경로**가 동작한다는 증거이며, 픽셀 표시 지연이나 원래 설치 앱과 Apple 전체값 차이의 원인 증거는 아니다. 이전 격리 앱만 경로 확인 후 정상 종료하고 설치 Tokenly·색상 미리보기 앱은 유지했다. 기존 실행 로그는 삭제하지 않고, 검증기가 마지막 실행의 `tick id=1`부터 분석하게 했다.
+
+**RAM-02 화면 녹화와 계측 로그 대조 [2026-10-29, 실제 격리 앱]:** 사용자가 제공한 로컬 MOV(생성 UTC 07:16:45, 길이 26.283초, 2144×1002)를 열어 활성 상태 보기와 격리 RAM 창을 직접 확인했다. 원본 MOV에는 프로세스명·사용자 식별 정보가 보여 공개 저장소에 복사하지 않았다. 로그의 같은 시간대 sampleID 311~336은 26개 모두 tick→Mach 읽기→계산→Store 게시→View 관찰이 완결됐고, `tick_skipped` 0건, Mach 오류 0건, 계산/게시/View 바이트 불일치 0건이다. tick 간격 25개는 0.9972~1.0034초(중앙값 1.0000초). 아래는 5초 간격 대표 프레임의 표시값을 로그의 네 세부/전체 값과 맞춘 결과다. 화면 영상 프레임과 View 콜백의 정확한 픽셀 시각은 동기화하지 않았으므로 `sampleID`는 표시 숫자 네 항목의 **반올림 일치**로 연결했다.
+
+| 로그 ID / View UTC | 격리 Tokenly 전체 (GB) | Apple 전체 (GB) | 화면 전체 차이 (GB) | 격리 앱/와이어드/압축 (GB) | Apple 앱/와이어드/압축 (GB) | Apple 전체−Apple 세부 합계 (GB) |
+|---|---:|---:|---:|---|---|---:|
+| 313 / 07:16:47.905 | 13.35 | 13.95 | 0.60 | 3.65 / 3.46 / 6.24 | 3.67 / 3.46 / 6.23 | 0.59 |
+| 318 / 07:16:52.906 | 13.37 | 13.96 | 0.59 | 3.64 / 3.42 / 6.31 | 3.64 / 3.42 / 6.31 | 0.59 |
+| 323 / 07:16:57.908 | 13.32 | 13.95 | 0.63 | 3.72 / 3.39 / 6.22 | 3.72 / 3.43 / 6.21 | 0.59 |
+| 328 / 07:17:02.901 | 13.37 | 13.93 | 0.56 | 3.69 / 3.43 / 6.24 | 3.69 / 3.41 / 6.24 | 0.59 |
+| 333 / 07:17:07.908 | 13.38 | 13.97 | 0.59 | 2.80 / 3.84 / 6.74 | 2.80 / 3.84 / 6.74 | 0.59 |
+
+**계측 지연(위 26개, 단조 시계 기준; ms):** tick→읽기 시작 중앙값 1.193 / 최대 4.959; Mach 읽기 시작→완료 0.756 / 최대 2.710; 읽기 완료→계산 완료 0.639 / 최대 2.008; 계산 완료→Store 게시 0.920 / 최대 2.943; Store 게시→View 관찰 6.096 / 최대 13.302; 읽기 시작→View 관찰 8.622 / 최대 20.962. 이 구간에서 **초 단위의 수집 건너뜀 또는 Store→View 관찰 지연은 확인되지 않았다.** SwiftUI `onChange`는 실제 프레임 합성 완료 시각이 아니므로 픽셀 지연의 상한/하한으로 단정하지 않는다.
+
+26개 ID 각각의 UTC·단계별 ms·원시 바이트 환산값은 저장소 밖 `/private/tmp/tokenly-ram02-video-timing.tsv`에 1행/ID로 보관했다. 이 TSV는 프로세스명·사용자 계정·인증 정보·영상 프레임을 포함하지 않는다.
+
+**해석 [확인/미확정 구분]:** 격리 Tokenly 화면과 내부 raw/Store/View 값의 연결은 다섯 대표 프레임에서 확인됐다. Apple 세부값도 근접하거나 정확히 같지만, Apple 자체의 `사용된 메모리`는 세부 세 항목 합보다 표시값 기준 약 0.59GB 높다. 따라서 이 녹화의 전체값 차이를 **Tokenly의 1초 수집·게시 지연만으로 설명할 근거는 없다.** Apple의 내부 전체 집계식, 세부 항목 외의 정확한 메모리 범주, Apple 화면의 각 숫자별 수집 시각은 여전히 미공개·미확정이다. 비슷한 숫자의 잔차를 그대로 동일한 원인으로 취급하거나 고정 보정값을 쓰지 않는다. 이 계측 로그에는 `free_count`가 없어 같은 시간대 잔차를 재계산할 수 없다. 다음 수정은 공식 산식 또는 재현 가능한 반례가 확인된 뒤 별도 검토한다. 이번 단계에서 제품 RAM 계산식·UI·설치 앱은 변경하지 않았다.
+
+**RAM-02 최종 원인 검토 [2026-10-29, 추가 측정 없음]:** Apple의 [활성 상태 보기 설명](https://support.apple.com/en-euro/guide/activity-monitor/actmntr1004/mac)은 `Memory Used`와 App/Wired/Compressed/Cached Files의 뜻은 설명하지만 전체값의 계산식이나 세부 세 값과의 정확한 합산 관계는 공개하지 않는다. 공개 [XNU `vm_statistics64`](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/mach/vm_statistics.h)는 internal(anonymous), external(file-backed), purgeable, wired, compressor occupied, free, speculative, throttled 등의 카운터를 정의한다. [XNU `vm_stats`](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/host.c)는 macOS의 `wire_count`에 throttled 및 low-page free 카운터를 포함하고, internal/external은 pageable 카운터에서 가져온다. 이 분류들은 Tokenly의 단순 `used + cached후보 + free`가 물리 RAM의 완전한 분할이라고 보장하지 않는다. 그러나 어떤 카운터가 Apple 전체값에 추가되는지, 12회 로그의 0.601~0.631 **십진 GB** 잔차와 녹화의 0.56~0.63 **화면 표기 GB** 차이가 같은 영역인지는 공개 자료와 현재 데이터로 판정할 수 없다. speculative는 free에 이미 포함되며, active/inactive·throttled·압축 전 페이지 수를 별개 사용량으로 더하는 것은 중복 위험이 있다.
+
+**가설 분리:** ① **확인된 현상:** 26개 ID의 수집→View 전달이 이어졌고 대표 5프레임에서 Tokenly 화면과 로그가 맞았다. Apple **자체** 전체값은 Apple 자체 세부 3값 합보다 각 프레임 0.59GB 높았다. 이는 전체/세부 표시 정의가 단순 합과 다르거나 내부 갱신 시각 등이 다를 수 있음을 보여주지만 공식 산식을 증명하지 않는다. ② **유력하나 미증명:** Apple 전체 집계 범위 또는 항목 분류가 Tokenly의 세 항목 합과 다를 가능성. 정확한 누락 메모리 범주는 지정하지 않는다. ③ **보조 요인:** 같은 UI의 네 수치가 소수 둘째 자리로 반올림된다면 `전체−세부 3개 합`의 최대 반올림 오차는 약 0.02 표기 단위이며 0.59를 설명하지 못한다. Tokenly `ByteCountFormatter(.memory)`는 이 환경에서 이진 GiB 수치를 `GB`로 표기했지만 Apple 단위 규칙은 확인하지 못했다. Apple 자체 화면의 전체−세부 차이에는 앱 간 GB/GiB 변환이 개입하지 않는다. 두 앱의 독립 갱신 시각은 작은 프레임별 차이에 영향을 줄 수 있으나, Tokenly 읽기→View 최대 20.962ms와 프레임 대조상 **Tokenly의 초 단위 게시 지연**은 관찰되지 않았다. Apple 각 표시값의 취득 시각·픽셀 합성 시각은 계측하지 않았다. ④ **반례/한계:** 기존 12개 raw 샘플은 녹화의 26개와 다른 시각이며 첫 캡처의 세부값과도 맞지 않는다. 26개 로그에는 free가 없어 같은 프레임의 잔차를 계산할 수 없다. 잔차의 수치적 근접성은 원인 동일성의 증거가 아니다.
+
+**판정·후속 [설계 판단]:** RAM-02는 `전체 사용량 차이 재현·원인 미확정·제품 수정 보류`로 정리한다. 0.6GB 보정, 임의 카운터 가산, Apple 산식 재현 주장은 하지 않는다. 지금은 추가 측정이나 제품 회귀 테스트가 필요하지 않다. 향후 Apple 산식의 공개 근거 또는 **같은 시점의 원시 카운터·Apple 전체/세부값으로 재현되는 구체적 반례**가 확보되면 테스트를 먼저 설계하고 계산식/설명 문구 변경을 별도 승인받는다. UI가 Apple과 같은 전체값을 보장한다는 문구는 피하고 `앱+와이어드+압축의 합(독립 계산)`처럼 측정 정의를 명시하는 방안을 후속 검토한다. 기존 녹화·12회 로그·26개 ID 결과가 블로그의 문제 발견→가설→검증→미확정 결론을 뒷받침하므로 새 캡처는 필요 없다. 원인 확정 후 회귀 테스트 캡처만 조건부로 남긴다.
+
+**조사 종료 기록 [2026-10-29, 사용자 결정]:** RAM-02 상태는 **조사 종료·원인 미확정·제품 수정 보류**다. 재조사는 ① Apple이 전체 사용량의 공식 산식을 확인할 수 있는 자료를 공개하거나 ② Tokenly 계산의 재현 가능한 **구체적 반례**가 확보될 때만 검토한다. RAM 계산식뿐 아니라 제품 UI 설명도 이번 작업에서는 변경하지 않는다. 위의 이전 단계별 “다음 측정” 안내는 당시 계획을 기록한 것이며 현재 수행 대기 항목이 아니다.
+
+**블로그용 핵심 근거 [사실/가설 분리]:** 첫 24GB 사례는 Apple 18.00GB/Tokenly 16.59GB(차이 1.41GB), 후속 16GB 사례는 13.88/13.29GB(차이 0.59GB)였다. 격리 진단 녹화에서는 sampleID 311~336 **26개 모두** 수집→계산→게시→View 관찰값이 연결됐고 tick 건너뜀·바이트 불일치가 0건이었다. 읽기 시작→View 관찰 최대 20.962ms, 대표 5프레임의 Apple−Tokenly 전체 차이는 0.56~0.63 화면 표기 GB, Apple 전체−Apple 세부 합계는 각 프레임 약 0.59GB였다. 별도 12개 원시 샘플의 잔차는 0.601~0.631 **십진 GB**였지만 녹화와 다른 시점이라 동일 원인이라는 증거가 아니다. **가설:** Apple 전체값과 세부값의 집계 범위·분류가 다를 수 있다. **미확정:** Apple 전체 산식, 차이를 구성하는 페이지 범주, Apple 항목별 취득 시각. 글의 결론은 “차이를 재현하고 Tokenly 전달 경로를 검증했으나 원인은 특정하지 못했다”로 제한한다. 이미 확보한 비교 녹화와 정제된 로그 표를 활용하고, 원인 해결 또는 회귀 테스트 성공 캡처는 만들지 않는다.
+
+**격리 진단 자료 위치 [로컬 전용, 삭제하지 않음]:** 앱 복사본 `/private/tmp/tokenly-ram02-timing-build-v3/Build/Products/Debug/Tokenly.app`, 계측 소스 `/private/tmp/tokenly-ram02-timing-src/`, 이벤트 로그 `/private/tmp/tokenly-ram02-timing-data/events.log`, 26개 ID 요약 `/private/tmp/tokenly-ram02-video-timing.tsv`, 12회 원시 로그 `/private/tmp/tokenly-ram02-simultaneous.txt`, 실행 스크립트 `/private/tmp/tokenly_ram02_run_timing.sh`, 검증기 `/private/tmp/tokenly_ram02_verify_timing.py`. 해당 경로는 로컬 조사 위치의 기록이며 영구 보관 보장은 아니다. 화면 녹화 원본은 개인정보가 보여 저장소에 넣지 않는다. 이번 종료 정리에서 파일 삭제·재실행·추가 계측은 하지 않았다.
+
+**📸 캡처 추천 (최대 3장):** ① 이미 확보한 양쪽 화면 비교(전체 차이와 세부값 동시 표시), ② 이미 보존한 시각·원시 카운터의 정제된 진단 출력(개인 경로 가림), ③ 원인이 확정되고 수정한 경우에만 회귀 테스트 결과. 새 캡처를 위해 측정이나 앱을 재실행하지 않는다.
 
 ### 9.4 Battery: 레지스트리 키가 OS마다 다르고, Apple 수치는 재현되지 않는다
 

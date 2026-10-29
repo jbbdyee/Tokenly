@@ -249,7 +249,7 @@ System Monitor의 요구사항·구현 현황·기술 검증·구현 순서를 �
   - Compressed = `compressor_page_count`
 - Cached Files = `external_page_count` + `purgeable_count`. used에는 포함하지 않는다.
 - total은 `physicalMemory`, 페이지 크기는 `host_page_size`에서 가져온다.
-- 활동 모니터 "사용된 메모리"와 같은 구성이지만 측정 시점과 반올림 때문에 차이가 날 수 있다. 스왑은 포함하지 않는다.
+- 위 합계는 Tokenly가 정의한 사용량이다. 활성 상태 보기의 "사용된 메모리"와 같은 계산식인지는 확인되지 않았다. 같은 화면에서 세부 항목은 거의 같지만 전체가 다른 현상은 재현됐다. RAM-02는 조사 종료·원인 미확정·제품 수정 보류 상태다(`BLOG-NOTES.md` §9.3). 스왑은 포함하지 않는다.
 - 이상값(total 0, page size 0, purgeable > internal, used > total, 오버플로)은 `inconsistentValues`다.
 
 ### Battery (AppleSmartBattery 레지스트리)
