@@ -89,9 +89,9 @@ final class SystemMonitorWiringTests: XCTestCase {
 
     func testLabelsTakeTheControllersLayout() {
         let store = SystemMonitorStore(makeSampler: { ValueSampler() }, scheduler: SilentScheduler())
-        let suite = "tokenly.wiring.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Wiring")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let controller = SystemWidgetController(store: store, defaults: defaults, supportProbe: { _ in .supported })
         controller.setLayout(.split)
         controller.setBatteryFrame(.rounded)
@@ -135,9 +135,9 @@ final class SystemMonitorWiringTests: XCTestCase {
     func testControllerKeepsTheStoreAndScannerItWasGiven() {
         let store = SystemMonitorStore(makeSampler: { ValueSampler() }, scheduler: SilentScheduler())
         let scanner = ProcessTopStore(scheduler: SilentScheduler())
-        let suite = "tokenly.wiring.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Wiring")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let controller = SystemWidgetController(store: store, processTop: scanner, defaults: defaults, supportProbe: { _ in .supported })
         XCTAssertTrue(controller.store === store)
         XCTAssertTrue(controller.processTop === scanner)
@@ -171,9 +171,9 @@ final class SystemMonitorWiringTests: XCTestCase {
     /// off again within ~10 ms. The real menu bar path cannot run in XCTest; see the HANDOFF reproduction steps.
     func testMenuBarScenesObserveTheController() {
         let store = SystemMonitorStore(makeSampler: { ValueSampler() }, scheduler: SilentScheduler())
-        let suite = "tokenly.wiring.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Wiring")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let controller = SystemWidgetController(store: store, defaults: defaults, supportProbe: { _ in .supported })
         let scenes = SystemMonitorMenuBarScenes(controller: controller, cache: SystemWidgetImageCache(),
                                                 settingsWindow: SettingsWindowManager(), processIcons: ProcessIconProvider())

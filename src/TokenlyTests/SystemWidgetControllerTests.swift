@@ -68,7 +68,7 @@ private struct EmptyProcessTop: ProcessTopSampling {
 /// One app's worth of objects on a throwaway UserDefaults suite. `restart()` builds a new app on the same suite.
 @MainActor
 private final class App {
-    let suite = "tokenly.systemWidget.tests.\(UUID().uuidString)"
+    let suite = TestDefaults.suite("SystemWidget")
     let defaults: UserDefaults
     /// What the probe reports now; tests change it between restarts or before a recheck.
     var support: [SystemWidget: SystemWidgetSupport] = [:]
@@ -79,8 +79,12 @@ private final class App {
     private(set) var processTop: ProcessTopStore!
     private(set) var controller: SystemWidgetController!
 
-    init() {
+    /// Existing-user baseline for older state-flow tests; `newUser: true` leaves every widget key absent.
+    init(newUser: Bool = false) {
         defaults = UserDefaults(suiteName: suite)!
+        if !newUser {
+            for widget in SystemWidget.allCases { defaults.set(false, forKey: widget.defaultsKey) }
+        }
         restart()
     }
 
@@ -100,7 +104,7 @@ private final class App {
 
     func discard() {
         for widget in SystemWidget.allCases { store.setEnabled(widget.metric, false) }
-        defaults.removePersistentDomain(forName: suite)
+        TestDefaults.discard(defaults, suite: suite)
     }
 }
 
@@ -108,16 +112,92 @@ private final class App {
 
 @MainActor
 final class SystemWidgetControllerTests: XCTestCase {
-    func testFirstLaunchHasEveryWidgetOff() {
+    func testFirstLaunchEnablesSupportedSystemWidgetsExceptGPUWithoutSavingChoices() {
+        let app = App(newUser: true)
+        defer { app.discard() }
+        for widget in SystemWidget.allCases {
+            XCTAssertEqual(app.controller.isInserted(widget), widget != .gpu)
+            XCTAssertEqual(app.controller.binding(for: widget).wrappedValue, widget != .gpu)
+            XCTAssertNil(app.defaults.object(forKey: widget.defaultsKey), "Nothing is written until the user acts")
+        }
+        XCTAssertEqual(app.store.enabledMetrics, [.cpu, .memory, .battery, .disk])
+        XCTAssertFalse(app.scheduler.active.isEmpty, "Enabled widgets begin measuring on first launch")
+    }
+
+    func testExistingUserWithEveryWidgetExplicitlyOffStaysOff() {
         let app = App()
         defer { app.discard() }
         for widget in SystemWidget.allCases {
             XCTAssertFalse(app.controller.isInserted(widget))
-            XCTAssertFalse(app.controller.binding(for: widget).wrappedValue)
-            XCTAssertNil(app.defaults.object(forKey: widget.defaultsKey), "Nothing is written until the user acts")
+            XCTAssertEqual(app.defaults.object(forKey: widget.defaultsKey) as? Bool, false)
         }
         XCTAssertTrue(app.store.enabledMetrics.isEmpty)
-        XCTAssertTrue(app.scheduler.jobs.isEmpty, "No measurement on first launch")
+        XCTAssertTrue(app.scheduler.jobs.isEmpty)
+        app.restart()
+        XCTAssertTrue(app.store.enabledMetrics.isEmpty)
+    }
+
+    func testExistingMixedChoicesSurviveRestart() {
+        let app = App()
+        defer { app.discard() }
+        let choices: [SystemWidget: Bool] = [.cpu: false, .memory: true, .disk: false, .battery: true, .gpu: true]
+        for (widget, value) in choices { app.defaults.set(value, forKey: widget.defaultsKey) }
+        app.restart()
+        for (widget, value) in choices {
+            XCTAssertEqual(app.controller.isInserted(widget), value)
+            XCTAssertEqual(app.defaults.object(forKey: widget.defaultsKey) as? Bool, value)
+        }
+        XCTAssertEqual(app.store.enabledMetrics, [.memory, .battery, .gpu])
+    }
+
+    func testMissingChoicesUseNewDefaultsWithoutOverwritingSavedCPUOff() {
+        let app = App(newUser: true)
+        defer { app.discard() }
+        app.defaults.set(false, forKey: SystemWidget.cpu.defaultsKey)
+        app.restart()
+        XCTAssertEqual(app.store.enabledMetrics, [.memory, .battery, .disk])
+        XCTAssertFalse(app.controller.isInserted(.cpu))
+        XCTAssertFalse(app.controller.isInserted(.gpu))
+        for widget in SystemWidget.allCases where widget != .cpu {
+            XCTAssertNil(app.defaults.object(forKey: widget.defaultsKey))
+        }
+    }
+
+    func testNewDefaultCanBeChangedAndRestoredAcrossRestartWithoutTouchingAIChoices() {
+        let app = App(newUser: true)
+        defer { app.discard() }
+        app.defaults.set("compact", forKey: "menuBar.displayStyle")
+        app.defaults.set(false, forKey: "provider.claude.visibleInPopover")
+        app.controller.binding(for: .cpu).wrappedValue = false
+        app.controller.binding(for: .gpu).wrappedValue = true
+        XCTAssertEqual(app.store.enabledMetrics, [.memory, .battery, .disk, .gpu])
+        app.restart()
+        XCTAssertEqual(app.store.enabledMetrics, [.memory, .battery, .disk, .gpu])
+        XCTAssertFalse(app.controller.isInserted(.cpu))
+        XCTAssertTrue(app.controller.isInserted(.gpu))
+        XCTAssertEqual(app.defaults.string(forKey: "menuBar.displayStyle"), "compact")
+        XCTAssertEqual(app.defaults.object(forKey: "provider.claude.visibleInPopover") as? Bool, false)
+        for widget in [SystemWidget.memory, .disk, .battery] {
+            XCTAssertNil(app.defaults.object(forKey: widget.defaultsKey), "Default choices are not persisted")
+        }
+    }
+
+    /// Stage 6-9B: test suites live in a temporary folder, never in ~/Library/Preferences, and only they can be
+    /// cleared by the tests.
+    func testTestPreferenceSuitesStayOutOfUserPreferences() throws {
+        let suite = TestDefaults.suite("Guard")
+        XCTAssertTrue(TestDefaults.isTestSuite(suite))
+        XCTAssertFalse(suite.contains("/Library/Preferences/"))
+        for other in ["io.github.jbbdyee.tokenly", "tokenly.systemWidget.tests.X", "", TestDefaults.folder.path + "/../x",
+                      NSHomeDirectory() + "/Library/Preferences/TokenlyTests.x"] {
+            XCTAssertFalse(TestDefaults.isTestSuite(other), other)
+        }
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.set(true, forKey: SystemWidget.gpu.defaultsKey)
+        defaults.synchronize()
+        TestDefaults.discard(defaults, suite: suite)
+        XCTAssertNil(UserDefaults(suiteName: suite)?.object(forKey: SystemWidget.gpu.defaultsKey))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: suite + ".plist"))
     }
 
     func testTurningOnStartsAndTurningOffStopsMeasurement() {
@@ -191,7 +271,7 @@ final class SystemWidgetControllerTests: XCTestCase {
         app.controller.setInserted(.disk, false)
         XCTAssertEqual(changes, 0, "No publish")
         XCTAssertEqual(app.scheduler.jobs.count, jobs, "No new measurement work")
-        XCTAssertNil(app.defaults.object(forKey: SystemWidget.disk.defaultsKey), "No write for an unchanged value")
+        XCTAssertEqual(app.defaults.object(forKey: SystemWidget.disk.defaultsKey) as? Bool, false, "No write for an unchanged value")
     }
 
     func testUnsupportedWidgetKeepsTheStoredChoice() {
@@ -281,7 +361,7 @@ final class SystemWidgetControllerTests: XCTestCase {
         XCTAssertTrue(app.controller.isSupported(.gpu))
         XCTAssertFalse(app.controller.isInserted(.gpu), "Supported now, but the user never turned it on")
         XCTAssertTrue(app.store.enabledMetrics.isEmpty)
-        XCTAssertNil(app.defaults.object(forKey: SystemWidget.gpu.defaultsKey), "Nothing written")
+        XCTAssertEqual(app.defaults.object(forKey: SystemWidget.gpu.defaultsKey) as? Bool, false, "Saved OFF remains unchanged")
     }
 
     func testRecheckProbesOnlyUnsupportedWidgets() {

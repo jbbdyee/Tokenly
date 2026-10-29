@@ -223,15 +223,17 @@ final class CPUPopoverTests: XCTestCase {
     }
 
     private func makeController() -> (SystemWidgetController, Scheduler, () -> Void) {
-        let suite = "tokenly.cpupopover.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("CPUPopover")
         let defaults = UserDefaults(suiteName: suite)!
+        // Existing user with every widget saved OFF; a new user would start with CPU/RAM/Disk/Battery on (6-9A).
+        for widget in SystemWidget.allCases { defaults.set(false, forKey: widget.defaultsKey) }
         let processScheduler = Scheduler()
         let store = SystemMonitorStore(makeSampler: { IdleSampler() }, scheduler: Scheduler())
         let controller = SystemWidgetController(store: store, processTop: ProcessTopStore(makeSampler: { NoProcesses() }, scheduler: processScheduler),
                                                 defaults: defaults, supportProbe: { _ in .supported })
         return (controller, processScheduler, {
             for widget in SystemWidget.allCases { controller.setInserted(widget, false) }
-            defaults.removePersistentDomain(forName: suite)
+            TestDefaults.discard(defaults, suite: suite)
         })
     }
 
@@ -286,9 +288,9 @@ final class CPUPopoverTests: XCTestCase {
     /// The applier sets the app-wide appearance at launch and on every change, for every sequence that broke the
     /// settings window (2026-10-28 reproduction).
     func testApplierFollowsEverySequence() {
-        let suite = "tokenly.appearance.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Appearance")
         let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         settings.appearance = .dark
         var applied: [NSAppearance.Name?] = []
@@ -314,10 +316,10 @@ final class CPUPopoverTests: XCTestCase {
             @Environment(\.colorScheme) private var scheme
             var body: some View { Text("Aa").onChange(of: scheme, initial: true) { _, s in box.scheme = s } }
         }
-        let suite = "tokenly.appearance.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("Appearance")
         let defaults = UserDefaults(suiteName: suite)!
         let previous = NSApp.appearance
-        defer { NSApp.appearance = previous; defaults.removePersistentDomain(forName: suite) }
+        defer { NSApp.appearance = previous; TestDefaults.discard(defaults, suite: suite) }
         let settings = ProviderDisplaySettings(defaults: defaults)
         let applier = AppAppearanceApplier(settings: settings)
         let box = Box()

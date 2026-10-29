@@ -178,15 +178,17 @@ final class RAMPopoverTests: XCTestCase {
     }
 
     func testRAMPopoverStartsAndStopsTheScanOnce() {
-        let suite = "tokenly.rampopover.\(UUID().uuidString)"
+        let suite = TestDefaults.suite("RAMPopover")
         let defaults = UserDefaults(suiteName: suite)!
+        // Existing user with every widget saved OFF; a new user would start with CPU/RAM/Disk/Battery on (6-9A).
+        for widget in SystemWidget.allCases { defaults.set(false, forKey: widget.defaultsKey) }
         let scheduler = Scheduler()
         let controller = SystemWidgetController(store: SystemMonitorStore(makeSampler: { MemorySampler() }, scheduler: Scheduler()),
                                                 processTop: ProcessTopStore(makeSampler: { NoProcesses() }, scheduler: scheduler),
                                                 defaults: defaults, supportProbe: { _ in .supported })
         defer {
             for widget in SystemWidget.allCases { controller.setInserted(widget, false) }
-            defaults.removePersistentDomain(forName: suite)
+            TestDefaults.discard(defaults, suite: suite)
         }
         SystemPopoverVisibility.set(.memory, visible: true, controller: controller, source: "appear")
         XCTAssertEqual(scheduler.active, 0, "RAM widget off: no scan")

@@ -38,6 +38,9 @@ enum SystemWidget: String, CaseIterable, Identifiable {
     }
 
     var defaultsKey: String { "systemWidget.\(rawValue).inserted" }
+
+    /// Used only when this widget has no saved choice. GPU remains opt-in because its reading is experimental.
+    var initialInsertion: Bool { self != .gpu }
 }
 
 /// Whether a widget can be turned on at all on this Mac. Only permanent conditions make it unsupported; a passing
@@ -129,7 +132,7 @@ final class SystemWidgetController: ObservableObject {
         var stored: [SystemWidget: Bool] = [:]
         var support: [SystemWidget: SystemWidgetSupport] = [:]
         for widget in SystemWidget.allCases {
-            stored[widget] = defaults.object(forKey: widget.defaultsKey) as? Bool ?? false
+            stored[widget] = defaults.object(forKey: widget.defaultsKey) as? Bool ?? widget.initialInsertion
             support[widget] = supportProbe(widget)
         }
         self.stored = stored

@@ -959,14 +959,20 @@ private actor CountingExternalProvider: ExternalUsageProvider {
     }
 }
 
-/// Test-only preference suites. A plain suite name lands in ~/Library/Preferences, and even after
-/// `removePersistentDomain` cfprefsd later writes an empty `<suite>.plist` there, so every run used to
-/// leave one file per suite. An absolute-path suite keeps the file in a temporary folder instead.
+/// Test-only preference suites, for every test that needs its own UserDefaults. A plain suite name lands in
+/// ~/Library/Preferences, and even after `removePersistentDomain` cfprefsd later writes an empty `<suite>.plist`
+/// there, so every run used to leave one file per suite (1,082 had piled up by Stage 6-9B). An absolute-path suite
+/// keeps the file in a temporary folder instead; each name is unique, so parallel tests never share a suite.
 enum TestDefaults {
+    /// Files a crashed or killed run could not discard are swept on the next run once they are this old, so a
+    /// suite still in use by a concurrent run is never touched.
+    static let staleAge: TimeInterval = 3_600
+
     static let folder: URL = {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("TokenlyTests-Preferences", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        sweepStale(in: url)
         return url
     }()
 
@@ -974,9 +980,28 @@ enum TestDefaults {
         folder.appendingPathComponent("TokenlyTests.\(name).\(UUID().uuidString)").path
     }
 
+    /// Only a suite made by `suite(_:)`: never the app's own domain, `standard`, or a plain name.
+    static func isTestSuite(_ suite: String) -> Bool {
+        suite.hasPrefix(folder.path + "/TokenlyTests.") && !suite.contains("/../")
+    }
+
     static func discard(_ defaults: UserDefaults, suite: String) {
+        guard isTestSuite(suite) else {
+            assertionFailure("Refusing to clear a non-test preference domain: \(suite)")
+            return
+        }
         defaults.removePersistentDomain(forName: suite)
-        guard suite.hasPrefix(folder.path + "/") else { return }
         try? FileManager.default.removeItem(atPath: suite + ".plist")
+    }
+
+    private static func sweepStale(in folder: URL) {
+        let manager = FileManager.default
+        guard let names = try? manager.contentsOfDirectory(atPath: folder.path) else { return }
+        for name in names where name.hasPrefix("TokenlyTests.") && name.hasSuffix(".plist") {
+            let path = folder.appendingPathComponent(name).path
+            guard let modified = (try? manager.attributesOfItem(atPath: path))?[.modificationDate] as? Date,
+                  Date().timeIntervalSince(modified) > staleAge else { continue }
+            try? manager.removeItem(atPath: path)
+        }
     }
 }
