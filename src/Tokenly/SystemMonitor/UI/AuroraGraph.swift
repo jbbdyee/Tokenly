@@ -68,6 +68,10 @@ enum HarmonyPalette {
     static func lavender(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xC5B3EE : 0x8A63C9) }
     /// Text on a mint badge: RAM's normal-pressure badge colours (#A5E2D7 dark, #1F6B5E light).
     static func mintText(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xA5E2D7 : 0x1F6B5E) }
+    /// Left-to-right fill of the battery level bar and the healthy AI remaining-limit bars: mint → blue → lavender.
+    static func progressGradient(dark: Bool) -> [Color] {
+        [mint(dark: dark).color, blue(dark: dark).color, lavender(dark: dark).color]
+    }
 }
 
 /// The B1 "Aurora Flow" colours (approved 2026-10-28): colour is a function of height only (0 % teal, 50 % blue,

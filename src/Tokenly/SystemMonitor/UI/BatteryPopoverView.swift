@@ -131,12 +131,11 @@ enum BatteryPopoverPresentation {
         return "\(Int(celsius.rounded()))°C"
     }
 
-    /// RAM's lavender → pastel blue → mint for the normal level bar and mint for the badge (UI colour harmony,
-    /// 2026-10-29; was yellow-green → lime → green). Soft amber when low is unchanged: it carries the warning.
+    /// RAM's mint → pastel blue → lavender for the normal level bar (the same fill as the healthy AI bars) and mint
+    /// for the badge (UI colour harmony, 2026-10-29; was yellow-green → lime → green). Soft amber when low is
+    /// unchanged: it carries the warning.
     enum Palette {
-        static func gauge(dark: Bool) -> [Color] {
-            [HarmonyPalette.lavender(dark: dark).color, HarmonyPalette.blue(dark: dark).color, HarmonyPalette.mint(dark: dark).color]
-        }
+        static func gauge(dark: Bool) -> [Color] { HarmonyPalette.progressGradient(dark: dark) }
         static func accent(dark: Bool) -> Color { HarmonyPalette.mintText(dark: dark).color }
         static func low(dark: Bool) -> Color { DiskPopoverPresentation.Palette.hex(dark ? 0xF2C08A : 0xA9621C) }
     }
@@ -227,7 +226,7 @@ struct BatteryPopoverView: View {
         .padding(.horizontal, 14).padding(.top, 11).padding(.bottom, 12)
     }
 
-    /// Fill = charge. Lavender → pastel blue → mint, soft amber when low, a soft hatch while charging. No animation.
+    /// Fill = charge. Mint → pastel blue → lavender, soft amber when low, a soft hatch while charging. No animation.
     private var gauge: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {

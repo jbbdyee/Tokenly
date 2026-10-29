@@ -188,6 +188,7 @@ struct UsageMenuView: View {
             if let window = snapshot.window(kind) {
                 ProgressView(value: window.remainingPercent, total: 100)
                     .tint(color(for: window.remainingLevel))
+                    .healthyGradientFill(percent: window.remainingPercent, level: window.remainingLevel, dark: colorScheme == .dark)
                     .accessibilityLabel("\(kind.title) 남은 한도")
                     .accessibilityValue("\(String(format: "%.1f", window.remainingPercent))퍼센트")
                 Text("사용 \(String(format: "%.1f%%", window.usedPercent)) · \(resetText(window.resetsAt))")
@@ -274,6 +275,8 @@ struct UsageMenuView: View {
                         }
                         ProgressView(value: quota.remainingPercent, total: 100)
                             .tint(color(for: RemainingLevel(percent: quota.remainingPercent)))
+                            .healthyGradientFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
+                                                 dark: colorScheme == .dark)
                             .accessibilityLabel("Claude \(quota.name) 남은 한도")
                         Text(resetText(quota.resetsAt))
                             .font(.caption2).foregroundStyle(.secondary)
@@ -356,6 +359,8 @@ struct UsageMenuView: View {
                     }
                     ProgressView(value: quota.remainingPercent, total: 100)
                         .tint(color(for: RemainingLevel(percent: quota.remainingPercent)))
+                        .healthyGradientFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
+                                             dark: colorScheme == .dark)
                         .accessibilityLabel("\(quota.name) 남은 한도")
                     Text(resetText(quota.resetsAt))
                         .font(.caption2).foregroundStyle(.secondary)
@@ -456,5 +461,40 @@ enum ResetCreditText {
         let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
         formatter.dateFormat = sameYear ? "M월 d일 a h:mm" : "yyyy년 M월 d일 a h:mm"
         return formatter.string(from: date)
+    }
+}
+
+/// The healthy remaining-limit bars get RAM's mint → blue → lavender as a fill (UI colour harmony, 2026-10-29).
+/// The native linear `ProgressView` takes one tint colour only, so the bar itself is kept (size, track, rounding,
+/// position and accessibility unchanged) and the gradient is drawn over its fill: a capsule of the track's height,
+/// vertically centred, whose width is the remaining fraction, starting at the leading edge like the native fill. Caution (orange) and
+/// low (red) bars are left exactly as they were.
+extension View {
+    func healthyGradientFill(percent: Double, level: RemainingLevel, dark: Bool) -> some View {
+        overlay(alignment: .leading) {
+            if level == .healthy {
+                GeometryReader { geometry in
+                    Capsule()
+                        .fill(LinearGradient(colors: HarmonyPalette.progressGradient(dark: dark), startPoint: .leading, endPoint: .trailing))
+                        .frame(width: geometry.size.width * HealthyGradientFill.fraction(percent),
+                               height: min(HealthyGradientFill.trackHeight, geometry.size.height))
+                        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
+enum HealthyGradientFill {
+    /// The native linear bar draws an 8 pt capsule track centred in a taller (20 pt) frame. There is no API for the
+    /// track height; 8 pt was measured pixel by pixel on macOS 27 (track and native fill rows identical).
+    static let trackHeight: CGFloat = 8
+
+    /// Remaining percent → fill fraction, as the native bar clamps it (0...1).
+    static func fraction(_ percent: Double) -> CGFloat {
+        guard percent.isFinite else { return 0 }
+        return CGFloat(min(max(percent / 100, 0), 1))
     }
 }

@@ -311,11 +311,22 @@ final class CPUPopoverTests: XCTestCase {
         XCTAssertEqual(layout.currentValue, 11)
     }
 
-    /// Battery's normal level bar follows the same palette; the low state keeps its amber warning.
+    /// Battery's normal level bar and the healthy AI bars share mint → blue → lavender (left to right); the battery
+    /// low state keeps its amber warning, and only the healthy AI level gets the gradient.
     func testBatteryColoursKeepTheLowWarning() {
+        XCTAssertEqual(HarmonyPalette.progressGradient(dark: true), [RAMPopoverView.appColor, RAMPopoverView.wiredColor, RAMPopoverView.compressedColor],
+                       "Mint #A5E2D7 → blue #A8CDF4 → lavender #C5B3EE")
+        XCTAssertEqual(HarmonyPalette.progressGradient(dark: false),
+                       [DiskPopoverPresentation.Palette.hex(0x149480), DiskPopoverPresentation.Palette.hex(0x3A7BC8), DiskPopoverPresentation.Palette.hex(0x8A63C9)])
+        XCTAssertEqual(HealthyGradientFill.fraction(72), 0.72)
+        XCTAssertEqual(HealthyGradientFill.fraction(-5), 0)
+        XCTAssertEqual(HealthyGradientFill.fraction(140), 1)
+        XCTAssertEqual(HealthyGradientFill.fraction(.nan), 0)
+        XCTAssertEqual(RemainingLevel(percent: 51), .healthy, "Thresholds unchanged")
+        XCTAssertEqual(RemainingLevel(percent: 50), .caution)
+        XCTAssertEqual(RemainingLevel(percent: 20), .low)
         for dark in [true, false] {
-            XCTAssertEqual(BatteryPopoverPresentation.Palette.gauge(dark: dark),
-                           [HarmonyPalette.lavender(dark: dark).color, HarmonyPalette.blue(dark: dark).color, HarmonyPalette.mint(dark: dark).color])
+            XCTAssertEqual(BatteryPopoverPresentation.Palette.gauge(dark: dark), HarmonyPalette.progressGradient(dark: dark))
             XCTAssertNotEqual(BatteryPopoverPresentation.Palette.low(dark: dark), BatteryPopoverPresentation.Palette.accent(dark: dark))
         }
         XCTAssertEqual(BatteryPopoverPresentation.Palette.low(dark: true), DiskPopoverPresentation.Palette.hex(0xF2C08A), "Amber unchanged")
