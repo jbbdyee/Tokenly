@@ -1,5 +1,65 @@
 # Tokenly 기술 블로그 자료
 
+## v0.2.0 기준 블로그 준비 자료 (2026-10-29)
+
+아래는 코드·문서에서 확인한 사실만 모았다. 각 항목의 근거 파일을 함께 적었다. 이 아래의 단계별 메모가 세부 근거다.
+
+### 1. 개발 동기
+- 여러 AI 코딩 도구의 5시간·주간 한도를 확인하려고 매번 다른 화면·CLI를 열어야 했다. 메뉴 막대 한 곳에서, **공식적으로 제공되는 값만** 숫자로 보여 주는 것이 목표다(`README.md` "개발 동기"). 모르는 값은 0%로 채우지 않는다.
+
+### 2. 기술 스택과 구조
+- Swift 5, SwiftUI `MenuBarExtra`(시스템 팝오버는 `.window` 스타일), AppKit·Core Graphics·Core Text로 메뉴 막대 이미지를 직접 그림, ServiceManagement(`SMAppService` 로그인 항목), IOKit(전원·저장 장치·GPU 레지스트리), Mach(`host_statistics`), XCTest(호스트 앱 테스트). 외부 의존성 없음.
+- 하나의 실행 파일이 GUI 앱이면서 명령줄 도구(`--status`·`--connect`·`--statusline`)다: `src/Tokenly/TokenlyMain.swift`, `BridgeCommand.swift`.
+- 구조도: `README.md` "사용 기술과 구조".
+
+### 3. Codex: CLI 인증 재사용과 app-server JSON-RPC
+- Tokenly는 Codex의 인증 파일을 읽지 않는다. 설치된 `codex`를 `app-server --listen stdio://`로 실행하고(로그인은 CLI가 이미 가진 것을 그대로 씀), 표준 입출력으로 JSON-RPC를 주고받는다: `initialize`(clientInfo에 앱 버전) → `initialized` → `account/rateLimits/read`(읽기 전용). stderr는 버린다. 근거 `src/Tokenly/Providers/CodexUsageProvider.swift`.
+- 응답의 `rateLimitsByLimitId["codex"]`(없으면 `rateLimits`)에서 `primary`·`secondary` 창을 읽고, `windowDurationMins`가 300이면 5시간, 10,080이면 7일 창으로 분류한다. `usedPercent`는 0~100일 때만 받고, `resetsAt`(초 단위 Unix 시각)은 0보다 클 때만 초기화 시각으로 쓴다. 화면에는 `100 − usedPercent`, 즉 **남은 비율**을 보여 준다(`Models/NumericGauge.swift`, `UsageSnapshot.swift`).
+- 재설정 권한은 공식 스키마의 `rateLimitResetCredits`만 읽고, 소모하는 `…/consume`은 호출하지 않는다(`README.md` "서비스별 연동 방식").
+- **비율 ≠ 토큰 수:** 이 API가 주는 것은 구독 한도 대비 **사용 비율과 창 길이·초기화 시각**이다. 토큰 개수나 요청 수는 오지 않으므로 Tokenly도 토큰 수를 표시하지 않는다.
+- 테스트 근거: `TokenlyTests.swift`의 Codex 응답 파싱·CLI 탐색·클라이언트 버전 테스트.
+
+### 4. Claude Code·Antigravity: statusLine 브리지
+- 두 CLI는 상태 줄을 그릴 때 설정된 명령에 JSON을 넘긴다. `Tokenly --connect claude|agy`가 설정 파일의 `statusLine` 하나만 Tokenly 실행 파일로 바꾸고(미리 보기·확인·백업·연결 기록, 원래 쓰던 명령은 같은 입력으로 계속 실행해 출력 유지), `--statusline`이 받은 JSON에서 한도 수치·초기화 시각·수신 시각만 0600 파일로 저장한다. 근거 `StatusLineBridge.swift`, `StatusLineConnector.swift`, `README.md` "Claude Code·AGY 연결".
+- Claude는 `rate_limits`의 5시간·7일 사용 비율, AGY는 `quota`의 버킷별 남은 비율·초기화 시각을 쓴다. 이벤트 기반이라 CLI를 쓰지 않으면 값이 멈추고, 15분이 지나면 회색으로 표시한다.
+- 테스트 근거: `StatusLineTests.swift` 48개(임시 홈에서 연결·해제·바이트 단위 복원).
+
+### 5. 시스템 모니터 (v0.2.0)
+- 위젯 5개와 상세 팝오버, 측정·표시 코드 약 4,800줄(`src/Tokenly/SystemMonitor/`). 사양·검증 기록 `Doc/SYSTEM-MONITOR.md`.
+- CPU: Mach 누적 tick 차이, RAM: VM 통계와 메모리 압박 수준, Disk: APFS 컨테이너 용량(사용 가능은 시스템 추정치라 "필요 시 확보 가능(추정)"으로 분리)과 `/`의 물리 장치를 IORegistry로 정확히 찾아 읽은 읽기·쓰기 바이트, GPU(실험적): 문서화되지 않은 IOAccelerator 사용률을 1초에 약 10번 읽어 평균, 배터리: IOPowerSources(공개)와 배터리 레지스트리(사이클·용량·온도).
+- 측정할 수 없는 값은 `—`·"확인 불가", 그래프는 측정이 빈 구간을 잇지 않는다(2.5초 규칙). GPU 그래프는 60초 고정 축이라 켠 직후 오른쪽 끝에만 그려진다(5초 뒤 x 301–317 → 72초 뒤 x 5–317, `HANDOFF.md` 6-9C).
+- 기본값: 저장값이 없을 때만 CPU·RAM·Disk·배터리 켜짐, GPU 꺼짐. `defaults.object(forKey:) as? Bool ?? 기본값`으로 "없음"과 "false"를 구분(`SystemWidgetController.swift`, 테스트 `SystemWidgetControllerTests.swift`).
+
+### 6. 개발 중 해결한 문제 (근거: 아래 단계별 메모)
+- 테스트가 사용자 Preferences에 빈 plist 1,082개를 남김 → 임시 폴더 suite로 전환(6-9B).
+- Disk I/O에서 디스크 이미지까지 합산될 위험 → `/`에서 IORegistry를 거슬러 올라가 물리 장치 하나만 사용(6-4e).
+- 배터리 온도 단위(0.1 K vs 1/100 °C)를 다른 센서 값과 대조해 확정(6-4f).
+- 릴리스 빌드에 커버리지 계측이 들어가 사용자 폴더에 `default.profraw` 생성 → 빌드 설정과 검사 추가(0.1.0, `CHANGELOG.md`).
+- Xcode 빌드 사본의 등록 해제로 설치본이 앱 목록에서 사라짐 → 임시 번들 ID로 빌드(0.1.0).
+- 앱 버전이 코드 한 곳(Codex clientInfo)에 고정돼 있던 것 → 번들 버전 사용(6-11).
+
+### 7. 테스트와 릴리즈 검증
+- XCTest **386개**(파일별: TokenlyTests 57, StatusLineTests 48, MenuBarSystemImageTests 36, SystemMonitorStoreTests 34, SystemWidgetControllerTests 30, GPUTests 29, SystemWidgetPresentationTests 23, CPUPopoverTests 19, RAMPopoverTests 16, ProcessTopTests 16, DiskActivityTests 15, BatterySamplerTests 15, SystemMonitorTests 13, SystemMonitorWiringTests 12, BatteryPopoverTests 10, GPUPopoverTests 7, DiskTests 6).
+- v0.2.0: 깨끗한 복제본에서 `release.sh --final 0.2.0`, universal, 해제본 = 서명본, 공개 URL에서 받아 SHA-256 `8b4c2c27…b34a1` 확인(`HANDOFF.md` 6-13B).
+
+### 8. 기존 설정 보존과 안전한 업데이트
+- 앱·설정(`defaults export`)·데이터 폴더를 검증된 백업으로 남기고, 기존 앱은 지우지 않고 옮긴 뒤 교체. 전후 설정 22개 동일, Claude·AGY 상태 줄 경로 동일, 설치 직후 Claude 수신 확인(`HANDOFF.md` 6-12).
+
+### 9. 아직 검증하지 않은 것
+- 다른 Mac·새 계정에서 내려받은 ZIP의 Gatekeeper 첫 실행, Intel Mac·다른 Apple silicon에서의 GPU·배터리 온도, 키보드·VoiceOver, 0.2.0 로그인 항목 재승인·재로그인 자동 실행, 업데이트 후 AGY 새 수신. Developer ID 서명·공증 없음.
+
+### 10. 배운 점
+- "빌드 성공"·"테스트 통과"·"실제 화면 확인"·"사용자 보고"를 문서에서 구분해 적어야 나중에 무엇을 믿을 수 있는지 안다.
+- 문서화되지 않은 값은 "실험적"으로 표시하고, 단위·출처를 다른 근거와 대조한 뒤에만 보여 준다.
+- 기본값을 바꿀 때는 "값 없음"과 "사용자가 끔"을 구분해야 기존 사용자를 해치지 않는다.
+
+### 캡처 후보 (공개 전 개인 정보 가림)
+- 메뉴 막대: AI 숫자형 + 시스템 위젯 5개(실제 화면). 현재 README 이미지는 렌더링 코드로 만든 것.
+- 팝오버 5개 다크·라이트, GPU 켠 직후와 60초 뒤 비교, Disk 구성 막대와 "필요 시 확보 가능(추정)" 도움말, 배터리 온도 ⓘ.
+- 터미널: `Tokenly --status`, `--connect claude --dry-run` 출력(홈 경로 가림).
+- GitHub v0.2.0 Release 페이지와 `shasum -c` 결과.
+- 로컬 보관 자료: `Doc/screenshots/`의 단계별 메뉴 막대 캡처, 워크스페이스의 디자인·조사 보관소(공개 대상 아님).
+
 ## Stage 6-12 업데이트를 "되돌릴 수 있게" 하기 (2026-10-29)
 
 - **[확인]** 교체 전에 앱(내용 해시로 동일 확인), 설정(`defaults export`), 데이터 폴더(`diff -r`)를 백업하고, 기존 앱은 지우지 않고 백업 폴더로 **옮긴 뒤** 새 앱을 복사했다. 되돌리기는 복사 한 번이면 된다.

@@ -2,9 +2,9 @@
 
 이 문서는 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 형식을 따르고, 버전은 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [0.2.0] - 미출시 (빌드 4, Release Candidate 준비)
+## [0.2.0] - 2026-10-29 (System Monitor, GitHub Pre-release)
 
-아직 발행하지 않은 다음 버전입니다. 0.1.0과 같은 ad-hoc 서명 빌드이며 Apple Developer ID 서명·공증은 없습니다.
+빌드 4를 `release.sh --final 0.2.0`으로 만들어 GitHub Pre-release `v0.2.0`(태그 대상 `b9089c8`)으로 발행했습니다. ZIP SHA-256 `8b4c2c27…b34a1`. 0.1.0과 같은 ad-hoc 서명 빌드이며 Apple Developer ID 서명·공증은 없습니다.
 
 ### 추가
 - **System Monitor:** CPU·RAM·Disk·GPU·배터리 메뉴 막대 위젯 5개를 AI 위젯과 따로 켜고 끕니다(설정 → 시스템).

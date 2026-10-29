@@ -1,15 +1,16 @@
 # Tokenly
 
-macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다.
+macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다. v0.2.0부터 **CPU·RAM·GPU·Disk·배터리** 상태도 메뉴 막대 위젯과 상세 팝오버로 보여 줍니다.
 
 ## 다운로드
 
-**[Tokenly 0.1.0 — Developer Preview 내려받기](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0)** (GitHub Pre-release, 2026-10-26)
+**[Tokenly v0.2.0 — System Monitor 내려받기](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0)** (최신, GitHub Pre-release, 2026-10-29)
 
 - macOS 14 Sonoma 이상, Apple silicon·Intel Mac 공용(universal) 앱입니다.
-- Release 페이지의 **Assets**에서 `Tokenly-0.1.0-macOS-universal.zip`을 받습니다. 자동으로 붙는 **Source code (zip / tar.gz)** 는 실행할 수 있는 앱이 아닙니다.
+- Release 페이지의 **Assets**에서 `Tokenly-0.2.0-macOS-universal.zip`을 받습니다. 자동으로 붙는 **Source code (zip / tar.gz)** 는 실행할 수 있는 앱이 아닙니다.
+- 이전 버전: [v0.1.0 — Developer Preview](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0)(2026-10-26, AI 사용량 표시만 포함). 변경 내용은 [CHANGELOG](CHANGELOG.md)에 있습니다.
 - Apple Developer ID 서명과 공증(notarization)을 받지 않은 **ad-hoc 서명** 앱이라, 첫 실행 때 macOS 보안 경고가 나타나고 실행이 막힐 수 있습니다. 시스템 설정에서 이 앱만 허용하면 됩니다.
-- 상세 설치 방법은 [Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0)와 아래 [설치](#설치)에 있습니다.
+- 상세 설치 방법은 [Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0)와 아래 [설치](#설치)에 있습니다.
 
 > **개발자 미리보기입니다.** 개발자 Mac 밖에서의 동작, 특히 내려받은 ZIP을 새 사용자 계정이나 다른 Mac에서 처음 여는 절차는 아직 확인하지 않았습니다([알려진 제한](#알려진-제한)).
 
@@ -21,14 +22,16 @@ macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** �
 
 ## 설치
 
-[v0.1.0 Pre-release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0)의 ZIP 기준입니다. 소스에서 직접 만들려면 [빌드와 테스트](#빌드와-테스트)를 참고하세요.
+[v0.2.0 Pre-release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0)의 ZIP 기준입니다. 소스에서 직접 만들려면 [빌드와 테스트](#빌드와-테스트)를 참고하세요.
 
-1. [v0.1.0 Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0)의 **Assets**에서 `Tokenly-0.1.0-macOS-universal.zip`과 `Tokenly-0.1.0-macOS-universal.zip.sha256`을 받습니다.
-2. (권장) 무결성 확인: 두 파일이 있는 폴더에서 `shasum -a 256 -c Tokenly-0.1.0-macOS-universal.zip.sha256` → `OK`가 나와야 합니다.
+1. [v0.2.0 Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0)의 **Assets**에서 `Tokenly-0.2.0-macOS-universal.zip`과 `Tokenly-0.2.0-macOS-universal.zip.sha256`을 받습니다.
+2. (권장) 무결성 확인: 두 파일이 있는 폴더에서 `shasum -a 256 -c Tokenly-0.2.0-macOS-universal.zip.sha256` → `OK`가 나와야 합니다.
 3. ZIP을 열어 나온 `Tokenly.app`을 **응용 프로그램(`/Applications`) 폴더로 옮깁니다.** 다운로드 폴더에서 바로 실행하면 macOS가 임시 위치에서 실행해 자동 실행·CLI 연결이 동작하지 않습니다.
 4. `Tokenly.app`을 엽니다. 처음에는 "확인되지 않은 개발자" 또는 "Apple이 악성 소프트웨어가 없음을 확인할 수 없음" 경고가 나오고 열리지 않습니다. **완료**(또는 취소)를 누릅니다.
 5. **시스템 설정 → 개인정보 보호 및 보안**의 아래쪽 **보안** 항목에 Tokenly가 차단되었다는 안내와 함께 나타나는 **그래도 열기**를 누르고, 암호(또는 Touch ID)로 확인한 뒤 한 번 더 **열기**를 누릅니다. macOS 14에서는 Finder에서 앱을 Control-클릭 → **열기**로도 허용할 수 있습니다.
 6. 메뉴 막대에 Tokenly가 나타납니다. Dock에는 나타나지 않는 메뉴 막대 전용 앱입니다.
+
+**0.1.0에서 업데이트:** Tokenly를 종료한 뒤 `/Applications/Tokenly.app`을 새 앱으로 교체합니다. 같은 위치에 교체하면 설정과 Claude Code·AGY 연결이 그대로 유지됩니다(개발자 Mac에서 확인). 시스템 위젯은 처음에 CPU·RAM·Disk·배터리가 켜진 상태로 나타납니다.
 
 이 경고는 Tokenly가 Apple Developer ID로 서명·공증되지 않아 Apple이 앱을 확인할 수 없기 때문에 나옵니다. 위 4–5단계는 macOS의 일반적인 개별 허용 절차이며, 내려받은 이 ZIP으로 새 사용자 계정·다른 Mac에서 직접 확인하지는 않았습니다. macOS 버전과 계정 종류(표준·관리자)에 따라 문구와 인증 단계가 다를 수 있습니다.
 
@@ -102,7 +105,8 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 ## 알려진 제한
 
-- **공증 없음:** ad-hoc 서명이라 첫 실행에 Gatekeeper 허용이 필요합니다. 내려받은 ZIP(격리 속성 있음)을 새 사용자 계정·다른 Mac에서 처음 여는 절차와, 그 상태에서 CLI가 앱 실행 파일을 호출하는 경로는 0.1.0에서 검증하지 않았습니다.
+- **공증 없음:** ad-hoc 서명이라 첫 실행에 Gatekeeper 허용이 필요합니다. 내려받은 ZIP(격리 속성 있음)을 새 사용자 계정·다른 Mac에서 처음 여는 절차와, 그 상태에서 CLI가 앱 실행 파일을 호출하는 경로는 0.1.0·0.2.0 모두 검증하지 않았습니다.
+- **시스템 모니터의 비공개 값:** GPU 사용률(실험적, 기본 꺼짐)과 배터리 온도는 문서화되지 않은 시스템 값을 읽습니다. macOS 업데이트나 다른 기종(Intel Mac 포함)에서 표시되지 않거나 다를 수 있으며, 개발자 Mac(Apple M4) 밖에서는 확인하지 않았습니다.
 - **이벤트 기반 갱신:** Claude·AGY 값은 CLI가 상태줄을 그릴 때만 갱신됩니다. CLI를 쓰지 않으면 값이 멈추고, 수신 후 15분이 지나면 회색(이전 데이터)으로 표시합니다.
 - **Codex app-server**는 Codex CLI에서 experimental로 표시된 기능이라 CLI 업데이트에 따라 바뀔 수 있습니다.
 - **AGY**는 AGY CLI가 statusLine으로 보내는 `quota`의 **버킷별** 잔여 비율과 초기화 시각을 그대로 보여 주며, 5시간·7일 창으로 바꾸지 않습니다. 개발자 계정에서는 버킷 2개(`3p-weekly`, `gemini-weekly`)가 들어왔지만, 버킷의 수·이름·주기는 계정·요금제·AGY 버전에 따라 다를 수 있습니다. IDE·Gemini API 사용량과는 다릅니다.
@@ -118,7 +122,7 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 ## 주요 기능
 
 - AI 메뉴 막대 스타일 2종: **숫자형(기본)**, **최소형**. 이전 곰돌이형 저장값은 숫자형으로 전환됩니다.
-- 아래 시스템 모니터 기능은 `main`과 다음 버전 0.2.0(미출시)에 들어 있으며, 공개된 v0.1.0 ZIP에는 없습니다. 지금 쓰려면 소스에서 빌드하세요.
+- 아래 시스템 모니터 기능은 v0.2.0부터 들어 있습니다(v0.1.0에는 없음).
 - 독립적인 시스템 메뉴 막대 위젯 5개(CPU·RAM·Disk·GPU·배터리). 설정 → 시스템에서 각각 스위치로 켜고 끌 수 있습니다. 처음 실행하면 CPU·RAM·Disk·배터리는 켜져 있고, 실험적 측정인 GPU는 꺼져 있습니다. 직접 바꾼 설정은 그대로 유지됩니다.
 - CPU·RAM·Disk·GPU·Battery 상세 팝오버. 배터리 온도는 문서화되지 않은 레지스트리 값을 이용하므로 정확도에 한계가 있습니다.
 - 활성화된 Tokenly에서 ⌘Q 종료, AI 팝오버의 기존 종료 버튼, 메뉴 막대 항목 우클릭 `Tokenly 종료`. 최신 Debug 앱에서 사용자가 세 종료 경로를 직접 확인했습니다.
@@ -194,7 +198,7 @@ AGY CLI ─────statusLine─▶ Tokenly --statusline agy ────▶
 open src/Tokenly.xcodeproj          # Tokenly 스킴 실행(⌘R), 테스트(⌘U)
 xcodebuild -project src/Tokenly.xcodeproj -scheme Tokenly test
 scripts/release.sh                  # 개발 확인: Release universal 빌드 → ad-hoc 서명 → 검증 → ZIP·SHA-256
-scripts/release.sh --final 0.1.0    # 배포용: 깨끗한 작업 트리, Info.plist·CHANGELOG 버전 일치가 필요
+scripts/release.sh --final 0.2.0    # 배포용: 깨끗한 작업 트리, Info.plist·CHANGELOG 버전 일치가 필요
 ```
 
 **Stage 6-8B 개발 기록:** 곰돌이 제품 에셋 제거 후 남았던 `release.sh`의 옛 필수 리소스 검사는 Stage 6-8B에서 수정했습니다. 저장소 밖 임시 위치에서 개발용 universal Release ZIP의 빌드·서명·리소스·명령줄 스모크·압축 해제 후 내용 동일성·체크섬 검증이 통과했습니다. 실제 게시·설치 검증은 아닙니다. 아래 표의 배포 결과는 이전 버전의 기록입니다.
@@ -223,7 +227,8 @@ xcodebuild가 자동으로 만드는 스킴은 테스트 커버리지를 수집�
 | 앱 목록(2026-10-26) | `release.sh`의 산출물 등록 해제 뒤 설치본이 빠짐 → 설치본 경로 재등록으로 복구. `release.sh`는 임시 번들 ID 빌드로 바꿔, 개발 빌드 3회에서 정식 ID 등록·해제 알림 0건 |
 | 최종 빌드 0.1.0 (3)(`release.sh --final 0.1.0`, 2026-10-26) | 최종 ZIP(SHA-256 `b2890dd1…0d124`)의 앱을 `/Applications`에 설치(설치본 내용 해시가 ZIP의 앱과 같음). 메뉴 막대·팝오버·설정 화면, Codex·Claude·AGY 실사용 표시를 개발자가 직접 확인. 기존 설정·연결 기록·백업 유지 |
 | 재로그인 후 자동 실행(2026-10-26) | 최종 빌드에서 앱 안 로그인 항목을 켠 상태(`enabled, allowed`)로 재로그인 → Tokenly가 자동으로 실행되는 것을 개발자가 직접 확인 |
-| 다운로드한 ZIP의 Gatekeeper 첫 실행(새 사용자 계정·다른 Mac, G2) | **미검증**(0.1.0에서는 생략) |
+| 최종 빌드 0.2.0 (4)(`release.sh --final 0.2.0`, 2026-10-29) | 깨끗한 `b9089c8` 복제본에서 생성, 전체 자동 테스트 386개 통과, ZIP SHA-256 `8b4c2c27…b34a1`, 해제본 = 서명본. 같은 소스의 0.2.0 (4)로 설치된 0.1.0 (3)을 교체해 설정 유지·Claude 수신·Codex 조회 확인, 설치본 UI는 개발자가 직접 조작해 이상 없음을 확인. 키보드·VoiceOver는 미검증 |
+| 다운로드한 ZIP의 Gatekeeper 첫 실행(새 사용자 계정·다른 Mac, G2) | **미검증**(0.1.0·0.2.0 모두) |
 | 재부팅 후 자동 실행 | 미검증 |
 
 테스트는 Codex 응답 파싱, Claude·AGY 수신 파일 파싱과 만료, 표시·숨김·stale 규칙, 재설정 권한 계산, 스타일 저장·이전, 숫자형의 크기·정렬·잘림(픽셀 단위), System Monitor의 측정·표시, statusLine 브리지·연결·해제(임시 홈) 등을 다룹니다(`src/TokenlyTests/`). 테스트용 설정 도메인은 임시 폴더에 만들어 `~/Library/Preferences`에 파일을 남기지 않습니다.
@@ -236,7 +241,8 @@ xcodebuild가 자동으로 만드는 스킴은 테스트 커버리지를 수집�
 
 ## 개발 기록
 
-- `Doc/SPEC.md`(제품 사양), `Doc/IMP-PLAN.md`(구현 계획과 결정 기록), `Doc/TODO.md`(진행 상황)
+- `Doc/SPEC.md`(제품 사양), `Doc/IMP-PLAN.md`(구현 계획과 결정 기록), `Doc/TODO.md`(진행 상황), `Doc/SYSTEM-MONITOR.md`(시스템 모니터 사양·검증)
+- [`Doc/BRANCHING.md`](Doc/BRANCHING.md): 브랜치 운영 규칙(`feature/*` → `test` → `main`)과 릴리즈 태그 규칙
 - `Doc/BLOG-NOTES.md`: 기술 블로그용 정리(근거 파일 링크 포함)
 - `Preview/`: 디자인 시안과 측정 스크립트·이미지(`Preview/README.md` 참고). 일부 과거 스크립트는 현재 코드로 실행되지 않으며 결과 이미지만 보존합니다.
 

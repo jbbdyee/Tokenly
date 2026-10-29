@@ -121,7 +121,8 @@
 - [x] `2e7f832` 기준 universal ad-hoc RC ZIP 생성·해제 재검증·체크섬(기존 Release 폴더 보존)
 - [x] 다음 버전 `0.2.0 (4)` 적용, `CHANGELOG.md` 0.2.0(미출시) 추가와 0.1.0 발행 표기 정정 (Stage 6-11, 미커밋)
 - [x] `0.2.0 (4)` universal ad-hoc RC 생성·검증 (`rc-v0.2.0-build4/0.2.0-dev`, 개발 모드)
-- [ ] 커밋 후 `release.sh --final 0.2.0`으로 최종 RC 재생성, `v0.2.0` 태그·Release는 별도 승인
+- [x] `release.sh --final 0.2.0` 최종 빌드, 태그 `v0.2.0`(`b9089c8`)·GitHub Pre-release 발행 (Stage 6-13B, 2026-10-29)
+- [x] 발행 후 README·CHANGELOG 정리, `Doc/BRANCHING.md`, `test` 브랜치·브랜치 보호(force push·삭제 금지) (Stage 6-14)
 - [x] 개인 설치: 백업 → 일반 종료 → 옮긴 뒤 교체 → 실행·설정·연동 확인 (Stage 6-12, `HANDOFF.md`)
 - [x] 설치본(0.2.0 (4)) 실제 UI 조작: 사용자가 직접 조작해 이상 없음을 보고(2026-10-29, 항목별 개별 기록 없음, 자동 테스트 아님)
 - [ ] 설치본의 키보드·VoiceOver 접근성, 로그인 항목 상태·재로그인 자동 실행, AGY 신규 수신을 각각 확인

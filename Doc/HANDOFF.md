@@ -2,7 +2,14 @@
 
 `Doc/logs/`의 원본 성능 로그와 Workspace의 `.noindex` 보관소는 로컬 전용 자료다. 아래 절의 과거 미커밋·실행 PID·임시 경로는 당시 상태를 기록한 것이며 현재 Git·앱 상태는 별도 확인한다.
 
-최종 갱신: 2026-10-29 (Stage 6-13A v0.2.0 커밋·Push, Claude)
+최종 갱신: 2026-10-29 (Stage 6-14 릴리즈 문서·브랜치 운영 규칙, Claude)
+
+## Stage 6-14 v0.2.0 발행 후 문서와 브랜치 운영 (2026-10-29, Claude)
+
+- **발행 상태(6-13B):** 태그 `v0.2.0`(주석 태그) → `b9089c8`, GitHub Pre-release "Tokenly v0.2.0 — System Monitor"(2026-10-29), 첨부 `Tokenly-0.2.0-macOS-universal.zip`(3,040,070 B, SHA-256 `8b4c2c27802e873fe6b03a9b9c333ef70b6b6a2e4d01e38961bc16d6159b34a1`)과 `.sha256`. 깨끗한 복제본에서 `release.sh --final 0.2.0`, 전체 테스트 386개 통과, 공개 URL에서 받아 체크섬 확인. v0.1.0 태그·Release는 작업 전 기록과 동일.
+- **문서:** CHANGELOG 0.2.0을 발행으로, README 다운로드·설치를 v0.2.0(이전 버전 v0.1.0 안내)으로, 0.1.0 업데이트 안내·시스템 모니터 비공개 값 제한·release 예시·`--final 0.2.0` 검증 행 추가. `Doc/BRANCHING.md` 신설(`feature/*` → `test` → `main`, 충돌·태그·긴급 수정 규칙). BLOG-NOTES 맨 앞에 블로그 준비 자료(근거 파일·테스트 수·캡처 후보). 태그 대상 커밋은 그대로이고 이 문서 변경은 v0.2.0 이후 커밋이다.
+- **브랜치:** `test`를 이 문서 커밋 기준 `main`에서 만들어 Push. GitHub에서 `main`·`test` 모두 force push·삭제 금지(관리자 포함) 설정, PR·리뷰·상태 검사 필수는 설정 안 함(혼자 개발, CI 없음).
+- **구분:** 구현 완료 = v0.2.0 기능 / 자동 검증 = 386개 테스트·릴리즈 검사 / 실제 확인 = 개발자 Mac 설치·업데이트와 사용자 직접 UI 조작 / 미검증 = Gatekeeper 첫 실행(다른 Mac), Intel·다른 기종 측정, 키보드·VoiceOver, 로그인 항목 재승인, AGY 새 수신 / 향후 = Developer ID 서명·공증, Disk 눈금 라벨 겹침, GPU 초기 그래프 표현.
 
 ## Stage 6-13A v0.2.0 최종 검토·커밋·Push (2026-10-29, Claude)
 
