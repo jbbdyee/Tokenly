@@ -909,6 +909,91 @@ final class TokenlyTests: XCTestCase {
         XCTAssertNil(store.snapshot)
         XCTAssertTrue(store.errorMessage?.contains("CLI") == true)
     }
+
+    @MainActor
+    func testPopoverAttentionRefreshesAtSixtySecondsButNotBefore() async {
+        let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let first = UsageSnapshot(providerName: "Codex", windows: [UsageWindow(kind: .fiveHours, usedPercent: 97, resetsAt: nil)], fetchedAt: clock.date)
+        let second = UsageSnapshot(providerName: "Codex", windows: [UsageWindow(kind: .fiveHours, usedPercent: 99, resetsAt: nil)], fetchedAt: clock.date.addingTimeInterval(60))
+        let provider = SequenceProvider(responses: [.success(first), .success(second)])
+        let store = UsageStore(provider: provider, now: { clock.date })
+        if let task = store.refresh() { await task.value }
+        clock.date.addTimeInterval(59)
+        XCTAssertNil(store.refreshIfStale())
+        let freshCount = await provider.fetchCount
+        XCTAssertEqual(freshCount, 1)
+        clock.date.addTimeInterval(1)
+        if let task = store.refreshIfStale() { await task.value } else { XCTFail("Expected refresh at 60 seconds") }
+        let staleCount = await provider.fetchCount
+        XCTAssertEqual(staleCount, 2)
+        XCTAssertEqual(store.menuBarText, "5h 1% · 7d —")
+    }
+
+    @MainActor
+    func testAttentionSkipsInFlightAndRepeatedFailureButManualBypassesCooldown() async {
+        let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let first = UsageSnapshot(providerName: "Codex", windows: [UsageWindow(kind: .fiveHours, usedPercent: 97, resetsAt: nil)], fetchedAt: clock.date)
+        let provider = SequenceProvider(responses: [.success(first), .failure(.connection), .success(first)])
+        let store = UsageStore(provider: provider, now: { clock.date })
+        let firstTask = store.refresh()
+        XCTAssertNil(store.refreshIfStale(), "An in-flight CLI request must not be duplicated")
+        await firstTask?.value
+        clock.date.addTimeInterval(60)
+        if let task = store.refreshIfStale() { await task.value } else { XCTFail("Expected stale refresh") }
+        XCTAssertEqual(store.snapshot?.fetchedAt, first.fetchedAt)
+        XCTAssertEqual(store.menuBarText, "이전 · 5h 3% · 7d —")
+        clock.date.addTimeInterval(1)
+        XCTAssertNil(store.refreshIfStale(), "Repeated popover opens after failure must not spawn more CLI processes")
+        let afterFailureCount = await provider.fetchCount
+        XCTAssertEqual(afterFailureCount, 2)
+        if let task = store.refresh() { await task.value } else { XCTFail("Manual refresh should remain immediate") }
+        let afterManualCount = await provider.fetchCount
+        XCTAssertEqual(afterManualCount, 3)
+        XCTAssertNil(store.errorMessage)
+    }
+
+    @MainActor
+    func testWakeNotificationRefreshesOnlyStaleCodexData() async {
+        let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let first = UsageSnapshot(providerName: "Codex", windows: [UsageWindow(kind: .fiveHours, usedPercent: 97, resetsAt: nil)], fetchedAt: clock.date)
+        let second = UsageSnapshot(providerName: "Codex", windows: [UsageWindow(kind: .fiveHours, usedPercent: 99, resetsAt: nil)], fetchedAt: clock.date.addingTimeInterval(60))
+        let provider = SequenceProvider(responses: [.success(first), .success(second)])
+        let notifications = NotificationCenter()
+        let store = UsageStore(provider: provider, now: { clock.date }, wakeNotifications: notifications)
+        store.start()
+        for _ in 0..<100 {
+            if await provider.fetchCount > 0 { break }
+            await Task.yield()
+        }
+        clock.date.addTimeInterval(59)
+        notifications.post(name: NSWorkspace.didWakeNotification, object: nil)
+        for _ in 0..<100 { await Task.yield() }
+        let beforeWakeCount = await provider.fetchCount
+        XCTAssertEqual(beforeWakeCount, 1)
+        clock.date.addTimeInterval(1)
+        notifications.post(name: NSWorkspace.didWakeNotification, object: nil)
+        for _ in 0..<100 {
+            if await provider.fetchCount >= 2 { break }
+            await Task.yield()
+        }
+        let afterWakeCount = await provider.fetchCount
+        XCTAssertEqual(afterWakeCount, 2)
+        XCTAssertEqual(store.snapshot?.fetchedAt, second.fetchedAt)
+    }
+
+    @MainActor
+    func testFiveMinuteTimerPathRemainsIndependentOfAttentionCooldown() async {
+        let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let provider = SequenceProvider(responses: [.failure(.connection), .failure(.connection)])
+        let store = UsageStore(provider: provider, now: { clock.date })
+        if let task = store.refresh() { await task.value }
+        XCTAssertNil(store.refreshIfStale(), "No success must still respect the recent attempt cooldown")
+        clock.date.addTimeInterval(300)
+        if let task = store.refreshOnTimer() { await task.value } else { XCTFail("Periodic refresh must still run") }
+        let periodicCount = await provider.fetchCount
+        XCTAssertEqual(periodicCount, 2)
+        XCTAssertEqual(UsageStore.automaticRefreshInterval, 300)
+    }
 }
 
 private final class FakeLoginItemController: LoginItemControlling {
@@ -943,14 +1028,22 @@ private struct StubAdminKeyStore: AdminKeyStoring {
 private actor SequenceProvider: UsageProvider {
     let name = "Codex"
     private var responses: [Result<UsageSnapshot, UsageProviderError>]
+    private(set) var fetchCount = 0
 
     init(responses: [Result<UsageSnapshot, UsageProviderError>]) {
         self.responses = responses
     }
 
     func fetch() async throws -> UsageSnapshot {
-        try responses.removeFirst().get()
+        fetchCount += 1
+        return try responses.removeFirst().get()
     }
+}
+
+@MainActor
+private final class UsageClock {
+    var date: Date
+    init(_ date: Date) { self.date = date }
 }
 
 private actor CountingExternalProvider: ExternalUsageProvider {

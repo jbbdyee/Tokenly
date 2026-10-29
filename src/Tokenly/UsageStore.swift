@@ -1,3 +1,5 @@
+import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
@@ -15,24 +17,58 @@ final class UsageStore: ObservableObject {
     }
 
     private let provider: any UsageProvider
+    private let now: @MainActor () -> Date
+    private let wakeNotifications: NotificationCenter
     private var refreshTimer: Timer?
+    private var wakeSubscription: AnyCancellable?
+    private var lastAttemptAt: Date?
+    static let attentionRefreshInterval: TimeInterval = 60
+    static let automaticRefreshInterval: TimeInterval = 300
 
-    init(provider: any UsageProvider) {
+    init(provider: any UsageProvider, now: @escaping @MainActor () -> Date = Date.init,
+         wakeNotifications: NotificationCenter = NSWorkspace.shared.notificationCenter) {
         self.provider = provider
+        self.now = now
+        self.wakeNotifications = wakeNotifications
     }
 
     func start() {
         guard refreshTimer == nil else { return }
         refresh()
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.refresh() }
+        wakeSubscription = wakeNotifications.publisher(for: NSWorkspace.didWakeNotification)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in _ = self?.refreshIfStale() }
+            }
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: Self.automaticRefreshInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refreshOnTimer() }
         }
     }
+
+    /// Popover opens and wake notifications may be frequent. Keep the five-minute timer and manual refresh
+    /// independent; an attention refresh needs both old successful data and at least a minute since any attempt.
+    @discardableResult
+    func refreshIfStale() -> Task<Void, Never>? {
+        guard !isRefreshing else { return nil }
+        let current = now()
+        if let lastSuccess = snapshot?.fetchedAt {
+            let age = current.timeIntervalSince(lastSuccess)
+            if age >= 0 && age < Self.attentionRefreshInterval { return nil }
+        }
+        if let lastAttemptAt {
+            let elapsed = current.timeIntervalSince(lastAttemptAt)
+            if elapsed >= 0 && elapsed < Self.attentionRefreshInterval { return nil }
+        }
+        return refresh()
+    }
+
+    @discardableResult
+    func refreshOnTimer() -> Task<Void, Never>? { refresh() }
 
     @discardableResult
     func refresh() -> Task<Void, Never>? {
         guard !isRefreshing else { return nil }
         isRefreshing = true
+        lastAttemptAt = now()
         return Task {
             defer { isRefreshing = false }
             do {

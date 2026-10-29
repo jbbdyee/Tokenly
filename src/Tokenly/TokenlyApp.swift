@@ -31,7 +31,7 @@ struct TokenlyApp: App {
         MenuBarExtra {
             UsageMenuView(store: store, externalStore: externalStore,
                           displaySettings: displaySettings, settingsWindow: settingsWindow)
-                .onAppear { store.start(); externalStore.start() }
+                .onAppear { store.start(); store.refreshIfStale(); externalStore.start() }
         } label: {
             let label = MenuBarPresentation.text(style: displaySettings.menuBarStyle,
                                                  snapshot: store.snapshot,

@@ -2,7 +2,13 @@
 
 `Doc/logs/`의 원본 성능 로그와 Workspace의 `.noindex` 보관소는 로컬 전용 자료다. 아래 절의 과거 미커밋·실행 PID·임시 경로는 당시 상태를 기록한 것이며 현재 Git·앱 상태는 별도 확인한다.
 
-최종 갱신: 2026-10-29 (feature/ui-color-harmony 접근성 수동 검증 결과 반영, Codex)
+최종 갱신: 2026-10-30 (Codex 조건부 사용량 갱신 구현·검증, Codex)
+
+## Codex 사용량 확인 시 조건부 갱신 (2026-10-30, feature/codex-refresh-on-attention)
+
+- 기존 300초 자동 조회와 수동 새로고침은 유지한다. AI 팝오버 열림 및 `NSWorkspace.didWakeNotification`에서 마지막 성공 조회가 60초 이상 오래됐고 최근 조회 시도도 60초 이상 전일 때 Codex 조회를 시도한다. 진행 중 요청은 중복하지 않으며 실패해도 기존 snapshot·마지막 성공 시각은 보존한다.
+- `UsageStore`와 AI 팝오버 연결, 가짜 시계·절전 알림을 쓰는 테스트만 변경했다. `ExternalProviderStore`·Claude·AGY 상태줄 수신 경로는 변경하지 않았다. 설치본 v0.2.0과 사용자 설정은 그대로다.
+- 자동 검증: 관련 `TokenlyTests` 61개, 전체 392개 통과(기존 388개 + 신규 4개). Debug·Release 빌드와 `git diff --check` 통과. 실제 앱 팝오버 재열기·절전 복귀 조작은 미검증이다. GPU 원본 로그 2개는 미추적 로컬 자료로 보존한다. RAM-02는 조사 종료·원인 미확정·제품 수정 보류 상태를 유지한다.
 
 ## feature/ui-color-harmony 접근성 마무리 점검 (2026-10-29, Codex)
 
