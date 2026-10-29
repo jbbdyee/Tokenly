@@ -2,7 +2,46 @@
 
 `Doc/logs/`의 원본 성능 로그와 Workspace의 `.noindex` 보관소는 로컬 전용 자료다. 아래 절의 과거 미커밋·실행 PID·임시 경로는 당시 상태를 기록한 것이며 현재 Git·앱 상태는 별도 확인한다.
 
-최종 갱신: 2026-10-29 (Stage 6-8C 바탕화면 Preview 선별 보존, Codex)
+최종 갱신: 2026-10-29 (Stage 6-9C 자동 검증 중심 최종 안정화, Claude)
+
+## Stage 6-9C 자동 검증 중심 최종 안정화 (2026-10-29, Claude)
+
+- **격리 앱:** 6-9A 격리 도메인에는 macOS가 메뉴 막대 표시 기록(`NSStatusItem VisibleCC`)을 남겨 "신규 사용자"가 아니고, 그 plist는 보존 대상이라 지울 수 없다. 그래서 같은 격리 방식으로 새 사본을 만들었다(번들 ID `dev.local.tokenly.stage69c`, 별도 Keychain 서비스, AI 데이터 `/private/tmp/tokenly-stage6-9c-home`, 표시 이름 "Tokenly 6-9C 검증", AI 항목에만 "검증" 표식). 제품과 다른 줄은 9줄뿐이고 시스템 UI 코드는 동일. 이 앱의 설정 plist 1개가 새로 생겼다(Preferences의 Tokenly 파일 9 → 10). 마지막에 정상 종료해 지금은 실행 중이 아니다.
+- **실제 메뉴 막대(격리 앱, 클릭 없이 저장값 + 재실행 + 화면 캡처):** 빈 설정 → CPU·RAM·Disk·Battery 표시, GPU 없음. 다섯 개 모두 OFF 저장 → 격리 앱 시스템 항목 없음. 하나씩만 ON 저장 → CPU·RAM·Disk·Battery·GPU 각각 단독 표시. CPU OFF·GPU ON 저장 → GPU 표시, 재실행해도 같음. 저장된 `bear` 스타일 → 앱이 실행하며 `numeric`으로 다시 저장(마이그레이션 확인). 메뉴 막대가 붐벼 왼쪽 항목이 macOS 넘침(`«`)으로 들어가므로, 전부 ON일 때 CPU가 안 보이는 것과 최소형 AI 표시는 화면으로 판정하지 못했다(단독 ON 검사로 대신). 종료는 AppleEvent quit으로 매번 정상 종료.
+- **오프스크린(실제 팝오버 뷰 + 실제 측정 저장소, 메뉴 막대 화면 아님):** 5개 팝오버 다크·라이트 렌더. 잘림 없음. GPU 그래프: 시작 약 5초 뒤 점 4개가 x 301–317(가로 317 중 오른쪽 끝), 약 72초 뒤 60개가 x 5–317. 최근 60초 고정 가로축이 오른쪽부터 채워지는 **의도된 동작**이며 결함 아님(켠 직후 그래프가 거의 비어 보이는 것은 디자인 판단 대상). Battery 11pt 세부 행·라벨은 두 테마 렌더에서 읽을 수 있었으나 실제 화면·글자 크기 설정에서의 가독성은 미판정. CPU·RAM TOP 5가 "불러오는 중…"인 것은 화면 밖 창이라 팝오버가 숨겨진 것으로 보고 스캔을 멈춘 렌더 환경 탓(실제 앱에서는 이전에 확인됨). Disk 읽기 그래프의 "눈금 상한" 라벨이 현재 값이 눈금 위쪽일 때 오른쪽 위의 현재 점과 겹칠 수 있음(작은 배치 문제, 승인 전 수정 안 함).
+- **발견·수정한 결함:** 없음. 코드 변경 없음.
+- **자동 검증:** 전체 385개 통과(실패·건너뜀 0), Debug·Release 빌드 성공, `git diff --check` 통과. 테스트 후 Preferences의 Tokenly 파일 10개 그대로, 테스트 임시 폴더 0개. 실제 설정·PID 28707·GPU 원본 로그 2개 그대로.
+- **미검증(전체 목록):** 설정 창 스위치 **클릭**과 그 직후 메뉴 막대 반영, 실제 팝오버 열기·닫기(좌클릭)와 실제 화면 렌더링, 우클릭 메뉴, 다크·라이트 실제 전환(설정 창·AI 팝오버 포함), 최소형 메뉴 막대 실제 표시, Cmd+Q·Token Friends 종료 버튼 클릭, GPU 그래프 실제 화면, Battery 실제 가독성·큰 글자 설정, Tab/Shift+Tab/Space/Return, VoiceOver 읽기 순서·ON/OFF 전달·포커스 표시. 원인: 이 환경에 접근성(UI 자동화) 권한이 없어 메뉴 막대 항목을 누를 수 없다. 권한 우회는 하지 않았다.
+
+## Stage 6-9B 테스트 설정 파일 정리·재발 방지 (2026-10-29, Claude)
+
+- **누적 원인:** System Monitor 테스트 5종(`tokenly.systemWidget.tests.<UUID>`, `cpupopover`, `appearance`, `wiring`, `rampopover`)이 일반 이름의 UserDefaults suite를 만들고 `removePersistentDomain`만 호출했다. cfprefsd는 그 뒤에도 빈 `<suite>.plist`를 사용자 Preferences 폴더에 남기므로 실행마다 suite 수만큼 파일이 쌓였다. AI 쪽 `TokenlyTests.swift`는 이미 `TestDefaults`(임시 폴더의 절대 경로 suite + 파일 삭제)를 쓰고 있어 남기지 않았다.
+- **정리(휴지통 이동, 복구 가능):** Tokenly 관련 1,099개 중 **1,090개**: 테스트 5종 1,082개(전부 42바이트 빈 plist, 생성 코드 패턴과 일치)와 Claude가 저장소 밖 미리보기 스크립트로 만든 `tokenly.preview.*` 8개(빈 파일 7, 테스트 키 2개만 있는 1). 합계 45,840바이트. macOS `/usr/bin/trash`로 이동, 이동 전 경로·크기·SHA-256 목록을 저장소 밖에 기록, 휴지통의 1,090개 해시가 모두 일치, 원래 위치에 0개. 테스트·앱 프로세스가 쓰지 않는 도메인이라 cfprefsd 캐시 초기화는 하지 않았다.
+- **보존(9개):** 실제 설정 `io.github.jbbdyee.tokenly`(작업 전후 비교 동일). 이전 지시("진단용 설정 도메인은 정리 전에 별도 승인")에 따라 10-27 진단 세션의 `io.github.jbbdyee.tokenly.diag`, `tokenlydiag`, `tokenly.harness.h1`·`h2`. 검증용 `io.github.jbbdyee.tokenly.stage66verify`, 격리 앱 `dev.local.tokenly.stage69`·`stage69a`(6-9A 수동 확인에 필요할 수 있음). 소유자를 확정 못 한 `com.tokenly.app`(오래된 백업 기록에만 등장). Keychain은 건드리지 않았다.
+- **재발 방지(테스트 코드만):** 5개 파일 9곳을 `TestDefaults.suite(_:)`·`discard`로 전환(`SystemMonitorWiringTests` 3, `SystemWidgetControllerTests` 1, `RAMPopoverTests` 1, `CPUPopoverTests` 3 + 해당 정리부). `TestDefaults.discard`는 `TestDefaults` 폴더의 `TokenlyTests.` suite만 지우고 그 외(앱 도메인·일반 이름·`..` 경로)는 거부(`isTestSuite`, `assertionFailure`). 첫 사용 때 1시간 넘은 잔여 파일만 정리(강제 종료 대비, 동시 실행 중인 suite는 건드리지 않음). 정리는 모두 `defer`라 assertion 실패·throw 경로에서도 실행된다. 새 테스트 `testTestPreferenceSuitesStayOutOfUserPreferences` 1개. 검증 조건은 바꾸지 않았다.
+- **재발 검증:** 정리 후 Preferences의 Tokenly 파일 9개·임시 폴더 0개 → 전체 테스트 1회차 **385개 통과**(실패·건너뜀 0) → 9개/0개(5초 뒤도 같음) → 2회차 385개 통과 → 9개/0개. 이전에는 실행마다 수십 개씩 늘었다. 실제 설정은 두 번 실행 뒤에도 동일. Debug·Release 빌드 성공, `git diff --check` 통과. 실행 중 앱 PID 28707 그대로.
+- **남은 것:** 위 진단·검증·격리 도메인 7개와 `com.tokenly.app`의 정리는 별도 승인 후. 휴지통은 비우지 않았다(복구하려면 휴지통에서 되돌리기).
+
+## Stage 6-9A 시스템 위젯 기본값 (2026-10-29, Codex 시작 · Claude 마무리)
+
+- **이어받은 시점:** `main` / `85f27d5`. 미커밋: Codex의 `SystemWidgetController.swift`·`SystemWidgetControllerTests.swift`, 6-9 문서 3개, 미추적 `Doc/logs/`(GPU 원본 로그 2개, 보존). Codex 프로세스는 남아 있었지만 이어받기 전 4분 이상 저장소 쓰기·빌드가 없음을 확인했다.
+- **정책(구현 완료):** 저장값이 없는 위젯만 `SystemWidget.initialInsertion`(GPU만 false)을 쓴다. 저장된 true/false가 우선하고, 기본값은 저장하지 않는다. → 신규 사용자 CPU·RAM·Disk·Battery ON / GPU OFF.
+- **Codex 완료분:** 컨트롤러 기본값, 컨트롤러 테스트(신규 사용자, 모두 OFF 유지, 혼합 저장값 재실행, 일부 키만 있음, 바꾼 값 재실행 복원 + AI 설정 키 불변), 기존 상태 흐름 테스트는 "모두 OFF 저장" 기준으로 전환.
+- **Claude 수정:** `CPUPopoverTests.swift`(`makeController`)·`RAMPopoverTests.swift`(`testRAMPopoverStartsAndStopsTheScanOnce`)에 모든 위젯 OFF 저장을 명시. 실패 2개(`testNoScanWhileTheCPUWidgetIsOffOrAfterRemoval`, `testRAMPopoverStartsAndStopsTheScanOnce`)는 "CPU/RAM widget off: no scan"에서 1 ≠ 0이었고, 빈 설정 도메인이 이제 CPU·RAM ON이라 생긴 **테스트 전제 문제**(제품 결함 아님). assertion은 그대로 두었다.
+- **자동 검증:** 전체 384개 통과(실패·건너뜀 0, `/private/tmp/tokenly-69a-all.xcresult`), Debug·Release 빌드 성공, `git diff --check` 통과, 모든 Swift 파일이 pbxproj에 있음. 경고는 기존 `RAMPopoverTests.swift:47`뿐.
+- **격리 앱:** `/private/tmp/tokenly-stage6-9a-isolated-src/`(제품 + 번들 ID `dev.local.tokenly.stage69a`, Keychain 서비스 `dev.local.tokenly.stage69a.openai.admin`, Claude/AGY/상태 줄 홈 `/private/tmp/tokenly-stage6-9a-home`, 표시 이름 "Tokenly 6-9A 검증", AI 메뉴 막대 항목에만 "검증" 표식). 제품 소스에는 표식 없음. Claude가 두 테스트 파일을 사본에 동기화하고 다시 빌드(`/private/tmp/tokenly-stage6-9a-isolated-build`), `HOME`·`TOKENLY_HOME`을 임시 폴더로 실행. 로그인 항목은 안정 설치 위치가 아니라 등록 불가, Codex CLI 탐색도 임시 `HOME`을 따른다.
+- **실제 메뉴 막대(캡처로 확인):** 빈 도메인 → CPU·RAM·Disk·Battery 표시, GPU 없음, 설정 키 생성 없음. 재실행 → 같음. 격리 도메인에 CPU OFF·GPU ON 저장 후 재실행 → CPU 사라지고 GPU 표시. 확인 후 그 두 키를 지우고 격리 앱을 정상 종료(AppleEvent, 해당 번들 ID만). 원래 앱 PID 28707과 `io.github.jbbdyee.tokenly` 설정은 전후 동일(기존 사용자의 명시적 OFF 저장값도 그대로 — 기존 사용자 보존 사례).
+- **미검증(사용자 확인 필요):** 설정 창 스위치 클릭 ON/OFF와 그 후 재실행 복원, 다섯 팝오버, 다크·라이트, GPU 그래프 초기/60초 이후, Battery 글씨 가독성, 키보드·VoiceOver. 메뉴 막대 항목을 누를 수단(접근성 권한)이 없다.
+- **참고:** `~/Library/Preferences`에 테스트가 만든 `tokenly.*` 임시 plist가 1,000개 넘게 남아 있다(테스트의 `removePersistentDomain`이 빈 파일을 남김). 이번에 지우지 않았다.
+
+## Stage 6-9 안정화 검증 (2026-10-29)
+
+- **작업 전:** `main` / `85f27d5`; 미추적 GPU 원본 로그 2개 외 변경 없음. 기존 Debug 앱 PID 28707은 `/private/tmp/tokenly-switch-85-debug/Build/Products/Debug/Tokenly.app/Contents/MacOS/Tokenly`에서 실행 중이었다. 실제 사용자 설정 값은 문서에 남기지 않는다(작업 전후 비교로 동일함만 확인). 작업 전후 기존 앱 PID·실행 경로와 설정 도메인의 값이 같았다.
+- **격리:** 저장소 밖 임시 소스 사본에서만 테스트용 번들 ID, Keychain 서비스, Claude/AGY 파일 루트와 표시 이름을 분리했다. `HOME`·`TOKENLY_HOME`도 임시 폴더를 사용했다. 별도 Debug 앱 `dev.local.tokenly.stage69`를 PID 43746으로 실행해 원래 앱과 동시 실행 및 별도 UserDefaults 도메인을 확인한 뒤, 해당 PID·실행 경로를 확인하고 테스트 앱만 정상 종료했다. 원본 제품 코드·인증 자료·사용자 설정은 수정하지 않았다. 격리 앱은 메뉴 막대 앱으로 UI 자동화 목록에 나타나지 않았고 직접 선택도 시간 초과됐으며 접근성 자동화 권한이 없어 클릭·렌더링·VoiceOver 검증은 수행하지 않았다.
+- **코드·자동 검증:** `SystemWidgetControllerTests`는 위젯 독립 ON/OFF, 측정 작업 중지, 저장·복원을 검증하고 `TokenlyTests`는 폐기된 `bear` 스타일의 숫자형 이전을 검증한다. 이번 전체 `/private/tmp/tokenly-stage6-9-all.xcresult`에서 **380개 통과·실패/건너뜀 0**, 별도 Debug·Release 빌드 성공, `git diff --check` 통과. 테스트 컴파일의 `RAMPopoverTests.swift:47` 불필요한 `try`는 기존 경고다. 라이브 AI 서비스 조회, 실제 스위치 조작, 메뉴 클릭·종료, 다크·라이트 렌더링, 키보드·VoiceOver 읽기 순서는 이번 검증 결과가 아니다.
+- **GPU·Battery 조사:** GPU 그래프는 최근 60초를 고정 가로축으로 쓰고 새 샘플을 오른쪽에 놓는다. 켠 직후 기록이 짧으면 오른쪽에 몰려 보일 수 있다는 것은 코드에서 도출한 설명이며 실제 문제 원인으로 확정하지 않았다. Battery 세부 행은 11pt, 도움말은 10pt다. 실제 화면·접근성 글자 크기 검증이 없어 가독성 결함이나 디자인 변경을 확정하지 않았다. 이번 단계의 Swift 제품 코드·자동 테스트 변경은 없다.
+- **요구사항 확인 필요(당시):** ‘GPU 기본 OFF, 나머지 기본 ON’은 당시 §1.1(모두 최초 OFF)과 달라 동작을 유지했다. → 6-9A에서 확정·구현(위 절).
+- **남은 수동 검증:** 별도 접근 가능한 테스트 빌드에서 다섯 스위치 클릭·재실행 복원, 메뉴 좌/우클릭·종료, 다섯 팝오버의 두 테마·값 경계·텍스트 잘림, GPU 60초 이내/이후 그래프, Battery 상세 가독성, Tab/Shift+Tab/Space/Return 및 VoiceOver 순서를 확인한다. 이 항목은 자동 테스트 통과와 구분한다.
 
 ## Stage 6-8C 바탕화면 Preview 선별 보존 (2026-10-29)
 
