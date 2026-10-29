@@ -7,6 +7,7 @@ struct UsageMenuView: View {
     @ObservedObject var displaySettings: ProviderDisplaySettings
     let settingsWindow: SettingsWindowManager
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -370,9 +371,11 @@ struct UsageMenuView: View {
         return "초기화 \(CompactDateTime.string(for: date))"
     }
 
+    /// Remaining-limit bar colour. Healthy uses RAM's mint (UI colour harmony, 2026-10-29; was system green);
+    /// caution and low keep the system orange and red, so a warning never looks like the normal state.
     private func color(for level: RemainingLevel) -> Color {
         switch level {
-        case .healthy: .green
+        case .healthy: HarmonyPalette.mint(dark: colorScheme == .dark).color
         case .caution: .orange
         case .low: .red
         }

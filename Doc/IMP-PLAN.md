@@ -1417,3 +1417,12 @@ XCTest 107개 3회 통과 후 빌드 번호 3으로 개발 확인 빌드를 만�
 - **G2:** 별도 표준 계정에서 Safari 다운로드(격리 속성)로 Gatekeeper 첫 실행을 확인하는 절차를 조사하고, 기준 상태 스냅샷(`TokenlyRelease.noindex/g2-baseline-20261026-110118/`, 비밀값 없음)만 남겼다. 0.1.0에서는 생략하기로 했으므로 **미검증**이다. 조사에서 나온 주의점: 같은 Mac에서는 테스트 계정의 LaunchServices도 격리 속성 없는 `/Applications/Tokenly.app`을 등록하므로 그 사본이 실행되면 차단 없이 열려 거짓 통과가 될 수 있다.
 - **AGY 버킷:** 실제 수신 파일의 `quota` 키는 `3p-weekly`, `gemini-weekly` 2개다. 문서에는 이 계정의 관찰값으로만 적고, 버킷 구성은 계정·요금제·AGY 버전에 따라 다를 수 있다고 적었다.
 - **문서:** README·CHANGELOG·최종 `RELEASE-NOTES.md`의 발행 상태(준비 중, 미발행), 검증 결과(재로그인 확인, G2·재부팅 미검증), 공증 없음 경고, AGY 설명을 맞췄다. 최종 ZIP과 `.sha256`은 바꾸지 않았다. 문서를 커밋하면 HEAD가 빌드 커밋 `5fa3e9b`와 달라지지만, 바뀐 것은 문서뿐이라 앱 내용에는 영향이 없다.
+
+## 65. UI 색상 조화 (2026-10-29, `feature/ui-color-harmony`)
+
+- **기준:** RAM 팝오버의 구성 막대 색(`RAMPopoverView.appColor`·`wiredColor`·`compressedColor`). 새 색을 만들지 않고, 같은 값을 `HarmonyPalette`(`SystemMonitor/UI/AuroraGraph.swift`)에 모아 다른 화면이 참조한다. RAM 파일은 수정하지 않았다(테스트로 같은 값임을 확인).
+- **CPU 그래프:** CPU와 RAM은 같은 `standard` 팔레트(높이 = 색, 0% 청록 → 100% 보라)를 함께 쓰고 있었다. 이 팔레트를 바꾸면 RAM 그래프도 바뀌므로, `AuroraPalette.Scheme.cpu`(0% 라벤더 → 50% 블루 → 100% 민트)를 추가하고 CPU 뷰만 `palette: .cpu`를 넘긴다. 좌표 계산(`AuroraGraphLayout`)은 팔레트를 받지 않으므로 값·0–100% 고정 축·높이·곡선·60초 기록·1초 샘플링은 그대로다. 평소 10~20% 구간은 라벤더에 가까운 색으로 그려진다.
+- **배터리:** 정상 막대 그라데이션과 배지 강조색만 교체(`BatteryPopoverPresentation.Palette.gauge`·`accent`). 부족 앰버와 충전 빗금, 상태 판정은 그대로.
+- **AI 사용량:** `UsageMenuView.color(for:)`의 여유(50% 초과)만 시스템 초록 → RAM 민트. 주의 주황·부족 빨강은 경고 의미라 유지. 레이아웃·아이콘·글꼴·메뉴 막대·수집 로직 변경 없음. 서비스별 색 구분은 새 의미를 더하는 것이라 하지 않았다.
+- **GPU·Disk:** GPU는 이미 RAM의 블루 `#A8CDF4`·라벤더 `#C5B3EE`를 쓰고, Disk P1(아쿠아 `#9FE3E6`·민트 `#B2E8C8`·블루 `#A7C9F2`)도 같은 명도의 파스텔이라 바꾸지 않았다.
+- **검증:** 전체 388개 통과(386 + 색상 테스트 2: CPU 팔레트 값·RAM 값과 동일·높이 규칙·RAM/GPU 불변·좌표 불변, 배터리 정상 그라데이션·부족 앰버 유지), Debug·Release 빌드 성공, 실제 뷰를 화면 밖에서 다크·라이트로 렌더링해 전후 비교. AI 막대의 tint는 화면 밖(비활성 창) 렌더에서 회색으로 그려져 확인하지 못했다. 설치 앱 실제 화면은 미확인.

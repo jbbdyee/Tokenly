@@ -92,9 +92,9 @@ struct CPUPopoverView: View {
     static let help = "프로세스 CPU 사용률은 코어 1개를 100%로 계산하므로 여러 코어를 쓰면 100%를 넘을 수 있습니다. 위의 전체 CPU 사용률은 모든 코어를 기준으로 계산합니다. 권한에 따라 일부 프로세스는 표시되지 않을 수 있습니다."
 
     private var dark: Bool { colorScheme == .dark }
-    /// Accent for the load label: the graph's own teal, never a warning colour.
+    /// Accent for the load label: RAM's mint (its normal-pressure badge colours), never a warning colour.
     private var accent: Color {
-        dark ? Color(red: 0.62, green: 0.93, blue: 0.86) : Color(red: 0.08, green: 0.58, blue: 0.50)
+        HarmonyPalette.mintText(dark: dark).color
     }
 
     var body: some View {
@@ -162,7 +162,7 @@ struct CPUPopoverView: View {
                 .accessibilityLabel(accessibilitySummary)
             }
             .padding(.horizontal, 14).padding(.top, 11)
-            AuroraGraph(history: store.cpuHistory, fadesAreaEdges: true)
+            AuroraGraph(history: store.cpuHistory, palette: .cpu, fadesAreaEdges: true)
                 .frame(height: 84).clipped().padding(.top, 6)
         }
     }

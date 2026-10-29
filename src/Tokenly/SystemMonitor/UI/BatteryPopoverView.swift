@@ -131,11 +131,13 @@ enum BatteryPopoverPresentation {
         return "\(Int(celsius.rounded()))°C"
     }
 
-    /// Soft lime / pastel green / yellow-green, soft amber when low (approved 2026-10-28). Light = deeper same hues.
+    /// RAM's lavender → pastel blue → mint for the normal level bar and mint for the badge (UI colour harmony,
+    /// 2026-10-29; was yellow-green → lime → green). Soft amber when low is unchanged: it carries the warning.
     enum Palette {
-        static func lime(dark: Bool) -> Color { DiskPopoverPresentation.Palette.hex(dark ? 0xCDEB9B : 0x5E8F1E) }
-        static func green(dark: Bool) -> Color { DiskPopoverPresentation.Palette.hex(dark ? 0xA6E3B0 : 0x2E8A4A) }
-        static func yellowGreen(dark: Bool) -> Color { DiskPopoverPresentation.Palette.hex(dark ? 0xE2EBA0 : 0x7C8A16) }
+        static func gauge(dark: Bool) -> [Color] {
+            [HarmonyPalette.lavender(dark: dark).color, HarmonyPalette.blue(dark: dark).color, HarmonyPalette.mint(dark: dark).color]
+        }
+        static func accent(dark: Bool) -> Color { HarmonyPalette.mintText(dark: dark).color }
         static func low(dark: Bool) -> Color { DiskPopoverPresentation.Palette.hex(dark ? 0xF2C08A : 0xA9621C) }
     }
 }
@@ -157,7 +159,7 @@ struct BatteryPopoverView: View {
     private var dark: Bool { colorScheme == .dark }
     private var status: BatteryPopoverStatus { BatteryPopoverPresentation.status(store.batteryPower) }
     private var accent: Color {
-        status == .low ? BatteryPopoverPresentation.Palette.low(dark: dark) : BatteryPopoverPresentation.Palette.green(dark: dark)
+        status == .low ? BatteryPopoverPresentation.Palette.low(dark: dark) : BatteryPopoverPresentation.Palette.accent(dark: dark)
     }
 
     var body: some View {
@@ -225,7 +227,7 @@ struct BatteryPopoverView: View {
         .padding(.horizontal, 14).padding(.top, 11).padding(.bottom, 12)
     }
 
-    /// Fill = charge. Yellow-green → lime → green, soft amber when low, a soft hatch while charging. No animation.
+    /// Fill = charge. Lavender → pastel blue → mint, soft amber when low, a soft hatch while charging. No animation.
     private var gauge: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
@@ -233,8 +235,7 @@ struct BatteryPopoverView: View {
                 if let percent = store.batteryPower?.value?.chargePercent.value {
                     let colors = status == .low
                         ? [BatteryPopoverPresentation.Palette.low(dark: dark), BatteryPopoverPresentation.Palette.low(dark: dark)]
-                        : [BatteryPopoverPresentation.Palette.yellowGreen(dark: dark), BatteryPopoverPresentation.Palette.lime(dark: dark),
-                           BatteryPopoverPresentation.Palette.green(dark: dark)]
+                        : BatteryPopoverPresentation.Palette.gauge(dark: dark)
                     ZStack {
                         LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
                         if status == .charging {

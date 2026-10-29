@@ -277,6 +277,51 @@ final class CPUPopoverTests: XCTestCase {
         XCTAssertEqual(scheduler.active, 0)
     }
 
+    // MARK: UI colour harmony (2026-10-29)
+
+    /// CPU uses RAM's lavender → pastel blue → mint by height; RAM (`standard`) and GPU are unchanged, and the colour
+    /// never affects where points are drawn.
+    func testCPUGraphUsesRAMColoursWithoutChangingDataOrOtherPalettes() {
+        func hex(_ c: AuroraPalette.RGB) -> String { String(format: "%02X%02X%02X", Int((c.r * 255).rounded()), Int((c.g * 255).rounded()), Int((c.b * 255).rounded())) }
+        XCTAssertEqual(AuroraPalette.stops(dark: true, scheme: .cpu).map { hex($0.rgb) }, ["C5B3EE", "A8CDF4", "A5E2D7"], "RAM's lavender, blue, mint")
+        XCTAssertEqual(AuroraPalette.stops(dark: false, scheme: .cpu).map { hex($0.rgb) }, ["8A63C9", "3A7BC8", "149480"])
+        XCTAssertEqual(AuroraPalette.stops(dark: true, scheme: .cpu).map(\.value), [0, 50, 100], "Same height rule")
+        // The colours are RAM's own composition-bar colours.
+        XCTAssertEqual(HarmonyPalette.mint(dark: true).color, RAMPopoverView.appColor)
+        XCTAssertEqual(HarmonyPalette.blue(dark: true).color, RAMPopoverView.wiredColor)
+        XCTAssertEqual(HarmonyPalette.lavender(dark: true).color, RAMPopoverView.compressedColor)
+        for dark in [true, false] {
+            // A typical 10–20 % CPU line is close to lavender; high usage turns mint.
+            let low = AuroraPalette.rgb(for: 15, dark: dark, scheme: .cpu), lavender = HarmonyPalette.lavender(dark: dark), mint = HarmonyPalette.mint(dark: dark)
+            XCTAssertLessThan(abs(low.r - lavender.r) + abs(low.g - lavender.g) + abs(low.b - lavender.b), 0.15)
+            XCTAssertEqual(AuroraPalette.rgb(for: 100, dark: dark, scheme: .cpu), mint)
+            XCTAssertEqual(AuroraPalette.rgb(for: -10, dark: dark, scheme: .cpu), lavender, "Clamped like before")
+        }
+        // RAM (standard) and GPU keep their approved values.
+        XCTAssertEqual(AuroraPalette.stops(dark: true)[0].rgb, .init(r: 0.25, g: 0.85, b: 0.72))
+        XCTAssertEqual(AuroraPalette.stops(dark: true, scheme: .standard).map { hex($0.rgb) }, AuroraPalette.stops(dark: true).map { hex($0.rgb) })
+        XCTAssertEqual(AuroraPalette.stops(dark: true, scheme: .gpu).map { hex($0.rgb) }, ["A8CDF4", "A9B6F0", "C5B3EE"])
+        XCTAssertEqual(AuroraPalette.lineWidth, 1.25)
+        // Geometry does not take a palette: the same history gives the same points, scale and current value.
+        var history = SystemMetricHistory()
+        let start = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        for (i, v) in [12.0, 9, 14, 31, 11].enumerated() { history.append(v, at: start.addingTimeInterval(Double(i))) }
+        let layout = AuroraGraphLayout(history: history, size: CGSize(width: 324, height: 84))
+        XCTAssertEqual(layout.segments.first?.map(\.y), [12.0, 9, 14, 31, 11].map { AuroraGraphLayout.y($0, height: 84) }, "0–100 % fixed axis")
+        XCTAssertEqual(layout.currentValue, 11)
+    }
+
+    /// Battery's normal level bar follows the same palette; the low state keeps its amber warning.
+    func testBatteryColoursKeepTheLowWarning() {
+        for dark in [true, false] {
+            XCTAssertEqual(BatteryPopoverPresentation.Palette.gauge(dark: dark),
+                           [HarmonyPalette.lavender(dark: dark).color, HarmonyPalette.blue(dark: dark).color, HarmonyPalette.mint(dark: dark).color])
+            XCTAssertNotEqual(BatteryPopoverPresentation.Palette.low(dark: dark), BatteryPopoverPresentation.Palette.accent(dark: dark))
+        }
+        XCTAssertEqual(BatteryPopoverPresentation.Palette.low(dark: true), DiskPopoverPresentation.Palette.hex(0xF2C08A), "Amber unchanged")
+        XCTAssertEqual(BatteryPopoverPresentation.Palette.low(dark: false), DiskPopoverPresentation.Palette.hex(0xA9621C))
+    }
+
     // MARK: App appearance → popover window (real-app fix)
 
     func testAppearanceSettingMapsToWindowAppearance() {

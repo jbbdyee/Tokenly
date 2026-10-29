@@ -53,6 +53,23 @@ enum AuroraCurve {
     }
 }
 
+/// The RAM popover's mint · pastel blue · lavender (its composition bar, `RAMPopoverView.appColor` etc.), shared so
+/// other screens can match it (UI colour harmony, 2026-10-29). Dark mode uses the RAM hex values as they are; light
+/// mode uses deeper shades of the same hues that already exist in the app, so lines and text stay readable.
+enum HarmonyPalette {
+    static func hex(_ v: UInt32) -> AuroraPalette.RGB {
+        AuroraPalette.RGB(r: Double((v >> 16) & 0xFF) / 255, g: Double((v >> 8) & 0xFF) / 255, b: Double(v & 0xFF) / 255)
+    }
+    /// RAM "앱 메모리" #A5E2D7; light: the former CPU accent #149480.
+    static func mint(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xA5E2D7 : 0x149480) }
+    /// RAM "와이어드" #A8CDF4; light: the GPU light-mode blue #3A7BC8.
+    static func blue(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xA8CDF4 : 0x3A7BC8) }
+    /// RAM "압축" #C5B3EE; light: the GPU light-mode lavender #8A63C9.
+    static func lavender(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xC5B3EE : 0x8A63C9) }
+    /// Text on a mint badge: RAM's normal-pressure badge colours (#A5E2D7 dark, #1F6B5E light).
+    static func mintText(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xA5E2D7 : 0x1F6B5E) }
+}
+
 /// The B1 "Aurora Flow" colours (approved 2026-10-28): colour is a function of height only (0 % teal, 50 % blue,
 /// 100 % violet), so the same value always has the same colour. Violet means "high", never an error.
 enum AuroraPalette {
@@ -64,9 +81,14 @@ enum AuroraPalette {
     /// `standard` is the approved B1 palette (CPU, RAM). `gpu` (6-4d) keeps the same height rule in baby blue →
     /// periwinkle → lavender: the given hex in dark mode, deeper versions of the same hues in light mode so the line
     /// stays visible on a light background.
-    enum Scheme { case standard, gpu }
+    /// `cpu` (UI colour harmony, 2026-10-29): RAM's lavender at the bottom, pastel blue in the middle, mint at the
+    /// top, so the usual 10–20 % CPU line reads lavender. Same height rule; only the colours differ from `standard`.
+    enum Scheme { case standard, gpu, cpu }
 
     static func stops(dark: Bool, scheme: Scheme) -> [(value: Double, rgb: RGB)] {
+        if scheme == .cpu {
+            return [(0, HarmonyPalette.lavender(dark: dark)), (50, HarmonyPalette.blue(dark: dark)), (100, HarmonyPalette.mint(dark: dark))]
+        }
         guard scheme == .gpu else { return stops(dark: dark) }
         func hex(_ v: UInt32) -> RGB { RGB(r: Double((v >> 16) & 0xFF) / 255, g: Double((v >> 8) & 0xFF) / 255, b: Double(v & 0xFF) / 255) }
         return dark ? [(0, hex(0xA8CDF4)), (50, hex(0xA9B6F0)), (100, hex(0xC5B3EE))]
