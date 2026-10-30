@@ -4,6 +4,13 @@
 
 최종 갱신: 2026-10-30 (Codex 조건부 사용량 갱신 구현·검증, Codex)
 
+## 실계정 개발 앱 프로세스 검증 (2026-10-30, 조건부 승인 후)
+
+- `feature/usage-refresh-label-and-sources`, 시작 HEAD `348e179`. 승인된 별도 앱 `/private/tmp/tokenly-real-codex-verify-20261030/Build/Products/Debug/Tokenly.app`(ID `io.github.jbbdyee.tokenly.realverify.20261030`)만 PID 55867로 실행했다. 런처는 공식 Codex CLI를 우선 PATH로 찾고 `CODEX_SQLITE_HOME=/private/tmp/tokenly-real-codex-verify-20261030/sqlite`를 지정했다. stdout/stderr는 `/dev/null`로 버려 계정·사용량·인증 응답을 남기지 않았다. 해당 임시 상태 경로에 파일 12개가 생성된 것은 확인했으나 내용은 읽지 않았다. 설치 앱 PID 66468은 실행 상태로 유지했다.
+- 앱 시작 시각은 09:19:35 KST. 첫 CLI 실행은 프로세스 샘플링 시작 전에 끝나 직접 측정하지 못했다. 이후 개발 앱의 `codex` 자식 시작을 00:21:37·00:23:37 UTC에 2회 관찰했으며 간격은 120초다. 두 번째 관찰 자식 PID 56820은 0.25초 샘플링으로 약 0.92초 실행을 관찰했다(정확한 OS 실행 시간은 아님). 관찰한 두 프로세스는 겹치지 않았다. 60초 타이머의 검사와 CLI 실행은 같지 않다. `UsageStore`는 성공 직후 다음 tick의 나이가 60초 미만이면 건너뛰므로 120초 실행 간격은 구현과 양립한다. 이 실행 간격은 실패 후 타이머 300초 backoff가 적용되지 않은 상태임을 시사하지만 UI의 실제 사용량 성공값과 마지막 성공 시각은 직접 확인하지 못했다.
+- 약 135초간 440개 `ps` 표본에서 개발 앱 CPU 순간값 0.0~5.6%, RSS 86,080~86,560 KiB였다. 이어진 약 80초 관찰에서 앱 CPU 0.0~8.8%, RSS 86,352~86,464 KiB였다. 이는 앱 전체 표본이며 실제 CLI의 CPU·RSS는 수집하지 못했다. 초기 CLI 소요 시간도 미측정이다. 장시간 안정성 결론으로 확대하지 않는다.
+- macOS 컴퓨터 사용 도구는 `Sky Computer Use native pipe startup failed`로 연결되지 않았다. 따라서 팝오버 재열기·수동 새로고침·화면의 마지막 갱신 시각 및 실제 사용량, 절전 복귀는 미검증이다. 기존 XCTest는 조건 로직의 자동 테스트 증거로만 유지한다. 설정 변경 조작은 하지 않았으나 CLI 자동 토큰 갱신 여부와 UI 인증 오류 여부는 확인할 수 없었다. 개발 앱 PID 55867만 종료했고 설치 앱 PID 66468은 계속 실행 중이다. 제품 코드 변경 없음.
+
 ## 실사용 환경 기반 1분 갱신 검증 준비 (2026-10-30, 실행 승인 대기)
 
 - 브랜치 `feature/usage-refresh-label-and-sources`, 시작 HEAD `4ffd3f2`. GPU 실측 로그 2개는 미추적 상태로 보존. 기존 `/Applications/Tokenly.app`을 종료·교체하지 않았고 root 진단과 기존 EPERM 재현은 중단했다.
