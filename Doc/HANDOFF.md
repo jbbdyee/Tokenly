@@ -1,5 +1,11 @@
 # Tokenly 작업 인수인계
 
+## Claude SDK 두 번째 단발성 필드 분류 (2026-10-30)
+
+- `experiment/claude-usage-refresh` `6ffa8c5`에서 시작했다. 공식 SDK `0.3.169`·Claude Code CLI `2.1.292`를 사용한 프롬프트 없는 `get_usage` 실계정 조회를 승인 범위 내에서 **1회만** 실행했다. 사전 분류 모의 응답 8종은 통과했다.
+- initialize와 usage 제어 요청은 성공했으나, 실제 응답은 `rate_limits_available=true`와 `rate_limits=null`이었다. 컨테이너가 `null`이므로 5시간·7일 창의 키·값·시각은 각각 부재 또는 `null`로 판정할 수 없다. 표시 가능한 한도 값은 확인되지 않았다. 사용자·assistant 메시지, 양의 세션 비용, 모델별 사용 기록, 401·403·429는 관찰되지 않았다. 응답까지 약 355 ms. 원본 응답·수치·인증 정보는 저장하지 않았다.
+- 이 조합의 원인은 미확정이다. 실험적 SDK를 제품 자동 폴링에 적용할 근거가 아직 없다. 제품 코드·설치 앱·사용자 설정은 변경하지 않았고 GPU 로그 2개를 보존했다. 결과와 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 기록했다. 추가 실계정 호출은 새 승인 없이는 하지 않는다.
+
 ## Claude usage 1차 검사 정적 재분석 (2026-10-30)
 
 - `experiment/claude-usage-refresh` `1840733`에서 시작했다. **추가 실계정 조회·모델 요청·인증 저장소 접근 없이** 임시 helper와 공식 SDK `0.3.169` 타입·구현을 조사했다. `get_usage`는 응답을 검증·가공하지 않고 전달한다. `rate_limits_available=true`는 5시간·7일 숫자 존재의 보장이 아니다. 두 창은 선택적이며 창·내부 값은 `null`일 수 있다.
