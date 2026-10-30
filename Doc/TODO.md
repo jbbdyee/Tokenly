@@ -4,7 +4,8 @@
 
 - [x] 공식 문서와 설치 CLI 도움말 확인: Claude v2.1.292 개인 구독 비대화형 한도 계약 미발견, AGY v1.4.10은 공식 v1.1.10 이후의 `-p /usage --output-format json` 후보
 - [x] AGY 공식 print `/usage` 1회 실행: 종료 코드 0, 유효한 JSON, 약 6.65초, stderr 없음. 비민감 구조에서 `usage` 메타데이터와 `buckets` 배열 확인
-- [ ] AGY의 5시간·7일 버킷, 잔여율·리셋 필드, 기존 statusLine 매핑과 인증/설정 쓰기·실제 비용 영향은 미검증. 별도 범위에서 확인 후 자동 갱신 구현 여부 결정
+- [x] 승인된 추가 1회로 `buckets[]`의 `remaining_fraction` 숫자, `reset_time`·`window` 문자열 및 기존 statusLine 주간 버킷 식별자 대응 확인. 약 6.77초, 오류·추가 인증 없음. 5시간 표식 없음
+- [ ] 계정·플랜별 버킷 구조, 리셋 시각 형식, 정확한 버킷 선택과 인증/설정 쓰기·장시간 비용 영향 확인 후 직접 조회 Provider 구현 여부 결정(기존 statusLine 유지)
 - [ ] Claude Code 개인 구독 5시간·7일 한도의 공식 read-only 비대화형 조회 계약이 생기는지 추적(statusLine 유지)
 
 ## 2026-10-30 격리 앱 검증 후속

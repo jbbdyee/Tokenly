@@ -1,5 +1,11 @@
 # Tokenly 작업 인수인계
 
+## AGY print `/usage` 구조 확인 (2026-10-30, 추가 단일 실행)
+
+- 시작 `main` HEAD `2278d5a`, 미추적 GPU 로그 2개 외 변경 없음. 공식 변경 기록의 모델 턴·쿼터 미소비 설명과 설정의 `disableSlashCommands` 부재(기본 false)를 확인하고, 승인된 CLI 명령을 임시 cwd에서 정확히 1회 실행했다. 종료 코드 0, 유효 JSON, 약 6.77초, stderr·추가 인증 요구 없음. `num_turns`와 `usage` 숫자 필드가 모두 0이라는 불리언 검사도 참이었다. 원본 JSON·실제 사용량·계정·토큰은 출력·저장하지 않았다.
+- `command.data` 아래 항목 배열의 각 항목에 `buckets` 배열이 있고, 버킷은 `name`·`description`·`window`·`reset_time` 문자열과 `remaining_fraction` 숫자를 갖는다. 검사한 식별자에서 기존 statusLine 주간 버킷 두 종류와 weekly 표식은 확인, 5시간 표식은 미확인이다. statusLine은 `quota` 맵의 `remaining_fraction`·`reset_time`을 사용하므로 직접 JSON의 해당 필드를 변환하면 관찰된 주간 버킷의 메뉴 막대 잔여값을 구성할 후보가 있다. 5시간 한도나 모든 계정의 동일 구조는 보장되지 않는다.
+- 다음 구현 단계는 별도 범위에서 버킷 선택·리셋 시각 파싱·계정별 구조 계약을 확인하고, 기존 statusLine을 유지한 채 직접 조회 Provider와 테스트를 설계하는 것이다. 초기 주기 후보는 5분, 중복 실행 방지·실패 시 마지막 성공 데이터 유지·5분 이상 재시도다. CLI 상태/인증 캐시 쓰기와 장시간 비용은 미측정이다. 이번에는 제품 코드·설치 앱·사용자 설정을 직접 변경하지 않았고 빌드·XCTest는 실행하지 않았다.
+
 ## AGY print `/usage` 단일 실행 검증 (2026-10-30)
 
 - 이전 조사 문서 5개를 로컬 `main`에서 `c090954`로 커밋했다. GPU 실측 로그 2개는 미추적 상태로 보존했다. 설치 AGY CLI v1.4.10의 `--version`·`--help`에서 버전과 `-p`·JSON 출력 옵션을 확인했다.

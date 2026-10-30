@@ -1,5 +1,13 @@
 # Tokenly 기술 블로그 자료
 
+## AGY print `/usage` 데이터 구조 단일 검증 (2026-10-30)
+
+- **사전 조건:** 로컬 `main` HEAD `2278d5a`, 미추적 GPU 로그 2개만 있었다. [공식 변경 기록](https://antigravity.google/docs/changelog?tab=cli)은 print `/usage`가 모델 턴·쿼터·대화 기록을 만들지 않는다고 설명한다. [헤드리스 문서](https://antigravity.google/docs/cli/headless/)는 캐시된 인증 재사용과 JSON 출력을 설명한다. 현재 설정의 `disableSlashCommands`는 없어서 문서상 기본값 `false`다. 인증·설정 파일은 읽기만 했고 원본 내용은 출력하지 않았다.
+- **실행 [이번 1회 실측]:** 임시 cwd에서 공식 `agy -p "/usage" --output-format json`을 정확히 한 번 실행했다. 종료 코드 0, 경과 약 6.77초, 유효 JSON, stderr 없음, 추가 인증 요구 없음. 원본 stdout/stderr, 계정·실제 사용량 수치·토큰은 저장하거나 출력하지 않았다. JSON의 `status`는 성공 상태였고 `num_turns` 및 `usage` 수치 필드는 모두 0인지 **참/거짓으로만 검사해 참**이었다. 이 한 번의 실행이 장기적인 과금·기록 정책까지 증명하지는 않는다.
+- **구조 [값 비공개]:** 최상위 `command: object` 아래 `name: string`, `data: object`가 있다. `data`에는 문자열 필드와 항목 배열이 있으며 배열 항목은 `name: string`, `description: string`, `buckets: array`를 갖는다. `buckets[]`에는 식별용 문자열 필드(이름은 민감 필드 보호 규칙으로 비공개), `name: string`, `description: string`, `window: string`, `remaining_fraction: number`, `reset_time: string`이 있다. 배열은 비어 있지 않았다. `data`의 동적 키·모든 값은 출력하지 않았다. 검사 범위의 문자열 식별자에 기존 statusLine의 주간 버킷 두 종류가 모두 있었고 7일/weekly 표식은 있었지만 5시간 표식은 없었다. 문자열 형식과 필드의 장기적 안정성은 미검증이다.
+- **기존 Tokenly와 비교:** statusLine 브리지는 `quota` 맵의 각 키와 `remaining_fraction`·`reset_time`만 로컬 `agy-quota.json`에 저장하고, 파서는 유효한 0~1 비율을 퍼센트로 바꿔 메뉴 막대에 표시한다. 직접 조회 JSON은 배열과 감싼 객체를 사용하므로 파서·버킷 선택 변환이 필요하지만, 확인한 필드만으로 **관찰된 주간 버킷의 잔여 퍼센트와 리셋 시각을 계산할 후보**는 있다. `window`와 버킷 이름을 임의로 5시간 한도에 대응시키지 않는다. 모든 계정·플랜에서 같은 버킷을 보장한다는 근거도 없다.
+- **권장 방향 [설계 제안]:** 기존 statusLine을 유지하고, 별도 Provider가 공식 print `/usage`를 5분 간격의 초기 후보로 단일 실행·중복 방지하며 성공 결과만 갱신하도록 설계한다. 6.77초 실행 비용과 인증/CLI 상태 쓰기 가능성을 감안해 더 짧은 주기를 지금 확정하지 않는다. 실패 시 마지막 성공값·시각을 유지하고 5분 이상 후 재시도하는 방안을 검토한다. 구현 전 구조가 다른 계정에서도 유지되는지, `reset_time` 형식, 주간 버킷 선택, CLI 로그·캐시 쓰기, 장시간 성능을 검증한다. 제품 코드는 수정하지 않았다.
+
 ## AGY print `/usage` 실계정 1회 검증 (2026-10-30)
 
 - **사전 확인:** 로컬 `main`의 기존 조사 문서 5개를 검토하고 `c090954`로 문서만 커밋했다. 설치된 `agy --version`은 1.4.10이며 `--help`에 `-p`와 `--output-format json` 옵션이 있다. 실행 전 공식 문서의 읽기 전용 경로와 모델 턴·쿼터 미소비 설명을 재확인했다.
