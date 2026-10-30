@@ -1,5 +1,7 @@
 # Tokenly 제품 사양 (가칭)
 
+> **Claude 독립 조회 2차 조사(2026-10-30):** Anthropic GitHub의 [#82656](https://github.com/anthropics/claude-code/issues/82656), [#84995](https://github.com/anthropics/claude-code/issues/84995), [#59462](https://github.com/anthropics/claude-code/issues/59462)는 내부 사용량 상태와 statusLine 투영 차이·창 누락을 사용자 보고 수준에서 보여 준다. 비공식 OAuth 경로는 기술적 후보이나 공식 공개 계약·안전한 인증 위임·429 정책이 확인되지 않아 Tokenly에 채택하지 않는다. 공식 statusLine 수신 시각은 서버 조회 시각이 아니다. 상세 근거와 후속 조건은 `BLOG-NOTES.md`에 기록했다.
+
 > **Claude 개인 구독 독립 조회 조사(2026-10-30):** 설치 Claude Code 2.1.292의 도움말과 공식 CLI/명령 문서에서 무모델 비대화형 구독 한도 조회 계약을 찾지 못했다. 공식 statusLine은 5시간·7일 사용률과 초기화 시각을 제공하지만 세션 첫 API 응답 이후에만 나타날 수 있어 Claude Code가 멈춘 동안의 서버 최신 조회를 보장하지 않는다. Tokenly 5분 타이머는 수신 파일 재읽기다. 조직 API 사용량 API는 개인 구독 한도와 구분한다. 자세한 근거는 `BLOG-NOTES.md`에 있다.
 
 > **AGY 격리 앱 실사용 검증 경계(2026-10-30):** 별도 ID 개발 앱에서 공식 CLI 자식 실행 2회를 약 300초 간격으로 관찰했고 중첩은 없었다. 개발 앱은 두 번째 호출 뒤 종료했고 설치본은 유지했다. 사용자 캡처에서 주간 버킷 2개의 잔여율·초기화 시각, 직접 조회 출처·마지막 성공 시각을 확인해 첫 직접 조회의 앱 반영을 뒷받침한다. 두 번째 응답 성공은 별도로 확인되지 않았다. 프로세스 실행 자체를 성공 조회로 취급하지 않는다. 자세한 기록은 `BLOG-NOTES.md`와 `HANDOFF.md`에 있다.
