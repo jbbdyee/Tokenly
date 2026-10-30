@@ -1,5 +1,11 @@
 # Tokenly 구현 계획
 
+## 81. Claude Code 개인 구독 독립 조회 조사 (2026-10-30)
+
+- 현재 CLI 2.1.292 `--help`/`--version`과 공식 CLI 참조·명령 목록에 AGY print `/usage`와 동등한 구조화·무모델 구독 조회 계약이 없다. `/usage`는 세션 내부 UI이고 `-p`는 질문 실행이다. `claude auth status`는 로그인 상태만 다룬다. 실제 계정·인증 파일·로컬 세션 로그는 조사하지 않았다.
+- 공식 statusLine `rate_limits`는 Pro/Max에서 5시간·7일 사용률 및 Unix 초기화 시각을 제공하지만 세션 첫 API 응답 뒤에만 나타날 수 있다. `refreshInterval`은 스크립트를 다시 실행할 뿐 서버 재조회 근거가 아니다. 기존 브리지는 `claude-quota.json`에 수신 시각과 두 창만 저장하고 앱 타이머는 파일을 다시 읽는다. 조직 API 사용량·비용 API 및 로컬 세션 비용은 개인 구독의 최신 잔여율 대체재가 아니다.
+- 구현 판단: 공식 독립 조회 인터페이스가 확인되기 전에는 Claude 직접 폴링을 추가하지 않는다. 기존 statusLine과 오래된 데이터 표시를 유지하고, 수신 시각을 서버 조회 성공 시각으로 승격하지 않는다. 후속은 공식 계약 변경 감시, 필요 시 사용자의 정상 Claude 세션에서 비민감 수신 메타데이터와 `/usage` 화면의 시점 비교다. 실계정 실행·설정 변경·제품 코드 수정 없음. 자세한 후보 비교·출처는 `BLOG-NOTES.md`.
+
 ## 80. AGY 격리 개발 앱의 자동 조회 프로세스 관찰 (2026-10-30)
 
 - 기존 설치 앱과 다른 번들 ID `io.github.jbbdyee.tokenly.agyverify.20261030`의 Debug 앱을 임시 경로에 빌드했다. 개발 앱 도메인에서만 AGY 표시 ON, Codex·Claude 표시 OFF로 설정했다. 개발 앱만 실행했고 설치 앱은 계속 실행 중이었다. 공식 문서의 read-only print `/usage` 조건과 `disableSlashCommands`가 true가 아님을 확인했다.

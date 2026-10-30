@@ -1,5 +1,11 @@
 # Tokenly 작업 인수인계
 
+## Claude Code 개인 구독 독립 조회 조사 (2026-10-30)
+
+- 시작 `main` `a76a62e`, 미추적 GPU 로그 2개 보존. 설치 Claude Code 2.1.292의 도움말, 공식 문서, Tokenly Claude 브리지·Provider만 확인했다. 공식적으로 지원되는 무모델 비대화형 개인 구독 5시간·7일 최신 한도 조회 경로를 찾지 못했다. 발견 범위의 한계이며 비공개 구현의 부재를 단정하지 않는다.
+- statusLine은 해당 세션 첫 API 응답 후 5시간·7일 사용률과 초기화 시각을 줄 수 있다. 기존 `claude-quota.json`의 수신 시각과 Tokenly 5분 재읽기는 서버 최신 조회를 뜻하지 않는다. `/usage`는 세션 UI, `claude -p`는 모델 질문 경로, 조직 Usage/Cost API는 별도 제품의 데이터다. 비공식 API·토큰 추출·로그 역산을 자동 폴링 경로로 채택하지 않았다.
+- 코드·인증·설정·앱 변경과 실계정 조회 없음. 새 테스트·빌드도 실행하지 않았다(문서 조사). 다음은 공식 CLI 계약 변경 감시; 필요하면 사용자 승인 후 기존 정상 세션의 비민감 수신 시각과 `/usage` 표시 시점을 비교한다. 기존 statusLine과 오래된 데이터 처리는 유지한다. 상세 근거·후보별 위험은 `BLOG-NOTES.md`.
+
 ## AGY 격리 개발 앱 자동 폴링 검증 (2026-10-30)
 
 - 시작 브랜치 `feature/agy-direct-usage-refresh`, HEAD `1705b93`, 미추적 GPU 로그 2개만 있었다. 별도 Debug 앱 `/private/tmp/tokenly-agy-liveverify-20261030/Build/Products/Debug/Tokenly.app`의 번들 ID `io.github.jbbdyee.tokenly.agyverify.20261030`을 설치 앱 ID와 대조했다. 개발 앱 UserDefaults 도메인에서만 AGY ON, Codex·Claude OFF로 설정했다.
