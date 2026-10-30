@@ -223,3 +223,45 @@ private actor ControlledAGYProvider: ExternalUsageProvider {
         waiting?.resume(with: result.mapError { $0 as Error })
     }
 }
+
+final class UsagePopoverCopyTests: XCTestCase {
+    private let receivedAt = Date(timeIntervalSince1970: 1_793_400_000)
+
+    private func snapshot(source: ExternalUsageSource, remaining: Double = 42) -> ExternalUsageSnapshot {
+        ExternalUsageSnapshot(
+            metrics: .quotas([QuotaMetric(name: "weekly", remainingPercent: remaining, resetsAt: nil)]),
+            fetchedAt: receivedAt, source: source)
+    }
+
+    func testFooterAndAGYDirectSuccessWithNoStatusLineFeed() {
+        XCTAssertEqual(UsagePopoverCopy.footer, "Codex · AGY 자동 갱신 | Claude 사용 중 갱신")
+        let direct = snapshot(source: .directCLI)
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(.success(direct)), "자동 갱신")
+        XCTAssertEqual(UsagePopoverCopy.agyTimestamp(direct), "마지막 갱신 · \(CompactDateTime.string(for: receivedAt))")
+        XCTAssertFalse(UsagePopoverCopy.agyTimestamp(direct).contains("상태줄"))
+    }
+
+    func testAGYFailureKeepsPriorDirectTimestampAndFallbackUsesReceiptTime() {
+        let direct = snapshot(source: .directCLI)
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(.failure(.timeout, previous: direct)), "갱신 지연")
+        XCTAssertEqual(UsagePopoverCopy.agyTimestamp(direct), "마지막 갱신 · \(CompactDateTime.string(for: receivedAt))")
+        let fallback = snapshot(source: .statusLine)
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(.success(fallback)), "갱신 지연")
+        XCTAssertEqual(UsagePopoverCopy.agyTimestamp(fallback), "마지막 수신 · \(CompactDateTime.string(for: receivedAt))")
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(.failure(.staleData, previous: direct)), "갱신 지연")
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(.failure(.noData, previous: nil)), "데이터 없음")
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(.loading), "갱신 중")
+        XCTAssertEqual(UsagePopoverCopy.agyDetail(.staleData), "최근 갱신이 지연되고 있습니다.")
+    }
+
+    func testClaudeFreshStaleAndAbsentStates() {
+        let fresh = snapshot(source: .statusLine)
+        XCTAssertNil(UsagePopoverCopy.claudeStatus(.success(fresh)))
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(.failure(.claudeStaleData, previous: fresh)),
+                       "이전 데이터 · 사용 중 갱신")
+        XCTAssertEqual(UsagePopoverCopy.claudeDetail(.claudeStaleData), "Claude Code 사용 시 갱신됩니다.")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(.failure(.noData, previous: nil)), "사용 중 갱신")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(.idle), "사용 중 갱신")
+        XCTAssertEqual(UsagePopoverCopy.claudeDetail(.setupRequired), "Claude Code 연결 설정을 확인하세요.")
+    }
+}

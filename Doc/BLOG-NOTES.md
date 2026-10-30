@@ -1,5 +1,12 @@
 # Tokenly 기술 블로그 자료
 
+## AI 팝오버 갱신 상태 문구와 출처 시각 (2026-10-30)
+
+- **문제와 결정:** 종전 하단 `Codex 1분 · AGY 직접 조회/상태줄 5분 · Claude 상태줄 5분`은 기술 용어가 길고 Claude를 독립 조회처럼 읽을 여지가 있었다. 화면 하단은 정확히 `Codex · AGY 자동 갱신 | Claude 사용 중 갱신`으로 바꾸고 조건은 새 정보(i)에 둔다. Codex의 1분, AGY의 5분은 조건 검사/시도 주기이지 매번 성공을 보장하지 않는다. Claude의 5분은 수신 파일 재읽기일 뿐 원격 새 조회가 아니다.
+- **출처와 시각:** AGY 성공 스냅샷의 `source == directCLI`면 `마지막 갱신 · [fetchedAt]`, 상태줄 대체면 `마지막 수신 · [fetchedAt]`으로 한 줄 표시한다. 일반 화면에서 `표시 출처`, 중복된 `직접 조회 마지막 성공` 행을 제거했다. Store의 `agySourceTimes`는 그대로이고 정보(i)에서 출처별 시각을 볼 수 있다. 직접 실패 후 이전 직접 성공값은 `이전 데이터 · 마지막 갱신`, 상태줄 대체값은 `마지막 수신`이므로 캐시 파일을 다시 읽은 시각을 서버 성공으로 승격하지 않는다. 기존 Store의 오래된 statusLine 거부·마지막 성공 유지 로직과 15분 Claude 만료는 변경하지 않았다.
+- **상태 분기:** AGY 직접 성공/로딩/실패 또는 상태줄 대체/무데이터를 각각 `자동 갱신`/`갱신 중`/`갱신 지연`/`데이터 없음`으로 표시한다. 소진 경고는 유지한다. Claude의 미수신은 `사용 중 갱신`, 오래된 이전값은 `이전 데이터 · 사용 중 갱신`과 `이전 데이터 · 마지막 수신 [시각]`을 표시한다. 설정 누락은 별도 연결 설정 안내를 남긴다. 정보(i)는 Codex·AGY의 조건부 자동 조회, Claude의 사용 중 수신, AGY 대체, 시각 의미와 오래된 데이터 기준을 요약한다.
+- **검증:** 모의 상태와 시각 레이블 테스트 3개 추가. 일반 샌드박스 `xcodebuild test`는 SwiftUI 매크로 서버 malformed response(기존 환경 제한)로 실패했다. 같은 소스의 승인된 Xcode 실행에서 전체 XCTest **406개 통과**, Debug·Release 빌드 성공, `git diff --check` 통과. 새 UI의 실제 팝오버 배치·정보(i) 조작·VoiceOver는 실행 검증하지 않았다. 제품 앱 설치·교체 없음. 📸 캡처 추천: 격리 개발 앱의 AGY 직접 성공/상태줄 대체와 Claude 미수신/오래된 데이터에서 하단 문구·단일 시각 행·정보(i)를 캡처하고 사용량 수치·계정은 가린다.
+
 ## Claude Code 독립 한도 조회 2차 조사 (2026-10-30)
 
 - **근거 수준:** [공식 statusLine 문서](https://code.claude.com/docs/en/statusline)는 Pro/Max 5시간·7일 `used_percentage`와 `resets_at`, 세션 첫 API 응답 이후 조건, 창별 부재 가능성을 계약으로 명시한다. `refreshInterval`은 스크립트 실행 주기이며 서버 한도 재조회 보장은 없다. [공식 CLI 참조](https://code.claude.com/docs/en/cli-reference)와 설치 CLI 2.1.292 도움말에서 구독 한도 전용 무모델 비대화형 명령을 찾지 못했다. `/usage`는 [공식 명령 목록](https://code.claude.com/docs/en/commands)의 세션 UI다. 아래 GitHub 이슈 본문·댓글은 Anthropic 저장소에 올라온 **사용자 보고와 분석**이며 API 지원 약속이나 Tokenly 계정 실측이 아니다.

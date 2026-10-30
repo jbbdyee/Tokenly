@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct UsageMenuView: View {
+    @State private var showsRefreshInfo = false
     @ObservedObject var store: UsageStore
     @ObservedObject var externalStore: ExternalProviderStore
     @ObservedObject var displaySettings: ProviderDisplaySettings
@@ -40,8 +41,34 @@ struct UsageMenuView: View {
 
             Divider()
             HStack {
-                Text("Codex 1분 · AGY 직접 조회/상태줄 5분 · Claude 상태줄 5분")
+                Text(UsagePopoverCopy.footer)
                     .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button { showsRefreshInfo.toggle() } label: {
+                    Image(systemName: "info.circle")
+                }
+                .buttonStyle(.borderless)
+                .help("갱신 방식 안내")
+                .accessibilityLabel("갱신 방식 안내")
+                .popover(isPresented: $showsRefreshInfo) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("갱신 방식").font(.headline)
+                        Text("Codex는 1분 조건, AGY는 5분 조건으로 자동 조회합니다.")
+                        Text("Claude는 Claude Code 사용 중 전달된 한도를 표시합니다. 앱에서 서버에 직접 조회하지 않습니다.")
+                        Text("AGY 직접 조회가 실패하면 상태줄 수신값을 대신 표시할 수 있습니다.")
+                        if let date = externalStore.agySourceTimes[.directCLI] {
+                            Text("AGY 직접 조회 마지막 성공: \(CompactDateTime.string(for: date))")
+                        }
+                        if let date = externalStore.agySourceTimes[.statusLine] {
+                            Text("AGY 상태줄 마지막 수신: \(CompactDateTime.string(for: date))")
+                        }
+                        Text("마지막 갱신은 직접 조회 성공 시각, 마지막 수신은 상태줄 데이터 수신 시각입니다. 다시 읽기만 해서는 시각이 바뀌지 않습니다.")
+                        Text("Claude는 마지막 수신 후 15분이 지나면 이전 데이터로 표시합니다. AGY도 오래된 대체 데이터는 최신 조회로 표시하지 않습니다.")
+                    }
+                    .font(.caption)
+                    .frame(width: 280, alignment: .leading)
+                    .padding(14)
+                }
                 Spacer()
                 Button("종료") { NSApp.terminate(nil) }.buttonStyle(.borderless)
             }
@@ -227,25 +254,16 @@ struct UsageMenuView: View {
     }
 
     private var claudeStatus: String? {
-        switch externalStore.state(for: .claude) {
-        case .failure(.claudeStaleData, _): return "상태줄 갱신 대기"
-        case .failure(_, let previous): return previous == nil ? "연결 또는 수신 오류" : "조회 실패 · 이전 데이터"
-        case .success(let value):
-            if case .quotas(let quotas) = value.metrics, quotas.contains(where: { $0.remainingPercent <= 0 }) {
-                return "일부 한도 소진"
-            }
-            return nil
-        default: return nil
-        }
+        UsagePopoverCopy.claudeStatus(externalStore.state(for: .claude))
     }
 
     private var claudeDetails: some View {
         VStack(alignment: .leading, spacing: 9) {
             switch externalStore.state(for: .claude) {
-            case .idle: Text("수신 대기 중").font(.caption).foregroundStyle(.secondary)
+            case .idle: Text("Claude Code 사용 시 갱신됩니다.").font(.caption).foregroundStyle(.secondary)
             case .loading: ProgressView("로컬 수신 파일 확인 중").controlSize(.small).font(.caption)
             case .failure(let error, let previous):
-                Text(error.message).font(.caption).foregroundStyle(.orange)
+                Text(UsagePopoverCopy.claudeDetail(error)).font(.caption).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
                 if let previous {
                     claudeMetrics(previous.metrics)
@@ -295,61 +313,32 @@ struct UsageMenuView: View {
     }
 
     private var agyStatus: String? {
-        switch externalStore.state(for: .antigravity) {
-        case .failure(.staleData, _): return "새 사용량 갱신 대기"
-        case .failure(_, let previous): return previous == nil ? "연결 또는 조회 오류" : "조회 실패 · 이전 데이터"
-        case .success(let value):
-            if case .quotas(let quotas) = value.metrics, AGYQuotaSummary.hasExhaustedBucket(quotas) {
-                return "일부 버킷 소진"
-            }
-            return nil
-        default: return nil
-        }
+        UsagePopoverCopy.agyStatus(externalStore.state(for: .antigravity))
     }
 
     private var agyDetails: some View {
         VStack(alignment: .leading, spacing: 9) {
             switch externalStore.state(for: .antigravity) {
-            case .idle: Text("조회 대기 중").font(.caption).foregroundStyle(.secondary)
-            case .loading: ProgressView("조회 중").controlSize(.small).font(.caption)
+            case .idle: Text("데이터 없음").font(.caption).foregroundStyle(.secondary)
+            case .loading: ProgressView("갱신 중").controlSize(.small).font(.caption)
             case .failure(let error, let previous):
-                Text(error.message).font(.caption).foregroundStyle(.orange)
+                Text(UsagePopoverCopy.agyDetail(error)).font(.caption).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
                 if let previous {
                     agyMetrics(previous.metrics)
-                    Text("이전 데이터 · \(agySourceName(previous.source)) \(CompactDateTime.string(for: previous.fetchedAt))")
+                    Text("이전 데이터 · \(UsagePopoverCopy.agyTimestamp(previous))")
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .help(CompactDateTime.fullString(for: previous.fetchedAt))
                 }
-                agySourceHistory
             case .success(let value):
                 agyMetrics(value.metrics)
-                Text("표시 출처 \(agySourceName(value.source)) · \(CompactDateTime.string(for: value.fetchedAt))")
+                Text(UsagePopoverCopy.agyTimestamp(value))
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(CompactDateTime.fullString(for: value.fetchedAt))
-                agySourceHistory
             }
         }
-    }
-
-    private func agySourceName(_ source: ExternalUsageSource) -> String {
-        source == .directCLI ? "AGY 직접 조회" : "AGY 상태줄 수신"
-    }
-
-    private var agySourceHistory: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if let date = externalStore.agySourceTimes[.directCLI] {
-                Text("직접 조회 마지막 성공 \(CompactDateTime.string(for: date))")
-                    .help(CompactDateTime.fullString(for: date))
-            }
-            if let date = externalStore.agySourceTimes[.statusLine] {
-                Text("상태줄 마지막 수신 \(CompactDateTime.string(for: date))")
-                    .help(CompactDateTime.fullString(for: date))
-            }
-        }
-        .font(.caption2).foregroundStyle(.secondary)
     }
 
     @ViewBuilder
@@ -405,6 +394,61 @@ struct UsageMenuView: View {
         case .caution: HarmonyPalette.amber(dark: colorScheme == .dark).color
         case .low: .red
         }
+    }
+}
+
+enum UsagePopoverCopy {
+    static let footer = "Codex · AGY 자동 갱신 | Claude 사용 중 갱신"
+
+    static func claudeStatus(_ state: ExternalLoadState) -> String? {
+        switch state {
+        case .idle: return "사용 중 갱신"
+        case .loading: return "갱신 중"
+        case .failure(.claudeStaleData, let previous):
+            return previous == nil ? "사용 중 갱신" : "이전 데이터 · 사용 중 갱신"
+        case .failure(.setupRequired, let previous), .failure(.noData, let previous):
+            return previous == nil ? "사용 중 갱신" : "이전 데이터 · 사용 중 갱신"
+        case .failure(_, let previous): return previous == nil ? "데이터 없음" : "이전 데이터 · 사용 중 갱신"
+        case .success(let value):
+            if case .quotas(let quotas) = value.metrics, quotas.contains(where: { $0.remainingPercent <= 0 }) {
+                return "일부 한도 소진"
+            }
+            return nil
+        }
+    }
+
+    static func claudeDetail(_ error: ExternalProviderError) -> String {
+        switch error {
+        case .claudeStaleData, .noData: return "Claude Code 사용 시 갱신됩니다."
+        case .setupRequired: return "Claude Code 연결 설정을 확인하세요."
+        default: return error.message
+        }
+    }
+
+    static func agyStatus(_ state: ExternalLoadState) -> String {
+        switch state {
+        case .idle: return "데이터 없음"
+        case .loading: return "갱신 중"
+        case .failure(_, let previous): return previous == nil ? "데이터 없음" : "갱신 지연"
+        case .success(let value):
+            if case .quotas(let quotas) = value.metrics, AGYQuotaSummary.hasExhaustedBucket(quotas) {
+                return "일부 버킷 소진"
+            }
+            return value.source == .directCLI ? "자동 갱신" : "갱신 지연"
+        }
+    }
+
+    static func agyDetail(_ error: ExternalProviderError) -> String {
+        switch error {
+        case .staleData: return "최근 갱신이 지연되고 있습니다."
+        case .noData: return "표시할 사용량 데이터가 없습니다."
+        default: return error.message
+        }
+    }
+
+    static func agyTimestamp(_ snapshot: ExternalUsageSnapshot) -> String {
+        let label = snapshot.source == .directCLI ? "마지막 갱신" : "마지막 수신"
+        return "\(label) · \(CompactDateTime.string(for: snapshot.fetchedAt))"
     }
 }
 
