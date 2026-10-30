@@ -1,5 +1,12 @@
 # Tokenly 작업 인수인계
 
+## AGY 격리 개발 앱 자동 폴링 검증 (2026-10-30)
+
+- 시작 브랜치 `feature/agy-direct-usage-refresh`, HEAD `1705b93`, 미추적 GPU 로그 2개만 있었다. 별도 Debug 앱 `/private/tmp/tokenly-agy-liveverify-20261030/Build/Products/Debug/Tokenly.app`의 번들 ID `io.github.jbbdyee.tokenly.agyverify.20261030`을 설치 앱 ID와 대조했다. 개발 앱 UserDefaults 도메인에서만 AGY ON, Codex·Claude OFF로 설정했다.
+- 공식 CLI 자식 시작 2회: 개발 앱 시작 약 1.21초와 301.29초(간격 약 300.08초). 각 자식 관찰 시간 약 6.15초·6.36초, 중복/세 번째 없음. 두 번째 종료 후 개발 앱만 종료(전체 약 397.86초); `/Applications/Tokenly.app`은 계속 실행 중. 인증·Keychain·기존 앱 설정은 직접 조작하지 않았고 실제 계정값·원본 응답은 기록하지 않았다.
+- **아직 미검증:** 자식 시작/종료는 CLI 성공·JSON 파싱·스냅샷 표시를 입증하지 않는다. 화면 자동화 연결 실패로 사용자 팝오버의 출처·성공 시각·주간 잔여율·리셋 시각·5시간 부재·statusLine 우선순위를 확인하지 못했다. 기존 Codex·Claude 화면 영향도 미확인이다. 사용자 화면 결과를 받기 전에는 병합 준비를 완료로 판정하지 않는다. 폴백·실패 테스트는 구현 세션의 모의 XCTest 403개 결과다. 이번 세션은 격리 Debug 빌드 성공, 새 XCTest/Release 실행 없음, 코드 수정 없음.
+- 두 번의 승인된 실제 자동 조회 기회를 사용했으므로 후속 실계정 재실행에는 별도 승인이 필요하다. 사용자 화면 결과가 있으면 문서에 사실 범위를 갱신한다. GPU 로그·설치 앱 보존, Push·병합·릴리즈 없음.
+
 ## AGY 공식 CLI 자동 갱신 구현 (2026-10-30, 기능 브랜치)
 
 - `main`의 `1f14798`에서 `feature/agy-direct-usage-refresh`를 만들었다. 기존 미추적 GPU 실측 로그 2개를 보존했다. 공식 AGY `/usage` 직접 Provider를 기존 statusLine과 결합하고 Store의 5분 조건부 갱신에 연결했다. AGY만 새 조회 경로를 쓰며 기존 Claude/Codex Provider와 설정 키는 유지한다.
