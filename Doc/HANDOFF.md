@@ -1,5 +1,17 @@
 # Tokenly 작업 인수인계
 
+## Claude 독립 조회 Swift Provider 실험 구조 (2026-10-30)
+
+- 시작 상태 `experiment/claude-usage-refresh` `176e381`, 미커밋 실험 문서·Node 정책 파일을 보존했다. `ClaudeDirectUsageProvider.swift`와 `ClaudeDirectUsageTests.swift`를 Xcode 앱·테스트 타깃에 등록했다. 기본 runner는 비활성이며 SDK 실행 코드, 계정 조회, 모델 요청, 자동 폴링, 앱 Store/UI 연결은 없다. 설치 v0.3.0·설정·GPU 로그 2개는 변경하지 않았다.
+- 5시간·7일 창별 `utilization` 0–100을 잔여율로 바꾸고, 시각이 `null`/형식 오류면 `nil`을 유지한다. `true/null`은 `.noData`; 유효 창 하나 이상이면 부분 성공이다. 선택 모델은 직접 조회 실패 시 이전 성공값·시각을 보존하고 신선한 statusLine을 창별 대체하며 오래된 값은 stale로 분리한다. 401/403/429/타임아웃/SDK 변경은 runner 오류 종류로만 정의했으며 실제 매핑과 재시도는 미구현이다.
+- 이전 Node 정책 테스트 9개 통과. 새 Swift XCTest 8개 통과, 전체 XCTest **414개 통과**, Debug·Release 빌드 성공, `git diff --check` 통과. 최초 샌드박스 XCTest는 SwiftUI 매크로 서버 오류였고 동일 소스를 승격 Xcode 환경에서 통과했다. 직접 조회 stale 기준·자동 주기, SDK 오류 계약·서버 신선도·인증 영향·제품 UI는 미검증이다. 상세 내용은 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 있다.
+
+## Claude 독립 조회 설계·가상 응답 테스트 (2026-10-30)
+
+- `experiment/claude-usage-refresh` `176e381`에서 시작했다. 제품의 Claude statusLine 파일·15분 stale 경로와 SDK `0.3.169`의 nullable `get_usage` 타입을 대조했다. `experiments/claude-usage-refresh/`에 SDK·CLI·네트워크를 쓰지 않는 순수 변환·선택 정책과 Node 내장 테스트를 추가했다. **9개 통과**. 실제 계정 조회, 모델 요청, 인증 접근, 자동 폴링은 없었다. 제품 코드·설치 v0.3.0·설정은 변경하지 않았다.
+- 설계: 5시간·7일 창별 유효성·출처·수신 시각을 별도로 보존한다. `utilization` 0–100만 `100 - 사용률`로 변환하고 `resets_at`이 `null`/형식 오류면 잔여율만 표시하며 초기화 시각은 알 수 없음으로 둔다. `true/null`은 미지원이 아닌 데이터 미수신으로 취급한다. 유효한 창이 하나라도 있을 때만 직접 조회 성공 시각을 갱신하고, 실패 시 마지막 성공값과 statusLine 대체 표시를 유지한다. statusLine 파일 재읽기를 새 서버 조회로 기록하지 않는다.
+- 현재 앱의 Claude Provider/Store에는 이 병합 정책이 **연결되지 않았다**. 직접 조회 stale 기준·자동 주기와 401/403/429의 실제 SDK 오류 계약·서버 신선도·호출 제한·약관은 미확인이다. 제품 통합은 별도 승인·검증 뒤 판단한다. 실험 문서에 설계, 검증 한계, 블로그 소재를 기록했다. GPU 로그 2개를 보존한다.
+
 ## Claude 비필수 트래픽 제한 변수 제거 후 단발성 조회 (2026-10-30)
 
 - `experiment/claude-usage-refresh` HEAD `08a5817`에서 시작. 기존 임시 helper의 Claude Code 자식 환경에서만 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`를 제거하고, 공식 SDK `0.3.169`·CLI `2.1.292`의 무프롬프트 usage 제어 요청을 승인된 범위에서 **정확히 1회** 실행했다. 부모의 주요 관련 환경 변수는 값 없이 존재 여부만 확인했고 설정되지 않았다. 제품 코드·설치 앱·사용자 설정은 변경하지 않았다.

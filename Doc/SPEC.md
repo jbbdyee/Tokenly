@@ -1,5 +1,7 @@
 # Tokenly 제품 사양 (가칭)
 
+> **Claude 독립 조회 실험 구조(2026-10-30):** 실험 브랜치에 Swift `ClaudeDirectUsageProvider`와 가상 응답 파서·창별 선택 모델을 추가했다. 실행 계층은 프로토콜로 분리했고 기본 실행기는 비활성이다. 기존 앱 진입점·`ExternalProviderStore`·타이머·팝오버에는 연결하지 않았다. SDK 호출, 실제 계정 조회 및 자동 갱신은 제품 기능이 아니다. 5시간·7일 값은 `100 - utilization`, 초기화 시각 오류는 알 수 없음, `true/null`은 데이터 미수신으로 처리한다. 출처와 로컬 수신 시각을 창별로 유지한다. 상세 검증은 `CLAUDE-USAGE-EXPERIMENT.md`를 따른다.
+
 > 이전 `BLOG-NOTES.md` 참조는 [커밋 81afae9의 Git 보관본](https://github.com/jbbdyee/Tokenly/blob/81afae9/Doc/BLOG-NOTES.md)을 가리킨다. 원문은 프로젝트 밖에도 SHA-256 검증 후 보관했다. v0.3.0 정식 Release 이후 사용자는 설치본에서 세 서비스 표시와 AGY Gemini UI를 확인했다.
 
 > **AI 팝오버 갱신 문구(2026-10-30, 기능 브랜치):** 하단은 `Codex · AGY 자동 갱신 | Claude 사용 중 갱신`으로 표시한다. 정보(i)에서 Codex 1분 조건, AGY 5분 조건 및 상태줄 대체, Claude의 사용 중 수신과 15분 만료를 설명한다. AGY 직접 조회 성공은 `마지막 갱신 · [시각]`, 상태줄 대체는 `마지막 수신 · [시각]`을 표시하며 출처별 성공 시각은 Store에 유지한다. 실패·오래된 데이터는 이전값을 최신 조회로 표시하지 않는다. 실제 화면 조작은 아직 미검증이다.

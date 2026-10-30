@@ -1,5 +1,12 @@
 # Tokenly 개발 TODO (가칭)
 
+## Claude 독립 조회 Swift 실험 구조 (2026-10-30)
+
+- [x] 기존 statusLine과 SDK 응답의 필드·시각 의미 대조, 가상 정책 테스트 9개 통과
+- [x] 비활성 기본 실행기·Mock 주입 Swift Provider, 창별 숫자/시각 파서, 출처·수신 시각 및 실패 보존 선택 모델 구현; 새 XCTest 8개 및 전체 414개 통과, Debug·Release 빌드 성공
+- [ ] 공식 SDK 실행 adapter, 오류 코드 전달 계약·인증/비용 영향, 직접 조회 stale 기준·자동 주기·백오프를 별도 승인과 검증으로 결정
+- [ ] 기존 `ExternalProviderStore`·UI에 연결하고 실제 계정·장시간 폴링·statusLine 우선순위를 별도 승인 후 검증. 현재 앱에는 비활성
+
 > 이전 `BLOG-NOTES.md` 참조는 [커밋 81afae9의 Git 보관본](https://github.com/jbbdyee/Tokenly/blob/81afae9/Doc/BLOG-NOTES.md)을 가리킨다. 원문은 프로젝트 밖에도 SHA-256 검증 후 보관했다.
 
 ## v0.3.0 배포 후 확인 (2026-10-30)

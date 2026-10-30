@@ -2,6 +2,43 @@
 
 2026-10-30 · 브랜치 `experiment/claude-usage-refresh` · 승인된 단발성 조회 총 3회 완료
 
+## Swift Provider와 Mock 연결 단계 (2026-10-30)
+
+이 단계는 실제 계정·SDK·모델·인증 저장소에 접근하지 않았다. 기존 미커밋 Node 정책·문서를 보존하고 Node 테스트 **9개 통과**를 기준으로 했다. `src/Tokenly/Providers/ClaudeDirectUsageProvider.swift`에 `ClaudeUsageRunning` 실행 경계, 항상 비활성인 기본 runner, `ClaudeDirectUsageParser`, `ClaudeUsageSelection`을 구현했다. Swift 파일을 Xcode 타깃 Sources에 등록했다. SDK 호출 adapter, `ExternalProviderStore`·팝오버 연결 및 자동 타이머는 **없다**. 설치 v0.3.0의 Claude 동작은 statusLine 그대로다.
+
+- Mock `Data` 응답만 파싱한다. `rate_limits_available=true`이고 컨테이너가 객체일 때 각 창의 `utilization`이 JSON 숫자, 유한하고 0–100인지 독립적으로 검사한다. 잔여율은 `100 - utilization`이며 사용률 100은 유효한 잔여율 0이다. 부재·`null`·bool·문자열·범위 밖 값은 해당 창을 제외한다. `true/null` 또는 유효 창 0개는 `.noData`로 처리해 한도 미지원이라고 단정하지 않는다. 잘못된 JSON은 `.invalidResponse`다.
+- `resets_at`은 ISO 8601 오프셋 포함 형식을 파싱하고 `null`·잘못된 형식은 `nil`로 둔다. 유효한 잔여율은 계속 보존한다. 로컬 조회 완료 `receivedAt`을 서버 측 갱신 시각으로 주장하지 않는다.
+- 선택 모델은 5시간·7일의 값·출처·수신 시각을 따로 보존한다. 부분 성공은 새 창만 덮어쓰며 실패는 마지막 직접 성공 시각을 변경하지 않는다. 직접 조회의 freshness는 호출자가 주입하고 아직 확정하지 않았다. 신선한 직접 조회 → 신선한 statusLine → 이전 데이터 순으로 창별 선택한다. 기존 statusLine 15분 기준을 기본값으로 유지한다. UI 표현·저장 정책은 미구현이다.
+- Runner 오류 유형에는 인증 필요, 권한 거부, rate limit, 타임아웃, CLI 부재, SDK 비호환, 전송 오류를 정의했다. **실제 SDK 오류 매핑·백오프·자동 폴링은 구현하지 않았다.** 이 경계는 향후 SDK 변경 시 실행 adapter만 교체하기 위한 것이다.
+- `src/TokenlyTests/ClaudeDirectUsageTests.swift`의 **8개 XCTest 통과**: 정상·0% 잔여율, 창별 부재/null, `true/null`, 잘못된 자료형·범위, 초기화 시각 null/형식 오류, 비활성 기본 runner와 Mock 오류, 실패 보존·statusLine 대체·stale, 부분 성공 시각 보존. 전체 XCTest **414개 통과**, Debug·Release 빌드 성공, `git diff --check` 통과. 일반 샌드박스 XCTest는 SwiftUI 매크로 서버 응답 오류였고 승인된 Xcode 서비스 접근에서 동일 소스를 성공 검증했다. 빌드·테스트 산출물은 저장소 밖 임시 경로다.
+
+**제품 적용 판단:** 현재 구조는 테스트 가능한 Swift 경계까지 구현됐으나 실제 SDK 호출과 앱 연결은 없다. 직접 조회 신선도, 401/403/429 오류 계약·호출 제한·인증 부작용·장시간 비용, 실제 statusLine과의 충돌·UI는 미검증이다. 자동 갱신 활성화에는 별도 설계·승인·검증이 필요하다. 블로그 소재로는 nullable SDK 응답을 창별 출처·시각으로 병합하면서 새 서버 조회와 로컬 파일 수신을 구분한 과정이 있다. 블로그 본문은 쓰지 않았다.
+
+## 독립 조회 Provider 설계와 가상 응답 검증 (2026-10-30)
+
+이번 단계는 **계정 조회·모델 요청·인증 접근 없이** 제품 코드를 읽고 `experiments/claude-usage-refresh/`에 순수 데이터 정책과 Node 내장 테스트만 추가했다. 실험 코드는 Tokenly 앱 타깃에 등록하지 않았고 SDK를 import하거나 프로세스·네트워크·파일을 실행하지 않는다. 제품 Provider, UI, 자동 폴링은 **미구현**이다.
+
+### 현재 데이터 경계와 설계안
+
+| 경로 | 입력과 시각 | 값 변환 | 데이터 신선도 |
+| --- | --- | --- | --- |
+| 현재 Claude statusLine | Claude Code 이벤트 `rate_limits.five_hour/seven_day.used_percentage`, Unix 초 `resets_at`; 브리지의 `captured_at`은 **로컬 수신 시각** | 유효한 창마다 `100 - used_percentage`; 초기화 시각이 없으면 `nil` | 파일 재읽기는 서버 조회가 아니다. 현재 Provider는 수신 후 15분 초과 시 stale |
+| 실험적 SDK `get_usage` | `rate_limits_available`, nullable `rate_limits`; 각 창의 nullable `utilization`(0–100)·`resets_at`(ISO 8601 문자열). 수신 시각은 helper가 조회 성공 시 붙여야 함 | 각 창을 독립 검증한 뒤 `100 - utilization`; 100% 사용은 잔여 0% | 서버 데이터 시점은 SDK 응답에 별도 보장되지 않는다. 수신 시각을 서버 측 갱신 시각으로 부르지 않는다 |
+
+제안하는 `ClaudeDirectUsageProvider`는 공식 SDK를 별도 자식 프로세스의 무프롬프트 제어 요청으로 호출하는 경계를 갖는다. 향후 제품 구현이 승인되면 자식 환경에서 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`를 제거하고, 응답을 **사용량 원문 없이** 필요한 창·오류 분류만 담은 내부 구조로 넘기도록 설계한다. 자식의 stdout/stderr·예외는 원문을 로그에 남기지 않는다. CLI 설치·인증·초기화·타임아웃·SDK 형식 변경은 별도 실패로 분류한다. 이 문단은 설계이며 현재 앱에 연결된 코드는 없다.
+
+정책은 **창별 부분 성공**이다. `rate_limits_available=true`여도 `rate_limits=null`이면 한도 미지원 판정이 아니라 **데이터 미수신**으로 처리하고 마지막 성공값의 시각을 갱신하지 않는다. 컨테이너가 있더라도 5시간·7일 창은 각각 부재·`null`·잘못된 타입·범위 밖 숫자를 독립적으로 거른다. 유효한 숫자는 초기화 시각이 `null` 또는 잘못된 ISO 형식이어도 잔여율로 보일 수 있고, 시각은 **알 수 없음**으로 표시한다. 이때 리셋 시각을 추정하지 않는다. 적어도 한 창이 유효할 때만 직접 조회의 `lastSuccessAt`을 수신 시각으로 갱신하며, 다른 창의 이전 값·시각은 그대로 유지한다. 부분 성공을 전체 창의 동시 갱신으로 표시하지 않도록 창별 출처·수신 시각을 보존한다.
+
+표시 선택안은 각 창에서 신선한 직접 조회를 우선하고, 그것이 없거나 오래됐으면 신선한 statusLine 값을 대체 표시한다. 둘 다 오래됐으면 마지막 값을 **이전 데이터**로만 표시하고 원래 수신 시각과 출처를 유지한다. 직접 조회 오류가 statusLine 파일의 `captured_at`을 바꾸지 않으며, statusLine 재읽기를 새 서버 조회로 세지 않는다. 현재 15분 statusLine stale 기준을 보존한다. 직접 조회의 stale 기준은 자동 갱신 주기·서버 신선도 계약이 없어 **미정**이며 실험 함수는 호출자가 이를 넘기도록 했다. 실제 제품의 `ExternalProviderStore`는 Claude 단일 Provider와 단일 상태를 가지므로 이 창별 병합·출처 시각을 구현하려면 별도의 좁은 변경과 UI 검증이 필요하다.
+
+실패 정책 초안: 401은 인증 필요로 표시하고 **자동 재로그인·즉시 재시도 없음**; 403은 권한/대상 불명으로 표시하고 재시도 보류; 429는 가능한 공식 `Retry-After`와 충분한 보수적 하한 중 늦은 시각까지 중지하되 SDK가 헤더를 노출하지 않으면 임의의 짧은 주기를 가정하지 않는다. 네트워크·타임아웃·`true/null`은 일시적 데이터 미수신 후보로 분류하고 마지막 성공값 유지 및 지수 백오프·최대 간격 검토; 구체 주기는 서비스 계약 검토 전 **미확정**이다. SDK 메서드·타입 변경이나 미지 응답은 형식 오류로 다루며 자동 반복을 중단하고 statusLine을 유지한다. 진행 중 요청은 단일 in-flight gate로 중복 차단하고, 종료·취소 시 자식 프로세스 수명까지 정리한다. 초기 구현 전에 401/403/429 원인과 SDK 오류 전달 형식을 모의 프로세스로 확인해야 한다.
+
+### 가상 데이터 테스트 결과
+
+`node --test experiments/claude-usage-refresh/policy.test.mjs`: **9개 통과, 실패 0**. 두 창과 사용률 100→잔여율 0, 창별 부재·`null`, `true/null`의 데이터 미수신 판정, `resets_at`의 `null`·형식 오류, 잘못된 사용률의 창별 거부, 실패 시 성공값·시각 유지, 직접 조회 우선과 statusLine 대체, 오래된 값의 원래 시각 유지, in-flight·허용 시각 gate를 검증했다. 이 테스트는 SDK·CLI 호출, Swift Provider, 실제 앱 표시, 서버 신선도, 401/403/429 런타임, CPU·메모리, 자동 주기의 성공을 입증하지 않는다. 이번 단계에서 XCTest·Debug/Release 빌드는 실행하지 않았다(제품 코드 변경 없음).
+
+**블로그 소재 판단용:** 두 출처가 같은 잔여율처럼 보여도 `captured_at`과 조회 수신 시각은 다른 의미다. `rate_limits_available=true`와 실제 창 데이터, 숫자 사용률과 초기화 시각의 유효성도 각각 다른 조건이다. 부분 성공을 전체 갱신으로 표시하지 않는 창별 출처·시각 설계가 핵심이다. 이 기록은 기술적 메모이며 블로그 본문은 작성하지 않았다.
+
 ## 비필수 트래픽 제한 변수를 제거한 세 번째 단발성 조회 (2026-10-30)
 
 - 시작 상태: `experiment/claude-usage-refresh` HEAD `08a5817`; 추적 파일 변경 없이 미추적 GPU 로그 2개만 있었다. 공식 Agent SDK `0.3.169`와 Claude Code CLI `2.1.292`를 유지했다. 부모 환경의 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, 주요 Claude 트래픽 제한·인증 경로 변경 변수는 **이름의 존재 여부만** 검사했고 설정돼 있지 않았다. SDK의 `settingSources: []`는 사용자·프로젝트·로컬 설정 로드를 배제하지만 모든 CLI 내부 또는 관리 정책을 배제한다는 뜻은 아니다.

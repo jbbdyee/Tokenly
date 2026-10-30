@@ -1,5 +1,11 @@
 # Tokenly 구현 계획
 
+## 85. Claude 독립 조회 Swift 실험 구조 (2026-10-30)
+
+- 기존 Claude는 statusLine 수신 파일을 읽는다. 실험 브랜치에 `ClaudeDirectUsageProvider`의 비활성 `ClaudeUsageRunning` 경계와 SDK 응답 파서, `ClaudeUsageSelection`의 창별 성공값·출처·수신 시각·대체 표시 선택을 구현했다. 실제 SDK adapter와 `ExternalProviderStore`/UI 연결은 없다. 따라서 앱의 인증·조회 주기·표시는 바뀌지 않는다.
+- 사용률 0–100 → 잔여율, 창별 부재·`null`·잘못된 값, 시각 `null`/형식 오류, `true/null`의 데이터 미수신, 부분 성공·실패 보존·statusLine 대체 및 Mock 실행 오류를 XCTest로 검증했다. 실험 Node 테스트 9개, 새 Swift 테스트 8개, 전체 XCTest 414개 통과; Debug·Release 빌드 성공. 일반 샌드박스 XCTest는 SwiftUI 매크로 서버 오류였고 승격 환경에서 검증했다.
+- 다음 단계는 공식 SDK adapter의 보안·오류 전달 계약, 서버 신선도, 401/403/429·버전 변경 및 호출 제한을 검증한 후 직접 조회 stale 기준·자동 주기를 결정하는 것이다. 제품 자동 폴링과 실제 계정 호출에는 별도 승인 필요. `CLAUDE-USAGE-EXPERIMENT.md`에 세부 경계와 미검증 사항을 기록했다.
+
 > 이전 `BLOG-NOTES.md` 참조는 [커밋 81afae9의 Git 보관본](https://github.com/jbbdyee/Tokenly/blob/81afae9/Doc/BLOG-NOTES.md)을 가리킨다. 원문은 프로젝트 밖에도 SHA-256 검증 후 보관했다.
 
 ## 84. v0.3.0 배포 결과 (2026-10-30)
