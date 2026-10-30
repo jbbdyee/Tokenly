@@ -1483,6 +1483,16 @@ XCTest 107개 3회 통과 후 빌드 번호 3으로 개발 확인 빌드를 만�
 - 설치본은 `/Applications/Tokenly.app`, bundle ID `io.github.jbbdyee.tokenly`, 버전 0.2.0/빌드 4이며 검사한 서명 출력에 App Sandbox entitlement가 나타나지 않았다. 이전 격리 Debug 앱에는 별도 ID·경로와 `sandbox-exec` 홈 읽기/쓰기 제한을 추가했다. 실행 조건이 달라 설치본의 프로세스 존재만으로 조회 성공을 추론하지 않는다. 실제 앱·설정 조작 없음.
 - 첫 SQLite 상태 DB 오류의 임시 분리는 확인됐지만 두 번째 EPERM은 미해결이다. 실계정 성공 조회와 60초 갱신은 실행하지 않았다. 제품 코드·빌드·XCTest 변경 없음.
 
+## 78. Claude Code·AGY 독립 자동 조회 조사 (2026-10-30, 구현 보류)
+
+| 서비스 | 공식 직접 조회 후보 | 인증·비용 | 판단·남은 검증 |
+| --- | --- | --- | --- |
+| Claude Code 개인 구독 | 현재 문서·설치 CLI v2.1.292 도움말에서 비대화형 구독 5시간·7일 한도 계약 미발견. `/usage`는 세션 화면, statusLine은 첫 API 응답 후 조건부 데이터를 푸시 | `claude -p`는 모델 질문 경로라 자동 폴링 시 사용량·과금 위험. 조직 Analytics/Admin API는 별도 관리자 자격·과거 API/조직 지표 | 독립 최신 조회를 구현 가능하다고 단정하지 않는다. 기존 statusLine 유지, 공식 인터페이스 변경 감시 |
+| AGY CLI | [v1.1.10 변경 기록](https://antigravity.google/docs/changelog?tab=cli)의 `agy -p "/usage" --output-format json`; 설치본 v1.4.10은 버전상 해당 기능 포함 후보 | [헤드리스 문서](https://antigravity.google/docs/cli/headless/)상 캐시된 인증 사용. 공식 변경 기록상 agent turn·쿼터 소비·대화 기록 없음 | 가장 유망. 실제 CLI 실행·JSON 키/안정성·원본 로그 억제·인증 캐시 쓰기 범위·버킷 매핑은 미검증. stream-json 입력에 `/usage` 전달 금지 |
+
+- `ExternalProviderStore`의 300초 타이머는 지금 두 로컬 상태줄 파일만 재읽는다. 서비스 실행·새 이벤트 없이 최신 백엔드 값을 가져오지 않는다. AGY 공식 `/usage`는 백엔드·디스크 쿼터를 새로 확인하지만 기존 문서에서 대화형 패널만 확인했던 판단을 위의 새 print 모드 근거로 갱신한다. AGY IDE, AGY CLI, Gemini API는 서로 다른 인증·쿼터 범위다.
+- 이번 단계에서는 `--version`·`--help`와 공개 문서만 확인했다. 실제 인증 재사용·출력·LLM 비용은 실행 측정하지 않았다. UI 자동화·비공식 내부 API·인증 파일 직접 접근은 채택하지 않는다. 다음 개발 단계는 별도 승인 범위에서 AGY 출력 계약을 비민감하게 실측한 뒤 결정한다. 제품 코드·설정·인증 변경 없음.
+
 ## 77. Codex 앱 팝오버와 조회 신선도 조사 (2026-10-30, 중단)
 
 - 사용자가 Codex 앱 사용량 팝오버를 열기 전에는 Tokenly 값이 멈춘 듯했고 연 뒤 변경값이 반영됐다고 보고했다. 기존의 닫힌 Tokenly 팝오버 상태 메뉴 막대 변화는 사실이나, Codex 앱에 독립적인 서버 최신성 증거로는 부족하다. 타이머·CLI·initialize·RPC 성공·스냅샷·서버 값 시점을 분리해 재현해야 한다. 공식 app-server 문서는 RPC의 매 호출 네트워크 신선도나 캐시 정책을 명시하지 않는다. 원인 확인 전 제품 변경 없음, `main` 병합 보류.

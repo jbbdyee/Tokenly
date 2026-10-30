@@ -1,5 +1,14 @@
 # Tokenly 기술 블로그 자료
 
+## Claude Code·Antigravity 독립 사용량 조회 재조사 (2026-10-30)
+
+- **현행 구현 [코드 확인]:** `ExternalProviderStore`의 300초 타이머와 수동 버튼은 `ClaudeSubscriptionProvider`·`AGYStatusLineProvider`가 받은 로컬 JSON을 다시 읽는다. 두 Provider 모두 원격 사용량을 요청하지 않는다. `captured_at`이 15분을 넘으면 오래된 데이터다. 회색 표시 정책은 이번 조사 범위에서 변경하지 않았다.
+- **Claude Code [공식 문서·로컬 CLI 도움말]:** 설치본 v2.1.292의 `--help`에 구독 한도 전용 비대화형 명령은 없었다. [명령 문서](https://code.claude.com/docs/en/commands)의 `/usage`는 세션의 사용량·플랜 한도 화면이고, [CLI 참조](https://code.claude.com/docs/en/cli-reference)의 `-p`는 SDK를 통한 질문 실행이다. `-p "/usage"`가 과금 없이 구조화된 구독 한도를 반환한다는 공식 계약은 확인하지 못했으므로 실행하지 않았다. [statusLine 문서](https://code.claude.com/docs/en/statusline)는 5시간·7일 `rate_limits`가 Pro/Max에서 **세션의 첫 API 응답 이후에만** 나타날 수 있다고 설명한다. statusLine 스크립트 자체는 토큰을 쓰지 않지만 Claude Code가 세션을 실행하지 않으면 새 입력이 보장되지 않는다. `refreshInterval`은 스크립트를 다시 실행할 뿐 서버 한도 재조회 계약이 아니다. [Usage and Cost Analytics API](https://platform.claude.com/docs/en/manage-claude/usage-cost-analytics-api)와 [기존 Admin API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api)는 조직의 과거 API 토큰·비용 보고용으로, 개인 구독의 현재 5시간·7일 잔여율과 같지 않다.
+- **AGY [새 공식 근거]:** 설치 CLI는 v1.4.10이다(기존 조사 v1.4.8 이후 업데이트됨). [v1.1.10 변경 기록](https://antigravity.google/docs/changelog?tab=cli)은 `agy -p "/usage" --output-format json` 같은 read-only slash 명령이 비대화형 구조화 출력을 내며 **agent turn·쿼터 소비·대화 기록을 만들지 않는다**고 명시한다. [헤드리스 문서](https://antigravity.google/docs/cli/headless/)는 기존 인증 캐시 재사용과 stream-json 입력에서 `/usage`를 보내지 말고 독립 `-p` 명령으로 실행할 것을 설명한다. [명령 문서](https://antigravity.google/docs/cli/commands/usage)는 `/usage`가 디스크와 백엔드의 새 쿼터 상태를 확인한다고 설명한다. 이는 기존의 대화형 TUI만 가능하다는 판단을 **공식 CLI print 모드 후보로 갱신**하는 근거다. 실제 `-p /usage`는 실행하지 않아 JSON 필드 계약, 인증 캐시 갱신 여부, 실행 비용·시간, Tokenly 버킷 매핑은 미검증이다. Gemini API와 AGY 쿼터는 별도로 취급한다.
+- **보안·비용 판단:** 이번에는 CLI `--version`·`--help`만 실행했고 로그인·모델 요청·실제 사용량 응답·인증 파일 읽기/복사는 없었다. AGY의 공식 read-only print 명령은 문서상 모델 쿼터를 소비하지 않아 가장 유망하다. 구현 전 별도 승인된 실계정 실험에서 stdout/stderr를 원문 로그 없이 메모리에서 제한된 필드만 파싱하고, 인증 자동 갱신 가능성과 CLI 자체 로그·설정 쓰기 범위를 확인해야 한다. Claude의 `-p` 질문은 모델 요청·사용량 소비가 가능하므로 자동 폴링에 사용하지 않는다. 비공식 내부 API·쿠키·UI 자동화는 인증 유출·변경에 취약해 권장하지 않는다.
+- **권장 순서:** ① AGY v1.4.10의 공식 `-p /usage --output-format json`을 격리된 비민감 실험으로 확인(원문 보존 금지, 성공/필드 존재/모델 턴 0만 관찰) ② 공식 스키마와 인증·쓰기 범위가 충분히 검증되면 새 기능 브랜치에서 AGY Provider 설계·테스트 ③ Claude는 공식 구독 한도 조회 계약이 확인될 때까지 기존 statusLine을 유지하고 문서 변경을 감시. 이번에는 제품 코드·설정 변경 없음.
+- **📸 캡처 추천:** 후속 AGY 수동 실험에서 CLI 버전과 `-p /usage`의 민감 필드를 가린 구조화 결과의 키 이름·종료 상태만 캡처한다. 사용자 이름·경로·계정·잔여 수치·토큰은 공개하지 않는다. 이번 조사에서는 캡처를 만들지 않았다.
+
 ## 백그라운드 최신성 판단 재평가 (2026-10-30, 조사 중단)
 
 - **새 사용자 관찰:** Codex 앱의 사용량 팝오버를 열지 않으면 Tokenly 값이 갱신되지 않는 것처럼 보였고, Codex 팝오버를 연 뒤 Tokenly에도 변경값이 반영됐다. Tokenly 자체의 수동 새로고침은 동작했다. 과거 팝오버를 닫은 상태의 메뉴 막대 값 변화만으로 **Tokenly가 Codex 앱과 무관하게 서버 최신값을 가져온다**고 결론낸 판단을 철회한다. 당시 메뉴 막대 값이 변한 사용자 관찰 자체는 유지한다.
