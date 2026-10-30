@@ -27,7 +27,7 @@ final class AGYDirectUsageTests: XCTestCase {
         XCTAssertEqual(quotas.map(\.name), ["gemini-weekly"])
         XCTAssertEqual(quotas[0].remainingPercent, 37, accuracy: 0.001)
         XCTAssertNotNil(quotas[0].resetsAt)
-        XCTAssertEqual(AGYQuotaSummary.text(for: quotas), "gemini-weekly 37%")
+        XCTAssertEqual(AGYQuotaSummary.text(for: quotas), "37% 남음")
     }
 
     func testBothKnownWeeklyBucketsSelectedAndOtherWindowsIgnored() throws {

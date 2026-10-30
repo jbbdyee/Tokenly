@@ -55,11 +55,16 @@ final class TokenlyTests: XCTestCase {
             QuotaMetric(name: "3p-weekly", remainingPercent: 100, resetsAt: nil),
             QuotaMetric(name: "gemini-weekly", remainingPercent: 0, resetsAt: nil)
         ]
-        XCTAssertEqual(AGYQuotaSummary.text(for: quotas), "2개 버킷 · 0–100%")
+        XCTAssertEqual(AGYQuotaSummary.text(for: quotas), "0–100% 남음")
+        let twoActive = [QuotaMetric(name: "3p-weekly", remainingPercent: 64, resetsAt: nil),
+                         QuotaMetric(name: "gemini-weekly", remainingPercent: 41, resetsAt: nil)]
+        XCTAssertEqual(AGYQuotaSummary.text(for: twoActive), "41–64% 남음")
         XCTAssertTrue(AGYQuotaSummary.hasExhaustedBucket(quotas))
+        let exhausted = ExternalUsageSnapshot(metrics: .quotas(quotas), fetchedAt: Date(), source: .directCLI)
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(.success(exhausted)), "일부 한도 소진")
         XCTAssertEqual(AGYQuotaLabel.displayName(for: "3p-weekly"), "3p-weekly")
-        XCTAssertEqual(AGYQuotaSummary.text(for: [quotas[1]]), "gemini-weekly 0%")
-        XCTAssertEqual(AGYQuotaSummary.text(for: []), "쿼터 데이터 없음")
+        XCTAssertEqual(AGYQuotaSummary.text(for: [quotas[1]]), "0% 남음")
+        XCTAssertEqual(AGYQuotaSummary.text(for: []), "데이터 없음")
     }
 
     @MainActor

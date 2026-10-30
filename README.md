@@ -1,6 +1,6 @@
 # Tokenly
 
-> **개발 중인 팝오버 문구(2026-10-30, `feature/usage-popover-status-copy`):** 하단은 `Codex · AGY 자동 갱신 | Claude 사용 중 갱신`으로 표시합니다. 정보(i)에서 갱신 주기와 조회 방식을 확인할 수 있습니다. AGY 직접 성공값은 `마지막 갱신`, 상태줄 대체값은 `마지막 수신`으로 구분하고 Claude는 사용 중 수신한 데이터만 표시합니다. 새 UI는 전체 XCTest 406개와 Debug·Release 빌드를 통과했으며 실제 팝오버 화면 조작은 아직 확인하지 않았습니다. 기존 설치 앱에는 반영하지 않았습니다.
+> **로컬 v0.3.0 릴리즈 준비(2026-10-30):** 하단은 `Codex · AGY 자동 갱신 | Claude 사용 중 갱신`으로 표시합니다. 정보(i)에서 갱신 주기와 조회 방식을 확인할 수 있습니다. AGY 직접 성공값은 `마지막 갱신`, 상태줄 대체값은 `마지막 수신`으로 구분하고, 헤더는 한 항목 `N% 남음`·여러 항목 `최저–최고% 남음`입니다. 사용자는 가상 데이터 격리 앱에서 상태 문구·정보(i)·배치를 확인했습니다. 공개 다운로드는 아직 v0.2.0이며 설치본도 변경 전입니다.
 
 macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다. v0.2.0부터 **CPU·RAM·GPU·Disk·배터리** 상태도 메뉴 막대 위젯과 상세 팝오버로 보여 줍니다.
 
@@ -127,11 +127,11 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 추가로 Codex 앱의 팝오버를 전혀 열지 않았는데도 Tokenly 메뉴 막대 값이 자동으로 바뀐 것이 확인됐습니다. 따라서 앞선 의존성 의심을 재현 결함으로 확정하지 않았고 조사는 중단했습니다. 조회 시점 차이는 가능한 설명이며, 정확한 자동 조회 간격과 서버 캐시 정책은 여전히 미확인입니다.
 
-차기 버전에서 Codex의 `마지막 갱신 시간`은 **Tokenly의 마지막 성공 조회 시각**입니다. Claude·AGY의 `마지막 수신`은 CLI 상태줄 이벤트 시각입니다. 두 서비스의 5분 타이머와 수동 버튼은 저장된 상태줄 파일을 다시 읽으며, CLI가 새 이벤트를 보내지 않으면 서버의 새 사용량을 가져오지 않습니다.
+로컬 v0.3.0에서 Codex의 `마지막 갱신 시간`은 **Tokenly의 마지막 성공 조회 시각**입니다. AGY의 `마지막 갱신`은 공식 CLI 직접 조회 성공 시각이고, 상태줄 대체 시 `마지막 수신`은 상태줄 이벤트 시각입니다. Claude의 `마지막 수신`도 상태줄 이벤트 시각이며, 5분 로컬 재읽기는 서버의 새 조회를 뜻하지 않습니다.
 
 - **공증 없음:** ad-hoc 서명이라 첫 실행에 Gatekeeper 허용이 필요합니다. 내려받은 ZIP(격리 속성 있음)을 새 사용자 계정·다른 Mac에서 처음 여는 절차와, 그 상태에서 CLI가 앱 실행 파일을 호출하는 경로는 0.1.0·0.2.0 모두 검증하지 않았습니다.
 - **시스템 모니터의 비공개 값:** GPU 사용률(실험적, 기본 꺼짐)과 배터리 온도는 문서화되지 않은 시스템 값을 읽습니다. macOS 업데이트나 다른 기종(Intel Mac 포함)에서 표시되지 않거나 다를 수 있으며, 개발자 Mac(Apple M4) 밖에서는 확인하지 않았습니다.
-- **이벤트 기반 갱신:** Claude·AGY 값은 CLI가 상태줄을 그릴 때만 갱신됩니다. CLI를 쓰지 않으면 값이 멈추고, 수신 후 15분이 지나면 회색(이전 데이터)으로 표시합니다.
+- **Claude 상태줄 수신:** Claude Code가 사용 중 상태줄을 그릴 때만 새 한도를 받을 수 있습니다. 로컬 재읽기는 서버 조회가 아니며, 수신 후 15분이 지나면 이전 데이터로 표시합니다. AGY는 로컬 v0.3.0부터 공식 CLI 직접 조회가 가능하고 실패 시 상태줄 수신값을 대체 표시합니다.
 - **Codex app-server**는 Codex CLI에서 experimental로 표시된 기능이라 CLI 업데이트에 따라 바뀔 수 있습니다.
 - **AGY**는 AGY CLI가 statusLine으로 보내는 `quota`의 **버킷별** 잔여 비율과 초기화 시각을 그대로 보여 주며, 5시간·7일 창으로 바꾸지 않습니다. 개발자 계정에서는 버킷 2개(`3p-weekly`, `gemini-weekly`)가 들어왔지만, 버킷의 수·이름·주기는 계정·요금제·AGY 버전에 따라 다를 수 있습니다. IDE·Gemini API 사용량과는 다릅니다.
 - **macOS 앱 목록:** 같은 번들 ID의 **다른 사본**(빌드 결과물·백업 등)이 LaunchServices에서 등록 해제되면, `/Applications`의 설치본이 그대로 있어도 앱 목록(Apps)에서 빠집니다(macOS 27, 테스트 앱과 Tokenly에서 재현). 일반 사용자의 한 번 설치에서는 생기지 않는 경로로 보이며, 개발 Mac에서 빌드할 때 생깁니다. 이 경우 `/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Tokenly.app`로 설치본 경로만 다시 등록하면 돌아옵니다(2026-10-26 확인). 그때까지는 Spotlight나 Finder에서 실행할 수 있습니다(`Doc/IMP-PLAN.md` 51–53·62절).
@@ -201,12 +201,12 @@ AGY CLI ──(print /usage, 5분 조건; 개발 브랜치)──▶ AGYDirectUs
 
 | | Codex | Claude Code | Google Antigravity |
 |---|---|---|---|
-| 방식 | 공식 `codex app-server`의 읽기 전용 JSON-RPC `account/rateLimits/read` | Claude Code `statusLine` 명령이 넘기는 JSON | 기존 `statusLine` JSON + 개발 브랜치의 공식 CLI print `/usage` |
-| 갱신 | Tokenly가 **능동 조회**(1분 조건 검사 + 새로고침) | CLI가 상태줄을 갱신할 때만(**이벤트 기반**) | 개발 브랜치에서 5분 조건부 직접 조회, 실패 시 기존 statusLine 재읽기 |
+| 방식 | 공식 `codex app-server`의 읽기 전용 JSON-RPC `account/rateLimits/read` | Claude Code `statusLine` 명령이 넘기는 JSON | 공식 CLI print `/usage` + 기존 `statusLine` JSON 대체 경로 |
+| 갱신 | Tokenly가 **능동 조회**(1분 조건 검사 + 새로고침) | CLI가 상태줄을 갱신할 때만(**이벤트 기반**) | 로컬 v0.3.0에서 5분 조건부 직접 조회, 실패 시 기존 statusLine 대체 표시 |
 | 표시 값 | 5시간·7일 창, 재설정 권한 | 5시간·7일 한도 | `quota`의 버킷별 잔여 비율·초기화 시각(버킷 구성은 계정·버전에 따라 다를 수 있음) |
 | 오래된 데이터 | 조회 실패 시 이전 값 표시 | 수신 후 15분 지나면 회색 | 수신 후 15분 지나면 회색 |
 
-- **개발 소스의 AGY:** AGY 표시가 켜져 있으면 공식 CLI를 5분 조건으로 비동기 실행합니다. 직접 조회 오류 때 기존 상태줄 파일을 대체 데이터로 읽습니다. 일반 팝오버에서는 출처에 따라 `마지막 갱신` 또는 `마지막 수신`을 표시하고 자세한 출처별 시각은 정보(i)에서 확인합니다. 격리 앱에서 첫 직접 성공 표시와 CLI 시작 간격을 확인했으나 두 번째 응답 성공은 미검증입니다. 공개 v0.2.0 설치본은 기존 statusLine 방식이며 Claude도 계속 상태줄 이벤트 기반입니다.
+- **로컬 v0.3.0의 AGY:** AGY 표시가 켜져 있으면 공식 CLI를 5분 조건으로 비동기 실행합니다. 직접 조회 오류 때 기존 상태줄 파일을 대체 데이터로 읽습니다. 일반 팝오버에서는 출처에 따라 `마지막 갱신` 또는 `마지막 수신`을 표시하고 자세한 출처별 시각은 정보(i)에서 확인합니다. 격리 앱에서 첫 직접 성공 표시와 CLI 시작 간격을 확인했으나 두 번째 응답 성공은 미검증입니다. 공개 v0.2.0 설치본은 기존 statusLine 방식이며 Claude도 계속 상태줄 이벤트 기반입니다.
 - **Codex 재설정 권한:** Codex CLI가 생성하는 공식 프로토콜 스키마(`codex app-server generate-json-schema`)에 정의된 `rateLimitResetCredits`만 읽습니다. 권한을 소모하는 `account/rateLimitResetCredit/consume`은 호출하지 않습니다.
 - 비공식 API, 웹 세션 쿠키, 인증 토큰 추출, 브라우저 자동화는 사용하지 않습니다.
 

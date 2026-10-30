@@ -1,5 +1,12 @@
 # Tokenly 작업 인수인계
 
+## v0.3.0 로컬 릴리즈 준비 (2026-10-30)
+
+- 사용자는 별도 Debug fixture에서 AGY·Claude 상태, 하단 문구, 정보(i), 전체 배치에 문제가 없다고 보고했다. fixture는 가상 데이터이며 실제 계정 조회나 설치본 검증은 아니다. 키보드·VoiceOver는 아직 확인되지 않았다.
+- 피드백으로 AGY 헤더를 한 항목 `N% 남음`, 여러 항목 `최저–최고% 남음`으로 단순화했다. 상세 정보·최소~최대 계산·조회/인증/갱신 로직은 유지한다. 소진 경고는 `일부 한도 소진`이다. `Info.plist`는 다음 기능 버전 `0.3.0 (5)`로 준비했다. 공개 태그·GitHub Release·Push는 별도 승인 전 금지다.
+- 수정 후 전체 XCTest 406개(실패·건너뜀 0), Debug·Release 빌드와 `git diff --check` 통과. 수정된 헤더의 실제 화면·VoiceOver는 아직 보지 않았으며 더 짧은 문구의 배치는 이전 사용자 fixture 관찰과 구분한다.
+- 다음 순서: Fast-forward 가능 여부·GPU 로그 2개 확인 → 로컬 `main` 병합 → 깨끗한 로컬 복제본에서 `release.sh --final 0.3.0` → 설치본·설정 비공개 백업 → 검증된 ZIP의 앱 설치 및 설정·Codex/AGY/Claude 확인. 위험 또는 화면 검증 실패 시 설치를 멈춘다.
+
 ## AI 팝오버 갱신 상태 문구 정리 (2026-10-30)
 
 - `main` `8abafae`에서 `feature/usage-popover-status-copy`를 만들었고 기존 미추적 GPU 로그 2개를 보존했다. `UsageMenuView`의 하단 문구, 정보(i), AGY 출처별 단일 시각 행과 상태 문구, Claude 무수신·오래된 데이터 문구만 조정했다. 기존 조회 간격·인증·설정·Provider/Store 로직과 설치 앱은 그대로다.

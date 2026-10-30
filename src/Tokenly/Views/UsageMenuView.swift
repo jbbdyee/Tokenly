@@ -308,7 +308,7 @@ struct UsageMenuView: View {
     }
 
     private func summary(_ value: ExternalUsageSnapshot) -> String {
-        guard case .quotas(let quotas) = value.metrics else { return "쿼터 데이터 없음" }
+        guard case .quotas(let quotas) = value.metrics else { return "데이터 없음" }
         return AGYQuotaSummary.text(for: quotas)
     }
 
@@ -432,7 +432,7 @@ enum UsagePopoverCopy {
         case .failure(_, let previous): return previous == nil ? "데이터 없음" : "갱신 지연"
         case .success(let value):
             if case .quotas(let quotas) = value.metrics, AGYQuotaSummary.hasExhaustedBucket(quotas) {
-                return "일부 버킷 소진"
+                return "일부 한도 소진"
             }
             return value.source == .directCLI ? "자동 갱신" : "갱신 지연"
         }

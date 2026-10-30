@@ -33,14 +33,14 @@ enum AGYQuotaLabel {
 
 enum AGYQuotaSummary {
     static func text(for quotas: [QuotaMetric]) -> String {
-        guard !quotas.isEmpty else { return "쿼터 데이터 없음" }
+        guard !quotas.isEmpty else { return "데이터 없음" }
         let values = quotas.map { Int($0.remainingPercent.rounded()) }
         if values.count == 1 {
-            return "\(AGYQuotaLabel.displayName(for: quotas[0].name)) \(values[0])%"
+            return "\(values[0])% 남음"
         }
         let low = values.min() ?? 0
         let high = values.max() ?? 0
-        return "\(values.count)개 버킷 · \(low)–\(high)%"
+        return "\(low)–\(high)% 남음"
     }
 
     static func hasExhaustedBucket(_ quotas: [QuotaMetric]) -> Bool {
