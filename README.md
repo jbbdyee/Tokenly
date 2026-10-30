@@ -1,6 +1,6 @@
 # Tokenly
 
-> **로컬 v0.3.0 릴리즈 준비(2026-10-30):** 하단은 `Codex · AGY 자동 갱신 | Claude 사용 중 갱신`으로 표시합니다. 정보(i)에서 갱신 주기와 조회 방식을 확인할 수 있습니다. AGY 직접 성공값은 `마지막 갱신`, 상태줄 대체값은 `마지막 수신`으로 구분하고, 헤더는 한 항목 `N% 남음`·여러 항목 `최저–최고% 남음`입니다. 사용자는 가상 데이터 격리 앱에서 상태 문구·정보(i)·배치를 확인했습니다. 공개 다운로드는 아직 v0.2.0이며 설치본도 변경 전입니다.
+> **v0.3.0 릴리즈 준비(2026-10-30):** 하단은 `Codex · AGY 자동 갱신 | Claude 사용 중 갱신`으로 표시합니다. 정보(i)에서 갱신 주기와 조회 방식, AGY 원본 항목을 확인할 수 있습니다. AGY 헤더는 `Google Antigravity`만 표시하고 일반 상세에는 Gemini 그룹을 우선 표시합니다. 기존 설치본과 공개 다운로드는 배포 전까지 v0.2.0입니다.
 
 macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다. v0.2.0부터 **CPU·RAM·GPU·Disk·배터리** 상태도 메뉴 막대 위젯과 상세 팝오버로 보여 줍니다.
 
@@ -206,7 +206,7 @@ AGY CLI ──(print /usage, 5분 조건; 개발 브랜치)──▶ AGYDirectUs
 | 표시 값 | 5시간·7일 창, 재설정 권한 | 5시간·7일 한도 | `quota`의 버킷별 잔여 비율·초기화 시각(버킷 구성은 계정·버전에 따라 다를 수 있음) |
 | 오래된 데이터 | 조회 실패 시 이전 값 표시 | 수신 후 15분 지나면 회색 | 수신 후 15분 지나면 회색 |
 
-- **로컬 v0.3.0의 AGY:** AGY 표시가 켜져 있으면 공식 CLI를 5분 조건으로 비동기 실행합니다. 직접 조회 오류 때 기존 상태줄 파일을 대체 데이터로 읽습니다. 일반 팝오버에서는 출처에 따라 `마지막 갱신` 또는 `마지막 수신`을 표시하고 자세한 출처별 시각은 정보(i)에서 확인합니다. 격리 앱에서 첫 직접 성공 표시와 CLI 시작 간격을 확인했으나 두 번째 응답 성공은 미검증입니다. 공개 v0.2.0 설치본은 기존 statusLine 방식이며 Claude도 계속 상태줄 이벤트 기반입니다.
+- **v0.3.0의 AGY:** AGY 표시가 켜져 있으면 공식 CLI를 5분 조건으로 비동기 실행합니다. 직접 조회 오류 때 기존 상태줄 파일을 대체 데이터로 읽습니다. 일반 팝오버에서는 출처에 따라 `마지막 갱신` 또는 `마지막 수신`을 표시하고 자세한 출처별 시각과 원본 한도 항목은 정보(i)에서 확인합니다. 격리 앱에서 첫 직접 성공 표시와 CLI 시작 간격을 확인했으나 두 번째 응답 성공은 미검증입니다. Claude는 계속 상태줄 이벤트 기반입니다.
 - **Codex 재설정 권한:** Codex CLI가 생성하는 공식 프로토콜 스키마(`codex app-server generate-json-schema`)에 정의된 `rateLimitResetCredits`만 읽습니다. 권한을 소모하는 `account/rateLimitResetCredit/consume`은 호출하지 않습니다.
 - 비공식 API, 웹 세션 쿠키, 인증 토큰 추출, 브라우저 자동화는 사용하지 않습니다.
 
@@ -223,7 +223,7 @@ AGY CLI ──(print /usage, 5분 조건; 개발 브랜치)──▶ AGYDirectUs
 open src/Tokenly.xcodeproj          # Tokenly 스킴 실행(⌘R), 테스트(⌘U)
 xcodebuild -project src/Tokenly.xcodeproj -scheme Tokenly test
 scripts/release.sh                  # 개발 확인: Release universal 빌드 → ad-hoc 서명 → 검증 → ZIP·SHA-256
-scripts/release.sh --final 0.2.0    # 배포용: 깨끗한 작업 트리, Info.plist·CHANGELOG 버전 일치가 필요
+scripts/release.sh --final 0.3.0    # 배포용: 깨끗한 작업 트리, Info.plist·CHANGELOG 버전 일치가 필요
 ```
 
 **Stage 6-8B 개발 기록:** 곰돌이 제품 에셋 제거 후 남았던 `release.sh`의 옛 필수 리소스 검사는 Stage 6-8B에서 수정했습니다. 저장소 밖 임시 위치에서 개발용 universal Release ZIP의 빌드·서명·리소스·명령줄 스모크·압축 해제 후 내용 동일성·체크섬 검증이 통과했습니다. 실제 게시·설치 검증은 아닙니다. 아래 표의 배포 결과는 이전 버전의 기록입니다.
