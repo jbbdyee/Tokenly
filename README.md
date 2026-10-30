@@ -1,20 +1,20 @@
 # Tokenly
 
-> **v0.3.0 릴리즈 준비(2026-10-30):** 하단은 `Codex · AGY 자동 갱신 | Claude 사용 중 갱신`으로 표시합니다. 정보(i)에서 갱신 주기와 조회 방식, AGY 원본 항목을 확인할 수 있습니다. AGY 헤더는 `Google Antigravity`만 표시하고 일반 상세에는 Gemini 그룹을 우선 표시합니다. 기존 설치본과 공개 다운로드는 배포 전까지 v0.2.0입니다.
+> **v0.3.0 출시(2026-10-30):** 하단은 `Codex · AGY 자동 갱신 | Claude 사용 중 갱신`으로 표시합니다. 정보(i)에서 갱신 주기와 조회 방식, AGY 원본 항목을 확인할 수 있습니다. AGY 헤더는 `Google Antigravity`만 표시하고 일반 상세에는 Gemini 그룹을 우선 표시합니다.
 
 macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다. v0.2.0부터 **CPU·RAM·GPU·Disk·배터리** 상태도 메뉴 막대 위젯과 상세 팝오버로 보여 줍니다.
 
-> **개발 소스와 공개 v0.2.0 설치본:** AGY 공식 CLI의 비대화형 `/usage`를 5분 조건부 자동 조회에 연결했고 기존 statusLine은 대체 경로로 유지합니다. 격리 개발 앱에서 첫 직접 조회의 주간 버킷·출처·성공 시각 화면 표시와 약 5분 간격의 CLI 시작 2회를 확인했습니다. 두 번째 응답 성공과 장기 안정성은 미검증입니다. 직접 조회에는 로그인된 AGY CLI가 필요하며 정상적인 인증 캐시·상태 파일 갱신이 발생할 수 있습니다. 5시간 버킷은 임의로 표시하지 않습니다. 이 변경과 위의 팝오버 문구는 기존 설치본에 적용하지 않았습니다.
+> **v0.3.0의 AGY:** 공식 CLI의 비대화형 `/usage`를 5분 조건부 자동 조회에 연결했고 기존 statusLine은 대체 경로로 유지합니다. 격리 개발 앱에서 첫 직접 조회의 주간 항목·출처·성공 시각 화면 표시와 약 5분 간격의 CLI 시작 2회를 확인했습니다. 두 번째 응답 성공과 장기 안정성은 미검증입니다. 직접 조회에는 로그인된 AGY CLI가 필요하며 정상적인 인증 캐시·상태 파일 갱신이 발생할 수 있습니다. 5시간 한도는 임의로 표시하지 않습니다.
 
 ## 다운로드
 
-**[Tokenly v0.2.0 — System Monitor 내려받기](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0)** (최신, GitHub Pre-release, 2026-10-29)
+**[Tokenly v0.3.0 — Automatic usage refresh 내려받기](https://github.com/jbbdyee/Tokenly/releases/tag/v0.3.0)** (최신, GitHub Pre-release, 2026-10-30)
 
 - macOS 14 Sonoma 이상, Apple silicon·Intel Mac 공용(universal) 앱입니다.
-- Release 페이지의 **Assets**에서 `Tokenly-0.2.0-macOS-universal.zip`을 받습니다. 자동으로 붙는 **Source code (zip / tar.gz)** 는 실행할 수 있는 앱이 아닙니다.
-- 이전 버전: [v0.1.0 — Developer Preview](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0)(2026-10-26, AI 사용량 표시만 포함). 변경 내용은 [CHANGELOG](CHANGELOG.md)에 있습니다.
+- Release 페이지의 **Assets**에서 `Tokenly-0.3.0-macOS-universal.zip`을 받습니다. 자동으로 붙는 **Source code (zip / tar.gz)** 는 실행할 수 있는 앱이 아닙니다.
+- 이전 버전: [v0.2.0 — System Monitor](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0), [v0.1.0 — Developer Preview](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0). 변경 내용은 [CHANGELOG](CHANGELOG.md)에 있습니다.
 - Apple Developer ID 서명과 공증(notarization)을 받지 않은 **ad-hoc 서명** 앱이라, 첫 실행 때 macOS 보안 경고가 나타나고 실행이 막힐 수 있습니다. 시스템 설정에서 이 앱만 허용하면 됩니다.
-- 상세 설치 방법은 [Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0)와 아래 [설치](#설치)에 있습니다.
+- 상세 설치 방법은 [Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.3.0)와 아래 [설치](#설치)에 있습니다.
 
 > **개발자 미리보기입니다.** 개발자 Mac 밖에서의 동작, 특히 내려받은 ZIP을 새 사용자 계정이나 다른 Mac에서 처음 여는 절차는 아직 확인하지 않았습니다([알려진 제한](#알려진-제한)).
 
@@ -26,16 +26,16 @@ macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** �
 
 ## 설치
 
-[v0.2.0 Pre-release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0)의 ZIP 기준입니다. 소스에서 직접 만들려면 [빌드와 테스트](#빌드와-테스트)를 참고하세요.
+[v0.3.0 Pre-release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.3.0)의 ZIP 기준입니다. 소스에서 직접 만들려면 [빌드와 테스트](#빌드와-테스트)를 참고하세요.
 
-1. [v0.2.0 Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0)의 **Assets**에서 `Tokenly-0.2.0-macOS-universal.zip`과 `Tokenly-0.2.0-macOS-universal.zip.sha256`을 받습니다.
-2. (권장) 무결성 확인: 두 파일이 있는 폴더에서 `shasum -a 256 -c Tokenly-0.2.0-macOS-universal.zip.sha256` → `OK`가 나와야 합니다.
+1. [v0.3.0 Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.3.0)의 **Assets**에서 `Tokenly-0.3.0-macOS-universal.zip`과 `Tokenly-0.3.0-macOS-universal.zip.sha256`을 받습니다.
+2. (권장) 무결성 확인: 두 파일이 있는 폴더에서 `shasum -a 256 -c Tokenly-0.3.0-macOS-universal.zip.sha256` → `OK`가 나와야 합니다.
 3. ZIP을 열어 나온 `Tokenly.app`을 **응용 프로그램(`/Applications`) 폴더로 옮깁니다.** 다운로드 폴더에서 바로 실행하면 macOS가 임시 위치에서 실행해 자동 실행·CLI 연결이 동작하지 않습니다.
 4. `Tokenly.app`을 엽니다. 처음에는 "확인되지 않은 개발자" 또는 "Apple이 악성 소프트웨어가 없음을 확인할 수 없음" 경고가 나오고 열리지 않습니다. **완료**(또는 취소)를 누릅니다.
 5. **시스템 설정 → 개인정보 보호 및 보안**의 아래쪽 **보안** 항목에 Tokenly가 차단되었다는 안내와 함께 나타나는 **그래도 열기**를 누르고, 암호(또는 Touch ID)로 확인한 뒤 한 번 더 **열기**를 누릅니다. macOS 14에서는 Finder에서 앱을 Control-클릭 → **열기**로도 허용할 수 있습니다.
 6. 메뉴 막대에 Tokenly가 나타납니다. Dock에는 나타나지 않는 메뉴 막대 전용 앱입니다.
 
-**0.1.0에서 업데이트:** Tokenly를 종료한 뒤 `/Applications/Tokenly.app`을 새 앱으로 교체합니다. 같은 위치에 교체하면 설정과 Claude Code·AGY 연결이 그대로 유지됩니다(개발자 Mac에서 확인). 시스템 위젯은 처음에 CPU·RAM·Disk·배터리가 켜진 상태로 나타납니다.
+**이전 버전에서 업데이트:** Tokenly를 종료한 뒤 `/Applications/Tokenly.app`을 새 앱으로 교체합니다. 같은 위치에 교체하면 설정과 Claude Code·AGY 연결이 그대로 유지됩니다(개발자 Mac의 0.2.0 → 0.3.0 설치에서 설정 22개와 연결 상태 확인).
 
 이 경고는 Tokenly가 Apple Developer ID로 서명·공증되지 않아 Apple이 앱을 확인할 수 없기 때문에 나옵니다. 위 4–5단계는 macOS의 일반적인 개별 허용 절차이며, 내려받은 이 ZIP으로 새 사용자 계정·다른 Mac에서 직접 확인하지는 않았습니다. macOS 버전과 계정 종류(표준·관리자)에 따라 문구와 인증 단계가 다를 수 있습니다.
 
@@ -47,7 +47,7 @@ macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** �
 |---|---|
 | Codex | [Codex CLI](https://github.com/openai/codex) 설치와 로그인(`codex login`). Tokenly는 `PATH`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `~/.npm-global/bin`에서 `codex`를 찾습니다. 별도 연결 작업은 없습니다. |
 | Claude Code | Claude Code 설치와 **Pro·Max 구독** 로그인. 한도 값은 Claude Code가 statusLine에 넘겨 줄 때만 오며, 세션의 첫 응답 이후부터 들어옵니다. 아래 CLI 연결이 필요합니다. |
-| Google Antigravity | AGY CLI 설치와 로그인. 설정 파일 `~/.gemini/antigravity-cli/settings.json`을 씁니다. 공개 v0.2.0은 아래 statusLine 연결이 필요하고, 개발 브랜치는 직접 조회 시 연결 없이도 AGY 표시를 켤 수 있습니다. |
+| Google Antigravity | AGY CLI 설치와 로그인. v0.3.0은 직접 조회만 사용할 때 statusLine 연결이 필요하지 않으며, 연결되어 있다면 실패 시 대체 데이터로 활용합니다. |
 
 ## Claude Code·AGY 연결
 
@@ -83,7 +83,7 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 1. 메뉴 막대의 Tokenly를 눌러 팝오버를 열고 오른쪽 위 톱니바퀴(설정 열기)를 누릅니다.
 2. **AI 서비스** 탭에서 **Claude를 팝오버에 표시**, **AGY를 팝오버에 표시**를 켭니다.
-   - 공개 v0.2.0은 AGY 수신 파일이 생긴 뒤에만 켤 수 있습니다. 연결 후 AGY CLI를 한 번 사용한 다음 **연결 확인**을 누르세요. 개발 브랜치에서는 AGY CLI 로그인만으로 표시를 켤 수 있습니다.
+   - v0.3.0에서는 AGY CLI 로그인 상태에서 직접 조회가 가능하면 statusLine 수신 파일 없이도 표시를 켤 수 있습니다.
    - Claude는 언제든 켤 수 있지만, 값은 연결 후 Claude Code 세션의 첫 응답부터 들어옵니다. **수신 확인**으로 수신 파일이 있는지 볼 수 있습니다.
 3. 숫자형 메뉴 막대도 이 선택을 따릅니다. 최소형은 항상 Codex만 표시합니다. Codex를 숨겨도 5분 조회는 계속됩니다.
 
@@ -109,11 +109,11 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 ## 알려진 제한
 
-**개발 브랜치의 차기 버전 변경:** Codex는 1분마다 조건부 조회를 확인합니다. AI 사용량 팝오버 열림·절전 복귀에도 마지막 성공 조회와 최근 조회 시도가 각각 60초 이상 전일 때 새 조회를 시작합니다. 진행 중 요청은 중복하지 않고, 자동 조회 실패 뒤 타이머 재시도는 5분을 기다립니다. 수동 새로고침은 계속 즉시 시도합니다. 기존 성공값은 조회 중·실패 후에도 유지됩니다. 이 변경은 현재 내려받을 수 있는 v0.2.0 설치본에 포함되지 않으며 실제 앱 조작 검증은 별도입니다.
+**v0.3.0 Codex 갱신:** 1분마다 조건부 조회를 확인합니다. 팝오버 열림·절전 복귀에도 마지막 성공 조회와 최근 조회 시도가 각각 60초 이상 전일 때 새 조회를 시작합니다. 진행 중 요청은 중복하지 않고, 자동 조회 실패 뒤 타이머 재시도는 5분을 기다립니다. 수동 새로고침은 즉시 시도하며 기존 성공값은 조회 중·실패 후에도 유지됩니다. 절전 복귀와 정확한 초 단위 간격은 실사용 미검증입니다.
 
-**격리 앱 확인(2026-10-30):** 별도 번들 ID의 Debug 앱과 실패 전용 임시 CLI로 초기 실행과 실패 후 300초 재시도를 실제 macOS 프로세스에서 관찰했습니다. 실제 Codex 계정의 성공 조회, 60초 후 성공 데이터 갱신, 팝오버·절전 복귀 화면 동작은 아직 확인하지 않았습니다. 세부 측정과 격리 조건은 `Doc/HANDOFF.md`에 있습니다.
+**격리 앱 확인(2026-10-30, 당시 기록):** 별도 번들 ID의 Debug 앱과 실패 전용 임시 CLI로 초기 실행과 실패 후 300초 재시도를 실제 macOS 프로세스에서 관찰했습니다. 이후 실제 Codex 성공 조회와 화면 변화는 사용자가 별도로 확인했습니다. 세부 측정과 격리 조건은 `Doc/HANDOFF.md`에 있습니다.
 
-실제 Codex 인증을 읽기 전용으로 재사용하는 후속 시도에서는 홈 쓰기를 차단한 app-server가 초기 응답 전에 권한 오류로 종료했습니다. 따라서 성공 조회와 60초 자동 갱신의 실제 앱 검증은 아직 완료되지 않았습니다.
+당시 실제 Codex 인증을 읽기 전용으로 재사용하려는 격리 실험에서는 홈 쓰기를 차단한 app-server가 초기 응답 전에 권한 오류로 종료했습니다. 이후 정상 사용자 환경의 개발 앱에서 성공 조회를 확인했습니다.
 
 이후 별도 번들 ID의 개발 앱을 정상 사용자 환경에서 실행해 공식 Codex CLI 자식 프로세스의 재실행을 120초 간격으로 두 번 관찰했습니다. 60초마다 조건을 검사하더라도 직전 조회 시각과 타이머 위상에 따라 CLI는 그보다 늦게 실행될 수 있습니다. 실제 팝오버의 성공값·갱신 시각은 화면 도구 연결 실패로 확인하지 못했습니다.
 
@@ -127,9 +127,9 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 추가로 Codex 앱의 팝오버를 전혀 열지 않았는데도 Tokenly 메뉴 막대 값이 자동으로 바뀐 것이 확인됐습니다. 따라서 앞선 의존성 의심을 재현 결함으로 확정하지 않았고 조사는 중단했습니다. 조회 시점 차이는 가능한 설명이며, 정확한 자동 조회 간격과 서버 캐시 정책은 여전히 미확인입니다.
 
-로컬 v0.3.0에서 Codex의 `마지막 갱신 시간`은 **Tokenly의 마지막 성공 조회 시각**입니다. AGY의 `마지막 갱신`은 공식 CLI 직접 조회 성공 시각이고, 상태줄 대체 시 `마지막 수신`은 상태줄 이벤트 시각입니다. Claude의 `마지막 수신`도 상태줄 이벤트 시각이며, 5분 로컬 재읽기는 서버의 새 조회를 뜻하지 않습니다.
+v0.3.0에서 Codex의 `마지막 갱신 시간`은 **Tokenly의 마지막 성공 조회 시각**입니다. AGY의 `마지막 갱신`은 공식 CLI 직접 조회 성공 시각이고, 상태줄 대체 시 `마지막 수신`은 상태줄 이벤트 시각입니다. Claude의 `마지막 수신`도 상태줄 이벤트 시각이며, 5분 로컬 재읽기는 서버의 새 조회를 뜻하지 않습니다.
 
-- **공증 없음:** ad-hoc 서명이라 첫 실행에 Gatekeeper 허용이 필요합니다. 내려받은 ZIP(격리 속성 있음)을 새 사용자 계정·다른 Mac에서 처음 여는 절차와, 그 상태에서 CLI가 앱 실행 파일을 호출하는 경로는 0.1.0·0.2.0 모두 검증하지 않았습니다.
+- **공증 없음:** ad-hoc 서명이라 첫 실행에 Gatekeeper 허용이 필요합니다. 내려받은 ZIP(격리 속성 있음)을 새 사용자 계정·다른 Mac에서 처음 여는 절차와, 그 상태에서 CLI가 앱 실행 파일을 호출하는 경로는 0.1.0~0.3.0 모두 검증하지 않았습니다.
 - **시스템 모니터의 비공개 값:** GPU 사용률(실험적, 기본 꺼짐)과 배터리 온도는 문서화되지 않은 시스템 값을 읽습니다. macOS 업데이트나 다른 기종(Intel Mac 포함)에서 표시되지 않거나 다를 수 있으며, 개발자 Mac(Apple M4) 밖에서는 확인하지 않았습니다.
 - **Claude 상태줄 수신:** Claude Code가 사용 중 상태줄을 그릴 때만 새 한도를 받을 수 있습니다. 로컬 재읽기는 서버 조회가 아니며, 수신 후 15분이 지나면 이전 데이터로 표시합니다. AGY는 로컬 v0.3.0부터 공식 CLI 직접 조회가 가능하고 실패 시 상태줄 수신값을 대체 표시합니다.
 - **Codex app-server**는 Codex CLI에서 experimental로 표시된 기능이라 CLI 업데이트에 따라 바뀔 수 있습니다.
@@ -177,7 +177,7 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 Codex CLI ──(app-server JSON-RPC, 1분 조건)──▶ CodexUsageProvider ─▶ UsageStore ─┐
 Claude Code ─statusLine─▶ Tokenly --statusline claude ─▶ claude-quota.json ─┐    │
 AGY CLI ─────statusLine─▶ Tokenly --statusline agy ────▶ agy-quota.json ────┴▶ ExternalProviderStore
-AGY CLI ──(print /usage, 5분 조건; 개발 브랜치)──▶ AGYDirectUsageProvider ───────┘
+AGY CLI ──(print /usage, 5분 조건)──────────────▶ AGYDirectUsageProvider ───────┘
                                                                                  │
                      HeartGauge / NumericGauge (표시·숨김·stale 규칙, 대표값) ◀──┘
                                   │
@@ -202,7 +202,7 @@ AGY CLI ──(print /usage, 5분 조건; 개발 브랜치)──▶ AGYDirectUs
 | | Codex | Claude Code | Google Antigravity |
 |---|---|---|---|
 | 방식 | 공식 `codex app-server`의 읽기 전용 JSON-RPC `account/rateLimits/read` | Claude Code `statusLine` 명령이 넘기는 JSON | 공식 CLI print `/usage` + 기존 `statusLine` JSON 대체 경로 |
-| 갱신 | Tokenly가 **능동 조회**(1분 조건 검사 + 새로고침) | CLI가 상태줄을 갱신할 때만(**이벤트 기반**) | 로컬 v0.3.0에서 5분 조건부 직접 조회, 실패 시 기존 statusLine 대체 표시 |
+| 갱신 | Tokenly가 **능동 조회**(1분 조건 검사 + 새로고침) | CLI가 상태줄을 갱신할 때만(**이벤트 기반**) | v0.3.0에서 5분 조건부 직접 조회, 실패 시 기존 statusLine 대체 표시 |
 | 표시 값 | 5시간·7일 창, 재설정 권한 | 5시간·7일 한도 | `quota`의 버킷별 잔여 비율·초기화 시각(버킷 구성은 계정·버전에 따라 다를 수 있음) |
 | 오래된 데이터 | 조회 실패 시 이전 값 표시 | 수신 후 15분 지나면 회색 | 수신 후 15분 지나면 회색 |
 

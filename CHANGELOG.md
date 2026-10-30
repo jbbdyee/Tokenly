@@ -2,7 +2,7 @@
 
 이 문서는 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 형식을 따르고, 버전은 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [0.3.0] - 2026-10-30 (로컬 릴리즈 준비)
+## [0.3.0] - 2026-10-30 (GitHub Pre-release)
 
 빌드 5. v0.2.0 설치본의 설정과 인증을 보존하며 업데이트합니다. Apple 공증을 받지 않은 ad-hoc 서명 빌드입니다.
 

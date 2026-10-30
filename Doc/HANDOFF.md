@@ -1,5 +1,13 @@
 # Tokenly 작업 인수인계
 
+## v0.3.0 설치·GitHub Pre-release (2026-10-30)
+
+- `main`의 `4b2c7ea` AGY UI 변경 뒤 릴리즈 설명을 `d8e5cf1`에 커밋했다. `Info.plist`는 `0.3.0 (5)`이며 제품 코드는 추가 변경하지 않았다. 기존 XCTest 406개 통과(실패·건너뜀 0), Debug·Release 빌드 성공, `git diff --check` 통과를 재사용했다.
+- 이전 fixture는 Codex 표시를 명시적으로 끄고 Store를 시작하지 않았으며 Claude에는 가상 성공값을 넣지 않았다. 따라서 메뉴 막대에 두 서비스 수치가 없던 것은 fixture 구성 때문이다. 실제 앱의 세 표시 설정은 설치 전후 모두 켜져 있었고 설정 키 22개가 동일했다. 설치본의 읽기 전용 상태 확인에서 Claude·AGY statusLine 연결이 유지됐다.
+- 깨끗한 임시 복제본에서 `release.sh --final 0.3.0`의 universal 빌드·ad-hoc 서명·압축 해제 동일성·체크섬 검사가 통과했다. ZIP SHA-256은 `3797d4f96f940ff751c818d9972e935551d4f801e82280de4fa1d8055e2d2efc`. 기존 v0.2.0(4) 앱과 설정을 소유자 전용 `TokenlyRelease.noindex/backup-0.2.0-before-final-install-20261030/`에 보존하고, 검증된 v0.3.0(5)을 같은 `/Applications/Tokenly.app` 경로에 설치했다. 설치 앱은 ZIP 해제본과 파일 단위로 일치하고 실행 중이다. 인증 파일·Keychain은 복사·초기화하지 않았다.
+- `main`과 주석 태그 `v0.3.0`을 GitHub에 Push하고 [v0.3.0 Pre-release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.3.0)에 ZIP·`.sha256`을 게시했다. 공개 자산을 다시 받아 체크섬과 로컬 산출물 일치를 확인했다. 태그 대상은 `d8e5cf1`; 이후 문서 정리 커밋은 태그 다음에 위치한다.
+- **미검증:** macOS가 자동화 도구의 보조 접근을 거부해 설치본 팝오버의 Codex·Claude·AGY 행, Gemini 행·정보(i) 및 장시간 자동 갱신을 직접 확인하지 못했다. 설치본 실행·설정 보존·연결 상태는 확인했지만 실제 조회 성공으로 혼동하지 않는다. 사용자 화면 확인과 Codex 절전 복귀·AGY 두 번째 성공 응답은 남았다. GPU 로그 2개는 미추적으로 보존한다.
+
 ## AGY 일반 표시와 정보(i) 분리 (2026-10-30)
 
 - 사용자 결정에 따라 AGY 헤더를 `Google Antigravity`만 표시하고, 일반 상세에는 `gemini-weekly`만 `Gemini` 그룹 이름으로 표시한다. `3p-weekly`와 두 원본 ID의 잔여율·초기화 시각은 정보(i)에 표시한다. 개별 모델 사용 가능 여부 및 ID의 정확한 뜻은 공식적으로 확인되지 않았다. Gemini 부재와 전체 데이터 부재를 구분한다. 제품의 원본 데이터·조회·인증·대체·stale·계산 로직은 변경하지 않는다.
