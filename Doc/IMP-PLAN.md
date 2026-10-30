@@ -1475,3 +1475,10 @@ XCTest 107개 3회 통과 후 빌드 번호 3으로 개발 확인 빌드를 만�
 - **확인된 첫 실패:** 민감한 내용이 없는 stderr에서 `~/.codex` 아래 SQLite state runtime 초기화 실패를 확인했다. [공식 설정](https://learn.chatgpt.com/docs/config-file/config-reference)의 `sqlite_home`을 `/private/tmp/tokenly-codex-sqlite-20261030`으로 지정하자 해당 메시지는 사라졌다. 이는 기본 상태 DB 쓰기가 적어도 하나의 차단 지점임을 입증한다.
 - **남은 실패:** 임시 SQLite 경로 사용 후 일반 EPERM이 남는다. 실제 `.codex`를 `CODEX_HOME`으로 명시하고 `HOME`·`TMPDIR`을 임시 경로로 바꾸면 `.codex` 정규화 거부가 나타났다. 홈 상위 디렉터리의 메타데이터 읽기만 허용해도 별도 EPERM이 남았다. macOS 통합 로그에는 유용한 deny 경로가 없었고, `fs_usage`는 현재 권한에서 실행되지 않았다. 정확한 접근 경로와 syscall은 미확정이다.
 - **안전 대조군:** 빈 임시 `CODEX_HOME`에 같은 임시 HOME·TMPDIR·sqlite_home을 주면 initialize 성공. 이는 app-server 자체 실행 가능성을 확인하지만 인증이 없으므로 실제 rate limit 조회를 검증하지 않는다. 기존 인증을 복사하거나 원본을 쓰도록 허용하지 않았다. 실제 60초 갱신은 보류한다.
+
+## 72. 두 번째 EPERM 진단 수단 감사 (2026-10-30)
+
+- Apple의 [파일 시스템 사용량 문서](https://developer.apple.com/library/archive/documentation/Performance/Conceptual/FileSystem/Articles/FileSystemCalls.html)는 `fs_usage`가 syscall·경로·오류를 보여 주며 root를 요구한다고 설명한다. 현재 `fs_usage`는 종료 코드 1이었고 `sudo -n`도 불가능했다. 시스템 보안 설정이나 sudo 권한은 변경하지 않았다.
+- Apple의 [샌드박스 진단 문서](https://developer.apple.com/documentation/security/discovering-and-diagnosing-app-sandbox-violations)를 따라 `log show --info --debug`의 `Sandbox:` 이벤트를 검사했다. `codex` 검색 결과에는 다른 프로세스 `logd_helper`가 Codex 앱 자료를 읽다 거부된 이벤트가 섞였다. 진단 명령 자체의 검색 문자열도 로그에 남아 단순 문자열 매칭은 거짓 양성을 만들었다. 조사 대상 app-server PID의 두 번째 EPERM syscall·경로는 확인되지 않았다.
+- 설치본은 `/Applications/Tokenly.app`, bundle ID `io.github.jbbdyee.tokenly`, 버전 0.2.0/빌드 4이며 검사한 서명 출력에 App Sandbox entitlement가 나타나지 않았다. 이전 격리 Debug 앱에는 별도 ID·경로와 `sandbox-exec` 홈 읽기/쓰기 제한을 추가했다. 실행 조건이 달라 설치본의 프로세스 존재만으로 조회 성공을 추론하지 않는다. 실제 앱·설정 조작 없음.
+- 첫 SQLite 상태 DB 오류의 임시 분리는 확인됐지만 두 번째 EPERM은 미해결이다. 실계정 성공 조회와 60초 갱신은 실행하지 않았다. 제품 코드·빌드·XCTest 변경 없음.

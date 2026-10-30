@@ -4,6 +4,14 @@
 
 최종 갱신: 2026-10-30 (Codex 조건부 사용량 갱신 구현·검증, Codex)
 
+## 남은 EPERM 진단 경로 점검 (2026-10-30)
+
+- 이번 세션 시작: `feature/usage-refresh-label-and-sources`, HEAD `79311f4`; GPU 원본 로그 2개 미추적 상태 보존. 동일한 실계정 `app-server` 실패 실행은 반복하지 않았다. CLI 버전은 여전히 `0.164.0-alpha.11.1`이다.
+- Apple의 [파일 시스템 사용량 진단](https://developer.apple.com/library/archive/documentation/Performance/Conceptual/FileSystem/Articles/FileSystemCalls.html)에 따르면 `fs_usage`는 파일 syscall·오류를 보여 주지만 root 권한이 필요하다. 현재 `fs_usage`는 종료 코드 1로 실행되지 않았고 passwordless `sudo -n`도 사용할 수 없었다. 보안 설정이나 sudo 구성을 바꾸지 않았다.
+- Apple의 [샌드박스 위반 진단](https://developer.apple.com/documentation/security/discovering-and-diagnosing-app-sandbox-violations)에 따라 `log show --info --debug`에서 `Sandbox:` 이벤트를 검사했다. 처음 `codex` 문자열이 포함된 이벤트는 **Tokenly의 app-server가 아니라 `logd_helper`의 Codex 앱 자료 읽기 거부**였다. 진단 명령 자체의 검색 문자열도 로그에 나타나므로 필터 결과만으로 당사 프로세스 거부라고 판단하면 안 된다. 이번 app-server의 두 번째 EPERM에 대응하는 PID·syscall·경로는 통합 로그에서 확인하지 못했다.
+- 설치본 `/Applications/Tokenly.app`은 bundle ID `io.github.jbbdyee.tokenly`, 버전 `0.2.0`/빌드 4이며 실행 중이다. 검사한 서명 출력에는 App Sandbox entitlement가 나타나지 않았다. 이전 격리 Debug 앱은 별도 bundle ID와 `/private/tmp` 경로, 추가 `sandbox-exec` 홈 접근 제한 및 임시 CLI를 사용했다. 설치본에는 그 자식 제한을 적용하지 않았다. 설치본의 Codex 사용량 조회 성공 여부는 프로세스 실행 상태와 코드만으로 판정할 수 없고, 사용자 설정·화면을 읽거나 앱을 조작하지 않았다.
+- 현재 확인된 위치는 첫 번째 `~/.codex` SQLite 상태 DB 초기화뿐이다. `sqlite_home` 분리 후 남은 EPERM은 **경로·시스템 호출 미확정**. root 추적이나 추가 권한 없이 안전하게 확인할 수 있는 수단을 확보하지 못했으므로 실제 계정 조회·60초 갱신은 계속 미검증이다. 제품 코드·설치 앱·로그인 상태 변경 없음. 새 빌드·XCTest도 실행하지 않았다.
+
 ## Codex app-server 권한 오류 조사 (2026-10-30, CLI 0.164.0-alpha.11.1)
 
 - 시작 상태: `feature/usage-refresh-label-and-sources`, HEAD `c62c874`; GPU 실측 로그 2개는 미추적 상태로 보존. 설치 앱·설정·Keychain·Codex 로그인 상태는 변경하지 않았다. CLI는 `/opt/homebrew/bin/codex`의 `0.164.0-alpha.11.1`로 앞선 기록의 `0.163.0-alpha.11`에서 달라졌다.

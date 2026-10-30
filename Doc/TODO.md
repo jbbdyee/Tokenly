@@ -2,6 +2,8 @@
 
 ## 2026-10-30 격리 앱 검증 후속
 
+- [ ] 두 번째 EPERM 진단: root가 필요한 `fs_usage` 또는 동등한 안전한 syscall 추적 수단과 비밀정보 제거 절차를 마련한 뒤, 해당 실패 실행의 PID·operation·경로만 확인
+
 - [x] app-server의 첫 권한 오류를 `~/.codex` 아래 SQLite 상태 런타임 초기화로 식별하고 공식 `sqlite_home`으로 임시 경로 분리 확인
 - [ ] `sqlite_home` 분리 후 남는 두 번째 EPERM의 syscall·경로 식별(현재 통합 로그·`fs_usage`로 확인 불가)
 - [ ] 실제 `.codex` 읽기 전용 상태에서 initialize 성공하는 격리 환경 확정 후 실계정 60초 갱신 검증
