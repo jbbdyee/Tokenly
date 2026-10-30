@@ -2,6 +2,8 @@
 
 macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다. v0.2.0부터 **CPU·RAM·GPU·Disk·배터리** 상태도 메뉴 막대 위젯과 상세 팝오버로 보여 줍니다.
 
+> **개발 브랜치 `feature/agy-direct-usage-refresh`:** 공개 v0.2.0 설치본과 별개로 AGY 공식 CLI의 비대화형 `/usage`를 5분 조건부 자동 조회에 연결했습니다. 기존 statusLine은 폴백으로 유지하고 팝오버에 표시 출처와 출처별 마지막 성공 시각을 구분합니다. 모의 응답 자동 테스트와 Debug·Release 빌드만 검증했으며, 이 브랜치 앱의 실제 계정 자동 폴링은 승인 전까지 실행하지 않았습니다. 직접 조회에는 로그인된 AGY CLI가 필요하며 정상적인 CLI 인증 캐시·상태 파일 갱신이 발생할 수 있습니다. 5시간 버킷은 임의로 표시하지 않습니다.
+
 ## 다운로드
 
 **[Tokenly v0.2.0 — System Monitor 내려받기](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0)** (최신, GitHub Pre-release, 2026-10-29)
@@ -43,7 +45,7 @@ macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** �
 |---|---|
 | Codex | [Codex CLI](https://github.com/openai/codex) 설치와 로그인(`codex login`). Tokenly는 `PATH`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `~/.npm-global/bin`에서 `codex`를 찾습니다. 별도 연결 작업은 없습니다. |
 | Claude Code | Claude Code 설치와 **Pro·Max 구독** 로그인. 한도 값은 Claude Code가 statusLine에 넘겨 줄 때만 오며, 세션의 첫 응답 이후부터 들어옵니다. 아래 CLI 연결이 필요합니다. |
-| Google Antigravity | AGY CLI 설치와 로그인. 설정 파일 `~/.gemini/antigravity-cli/settings.json`을 씁니다. 아래 CLI 연결이 필요합니다. |
+| Google Antigravity | AGY CLI 설치와 로그인. 설정 파일 `~/.gemini/antigravity-cli/settings.json`을 씁니다. 공개 v0.2.0은 아래 statusLine 연결이 필요하고, 개발 브랜치는 직접 조회 시 연결 없이도 AGY 표시를 켤 수 있습니다. |
 
 ## Claude Code·AGY 연결
 
@@ -79,7 +81,7 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 1. 메뉴 막대의 Tokenly를 눌러 팝오버를 열고 오른쪽 위 톱니바퀴(설정 열기)를 누릅니다.
 2. **AI 서비스** 탭에서 **Claude를 팝오버에 표시**, **AGY를 팝오버에 표시**를 켭니다.
-   - AGY는 수신 파일이 생긴 뒤에만 켤 수 있습니다. 연결 후 AGY CLI를 한 번 사용한 다음 **연결 확인**을 누르세요.
+   - 공개 v0.2.0은 AGY 수신 파일이 생긴 뒤에만 켤 수 있습니다. 연결 후 AGY CLI를 한 번 사용한 다음 **연결 확인**을 누르세요. 개발 브랜치에서는 AGY CLI 로그인만으로 표시를 켤 수 있습니다.
    - Claude는 언제든 켤 수 있지만, 값은 연결 후 Claude Code 세션의 첫 응답부터 들어옵니다. **수신 확인**으로 수신 파일이 있는지 볼 수 있습니다.
 3. 숫자형 메뉴 막대도 이 선택을 따릅니다. 최소형은 항상 Codex만 표시합니다. Codex를 숨겨도 5분 조회는 계속됩니다.
 
@@ -170,9 +172,10 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 - XCTest(호스트 앱 테스트)
 
 ```
-Codex CLI ──(app-server JSON-RPC, 5분마다)──▶ CodexUsageProvider ─▶ UsageStore ─┐
+Codex CLI ──(app-server JSON-RPC, 1분 조건)──▶ CodexUsageProvider ─▶ UsageStore ─┐
 Claude Code ─statusLine─▶ Tokenly --statusline claude ─▶ claude-quota.json ─┐    │
 AGY CLI ─────statusLine─▶ Tokenly --statusline agy ────▶ agy-quota.json ────┴▶ ExternalProviderStore
+AGY CLI ──(print /usage, 5분 조건; 개발 브랜치)──▶ AGYDirectUsageProvider ───────┘
                                                                                  │
                      HeartGauge / NumericGauge (표시·숨김·stale 규칙, 대표값) ◀──┘
                                   │
@@ -185,7 +188,7 @@ AGY CLI ─────statusLine─▶ Tokenly --statusline agy ────▶
 |---|---|
 | 앱 진입·메뉴 막대 라벨 | `src/Tokenly/TokenlyMain.swift`(명령줄 모드 분기), `TokenlyApp.swift` |
 | Codex 조회 | `src/Tokenly/Providers/CodexUsageProvider.swift` |
-| Claude·AGY 조회 | `src/Tokenly/Providers/ClaudeSubscriptionProvider.swift`, `AGYStatusLineProvider.swift`, `ExternalProviderStore.swift` |
+| Claude·AGY 조회 | `src/Tokenly/Providers/ClaudeSubscriptionProvider.swift`, `AGYStatusLineProvider.swift`, `AGYDirectUsageProvider.swift`, `ExternalProviderStore.swift` |
 | 상태줄 브리지·연결 | `src/Tokenly/BridgeCommand.swift`, `StatusLineBridge.swift`, `StatusLineConnector.swift`(호환용 0.1.0 Python 브리지 `ClaudeStatusLineBridge.py`, `AGYStatusLineBridge.py`) |
 | 표시 규칙 | `src/Tokenly/Models/HeartGauge.swift`(이름은 초기 하트 시안에서 유래, 숫자형의 표시·숨김 규칙에서 사용), `NumericGauge.swift` |
 | 렌더링 | `src/Tokenly/Views/MenuBarNumericRow.swift`, `UsageMenuView.swift`, `src/Tokenly/SystemMonitor/UI/`의 메뉴 막대·팝오버 뷰 |
@@ -196,12 +199,12 @@ AGY CLI ─────statusLine─▶ Tokenly --statusline agy ────▶
 
 | | Codex | Claude Code | Google Antigravity |
 |---|---|---|---|
-| 방식 | 공식 `codex app-server`의 읽기 전용 JSON-RPC `account/rateLimits/read` | Claude Code `statusLine` 명령이 넘기는 JSON | AGY CLI `statusLine` 명령이 넘기는 JSON |
-| 갱신 | Tokenly가 **능동 조회**(5분 주기 + 새로고침) | CLI가 상태줄을 갱신할 때만(**이벤트 기반**) | CLI가 상태줄을 갱신할 때만(**이벤트 기반**) |
+| 방식 | 공식 `codex app-server`의 읽기 전용 JSON-RPC `account/rateLimits/read` | Claude Code `statusLine` 명령이 넘기는 JSON | 기존 `statusLine` JSON + 개발 브랜치의 공식 CLI print `/usage` |
+| 갱신 | Tokenly가 **능동 조회**(1분 조건 검사 + 새로고침) | CLI가 상태줄을 갱신할 때만(**이벤트 기반**) | 개발 브랜치에서 5분 조건부 직접 조회, 실패 시 기존 statusLine 재읽기 |
 | 표시 값 | 5시간·7일 창, 재설정 권한 | 5시간·7일 한도 | `quota`의 버킷별 잔여 비율·초기화 시각(버킷 구성은 계정·버전에 따라 다를 수 있음) |
 | 오래된 데이터 | 조회 실패 시 이전 값 표시 | 수신 후 15분 지나면 회색 | 수신 후 15분 지나면 회색 |
 
-- **공식 조회 vs 이벤트 기반:** Codex는 앱이 언제든 공식 인터페이스에 물어볼 수 있습니다. Claude·AGY는 CLI가 실행되며 상태줄을 그릴 때만 새 값이 오므로, CLI를 쓰지 않는 동안에는 값이 멈춰 있고 Tokenly는 이를 "이전 데이터"로 표시합니다. Tokenly의 새로고침은 로컬 파일을 다시 읽을 뿐 서비스에 요청하지 않습니다.
+- **개발 브랜치의 AGY:** AGY 표시가 켜져 있으면 공식 CLI를 최대 5분 조건으로 비동기 실행합니다. 상태줄 연결은 그대로 유지하며 직접 조회 오류 때 로컬 파일을 폴백으로 읽습니다. 표시 출처와 출처별 성공 시각을 구분합니다. 공개 v0.2.0 설치본은 기존 statusLine 방식이며 이 브랜치의 실제 계정 자동 폴링은 아직 검증하지 않았습니다. Claude는 계속 상태줄 이벤트 기반입니다.
 - **Codex 재설정 권한:** Codex CLI가 생성하는 공식 프로토콜 스키마(`codex app-server generate-json-schema`)에 정의된 `rateLimitResetCredits`만 읽습니다. 권한을 소모하는 `account/rateLimitResetCredit/consume`은 호출하지 않습니다.
 - 비공식 API, 웹 세션 쿠키, 인증 토큰 추출, 브라우저 자동화는 사용하지 않습니다.
 

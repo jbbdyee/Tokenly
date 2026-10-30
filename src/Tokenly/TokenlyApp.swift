@@ -47,7 +47,11 @@ struct TokenlyApp: App {
                 Text(label)
                     .monospacedDigit()
                     .accessibilityLabel("Tokenly, \(label)")
-                    .onAppear { store.start(); quitMenu.install() }
+                    .onAppear {
+                        store.start()
+                        if displaySettings.showsAGY { externalStore.start() }
+                        quitMenu.install()
+                    }
             }
         }
         .menuBarExtraStyle(.window)

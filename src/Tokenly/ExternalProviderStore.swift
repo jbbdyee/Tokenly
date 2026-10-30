@@ -23,17 +23,22 @@ final class ExternalProviderStore: ObservableObject {
     @Published private(set) var settledStates: [ExternalProviderID: ExternalLoadState] = [:]
     /// Most recent valid quotas seen this session or kept in the provider's local feed file.
     @Published private(set) var lastValidQuotas: [ExternalProviderID: [QuotaMetric]] = [:]
+    @Published private(set) var agySourceTimes: [ExternalUsageSource: Date] = [:]
     private let providers: [ExternalProviderID: any ExternalUsageProvider]
     private let displaySettings: ProviderDisplaySettings
+    private let now: () -> Date
     private var timer: Timer?
+    private var lastAutomaticAGYAttempt: Date?
 
     init(displaySettings: ProviderDisplaySettings,
+         now: @escaping () -> Date = Date.init,
          providers: [ExternalProviderID: any ExternalUsageProvider] = [
              .claude: ClaudeSubscriptionProvider(),
-             .antigravity: AGYStatusLineProvider(),
+             .antigravity: AGYCombinedProvider(),
              .openAIAPI: OpenAIAPIUsageProvider()
          ]) {
         self.displaySettings = displaySettings
+        self.now = now
         self.providers = providers
     }
 
@@ -45,8 +50,11 @@ final class ExternalProviderStore: ObservableObject {
         }
     }
 
-    func refreshSelected() {
-        if displaySettings.showsAGY { _ = refresh(.antigravity) }
+    func refreshSelected(force: Bool = false) {
+        if displaySettings.showsAGY,
+           force || lastAutomaticAGYAttempt.map({ now().timeIntervalSince($0) >= 300 }) != false {
+            if refresh(.antigravity) != nil, !force { lastAutomaticAGYAttempt = now() }
+        }
         if displaySettings.showsClaude { _ = refresh(.claude) }
         // OpenAI API account integration is paused; retain the provider implementation.
     }
@@ -61,9 +69,19 @@ final class ExternalProviderStore: ObservableObject {
             let result: ExternalLoadState
             do { result = .success(try await provider.fetch()) }
             catch { result = .failure((error as? ExternalProviderError) ?? .connection, previous: previous) }
-            states[id] = result
-            settledStates[id] = result
-            if case .success(let snapshot) = result, case .quotas(let quotas) = snapshot.metrics, !quotas.isEmpty {
+            var settled = result
+            if id == .antigravity, case .success(let incoming) = result,
+               let old = previous, incoming.fetchedAt < old.fetchedAt {
+                settled = .failure(.staleData, previous: old)
+            }
+            states[id] = settled
+            settledStates[id] = settled
+            if case .success(let snapshot) = result, id == .antigravity {
+                for (source, date) in snapshot.sourceTimes {
+                    if date > (agySourceTimes[source] ?? .distantPast) { agySourceTimes[source] = date }
+                }
+            }
+            if case .success(let snapshot) = settled, case .quotas(let quotas) = snapshot.metrics, !quotas.isEmpty {
                 lastValidQuotas[id] = quotas
             } else if lastValidQuotas[id] == nil, let stored = provider.storedQuotaRecord(), !stored.isEmpty {
                 lastValidQuotas[id] = stored

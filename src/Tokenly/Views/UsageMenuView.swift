@@ -14,11 +14,11 @@ struct UsageMenuView: View {
             HStack {
                 Text("Tokenly").font(.headline)
                 Spacer()
-                Button { store.refresh(); externalStore.refreshSelected() } label: {
+                Button { store.refresh(); externalStore.refreshSelected(force: true) } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Codex는 새로 조회하고 AGY·Claude는 로컬 상태줄 파일을 다시 읽습니다")
+                .help("Codex·AGY는 공식 CLI로 조회하고 Claude는 로컬 상태줄 파일을 다시 읽습니다")
                 .accessibilityLabel("모든 서비스 새로고침")
                 Button { settingsWindow.show(openSettings: openSettings.callAsFunction) } label: {
                     Image(systemName: "gearshape")
@@ -40,7 +40,8 @@ struct UsageMenuView: View {
 
             Divider()
             HStack {
-                Text("Codex 1분 갱신 · 상태줄 5분 로컬 재읽기").font(.caption2).foregroundStyle(.secondary)
+                Text("Codex 1분 · AGY 직접 조회/상태줄 5분 · Claude 상태줄 5분")
+                    .font(.caption2).foregroundStyle(.secondary)
                 Spacer()
                 Button("종료") { NSApp.terminate(nil) }.buttonStyle(.borderless)
             }
@@ -295,7 +296,7 @@ struct UsageMenuView: View {
 
     private var agyStatus: String? {
         switch externalStore.state(for: .antigravity) {
-        case .failure(.staleData, _): return "상태줄 갱신 대기"
+        case .failure(.staleData, _): return "새 사용량 갱신 대기"
         case .failure(_, let previous): return previous == nil ? "연결 또는 조회 오류" : "조회 실패 · 이전 데이터"
         case .success(let value):
             if case .quotas(let quotas) = value.metrics, AGYQuotaSummary.hasExhaustedBucket(quotas) {
@@ -316,19 +317,39 @@ struct UsageMenuView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let previous {
                     agyMetrics(previous.metrics)
-                    Text("이전 데이터 · 마지막 수신 \(CompactDateTime.string(for: previous.fetchedAt))")
+                    Text("이전 데이터 · \(agySourceName(previous.source)) \(CompactDateTime.string(for: previous.fetchedAt))")
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .help(CompactDateTime.fullString(for: previous.fetchedAt))
                 }
+                agySourceHistory
             case .success(let value):
                 agyMetrics(value.metrics)
-                Text("마지막 수신 \(CompactDateTime.string(for: value.fetchedAt))")
+                Text("표시 출처 \(agySourceName(value.source)) · \(CompactDateTime.string(for: value.fetchedAt))")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(CompactDateTime.fullString(for: value.fetchedAt))
+                agySourceHistory
             }
         }
+    }
+
+    private func agySourceName(_ source: ExternalUsageSource) -> String {
+        source == .directCLI ? "AGY 직접 조회" : "AGY 상태줄 수신"
+    }
+
+    private var agySourceHistory: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let date = externalStore.agySourceTimes[.directCLI] {
+                Text("직접 조회 마지막 성공 \(CompactDateTime.string(for: date))")
+                    .help(CompactDateTime.fullString(for: date))
+            }
+            if let date = externalStore.agySourceTimes[.statusLine] {
+                Text("상태줄 마지막 수신 \(CompactDateTime.string(for: date))")
+                    .help(CompactDateTime.fullString(for: date))
+            }
+        }
+        .font(.caption2).foregroundStyle(.secondary)
     }
 
     @ViewBuilder

@@ -62,9 +62,18 @@ enum ExternalMetrics: Equatable {
 struct ExternalUsageSnapshot: Equatable {
     let metrics: ExternalMetrics
     let fetchedAt: Date
+    var source: ExternalUsageSource = .statusLine
+    var sourceTimes: [ExternalUsageSource: Date] = [:]
+}
+
+enum ExternalUsageSource: Hashable {
+    case statusLine
+    case directCLI
 }
 
 enum ExternalProviderError: Error, Equatable {
+    case cliUnavailable
+    case cliAuthenticationRequired
     case setupRequired
     case authenticationRequired
     case permissionDenied
@@ -78,6 +87,8 @@ enum ExternalProviderError: Error, Equatable {
 
     var message: String {
         switch self {
+        case .cliUnavailable: "AGY CLI를 찾을 수 없습니다. 설치 상태를 확인하세요."
+        case .cliAuthenticationRequired: "AGY CLI 인증이 필요합니다. AGY 로그인 상태를 확인하세요."
         case .setupRequired: "연결 설정이 필요합니다. AI 서비스 설정을 확인하세요."
         case .authenticationRequired: "관리자 인증정보가 없습니다. AI 서비스 설정에서 등록하세요."
         case .permissionDenied: "조회 권한이 없습니다. 조직 관리자 키와 권한을 확인하세요."

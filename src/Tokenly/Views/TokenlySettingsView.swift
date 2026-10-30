@@ -81,11 +81,16 @@ struct TokenlySettingsView: View {
                 .font(.caption).foregroundStyle(.secondary)
             Divider()
             Text("Google Antigravity CLI").font(.subheadline.weight(.semibold))
-            Text("CLI 상태줄 수신 파일을 읽습니다. IDE·Gemini API 사용량과 다릅니다.")
+            Text("공식 CLI 직접 조회와 기존 상태줄 수신을 함께 사용합니다. IDE·Gemini API 사용량과 다릅니다.")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Toggle("AGY를 팝오버에 표시", isOn: $displaySettings.showsAGY)
-                    .disabled(!form.agyFeedExists)
+                    .onChange(of: displaySettings.showsAGY) { _, enabled in
+                        if enabled {
+                            externalStore.start()
+                            _ = externalStore.refresh(.antigravity)
+                        }
+                    }
                 Button("연결 확인") {
                     form.agyFeedExists = AGYStatusLineProvider().hasFeed
                     if form.agyFeedExists { _ = externalStore.refresh(.antigravity) }
