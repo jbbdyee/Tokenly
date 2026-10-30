@@ -3,7 +3,8 @@
 ## Claude Code·AGY 독립 조회 조사 (2026-10-30)
 
 - [x] 공식 문서와 설치 CLI 도움말 확인: Claude v2.1.292 개인 구독 비대화형 한도 계약 미발견, AGY v1.4.10은 공식 v1.1.10 이후의 `-p /usage --output-format json` 후보
-- [ ] 승인된 별도 실험에서 AGY print `/usage`의 실제 JSON 필드·모델 턴/쿼터 소비·인증/설정 쓰기 범위를 민감정보 기록 없이 확인한 뒤 구현 여부 결정
+- [x] AGY 공식 print `/usage` 1회 실행: 종료 코드 0, 유효한 JSON, 약 6.65초, stderr 없음. 비민감 구조에서 `usage` 메타데이터와 `buckets` 배열 확인
+- [ ] AGY의 5시간·7일 버킷, 잔여율·리셋 필드, 기존 statusLine 매핑과 인증/설정 쓰기·실제 비용 영향은 미검증. 별도 범위에서 확인 후 자동 갱신 구현 여부 결정
 - [ ] Claude Code 개인 구독 5시간·7일 한도의 공식 read-only 비대화형 조회 계약이 생기는지 추적(statusLine 유지)
 
 ## 2026-10-30 격리 앱 검증 후속

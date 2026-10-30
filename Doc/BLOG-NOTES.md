@@ -1,6 +1,16 @@
 # Tokenly 기술 블로그 자료
 
+## AGY print `/usage` 실계정 1회 검증 (2026-10-30)
+
+- **사전 확인:** 로컬 `main`의 기존 조사 문서 5개를 검토하고 `c090954`로 문서만 커밋했다. 설치된 `agy --version`은 1.4.10이며 `--help`에 `-p`와 `--output-format json` 옵션이 있다. 실행 전 공식 문서의 읽기 전용 경로와 모델 턴·쿼터 미소비 설명을 재확인했다.
+- **공식 근거:** [v1.1.10 변경 기록](https://antigravity.google/docs/changelog?tab=cli)은 print 모드의 `/usage`가 구조화된 결과를 내고 agent turn·쿼터 소비·대화 기록을 만들지 않는다고 명시한다. [헤드리스 문서](https://antigravity.google/docs/cli/headless/)는 기존 인증 캐시를 재사용한다고 설명한다. [인증 문서](https://antigravity.google/docs/cli/install/)와 [문제 해결 문서](https://antigravity.google/docs/cli/troubleshooting/)에 따르면 CLI는 OS Keychain의 인증 정보에 접근할 수 있다. [명령 문서](https://antigravity.google/docs/cli/commands/usage)는 디스크와 백엔드에서 쿼터를 새로 확인한다고 설명한다.
+- **실행 결과 [실측]:** 사용자 승인 뒤 임시 작업 디렉터리에서 `agy -p "/usage" --output-format json`을 정확히 1회 실행했다. 종료 코드 0, 약 6.65초, stdout은 유효한 JSON 객체, stderr는 비어 있었다. 별도 로그인 요구나 오류는 관찰되지 않았다. 원본 stdout/stderr와 실제 사용량·계정값은 저장하거나 출력하지 않았다.
+- **비민감 구조 [실측]:** 최상위에 `status: string`, `response: string`, `duration_seconds: number`, `num_turns: number`, `usage: object`가 있다. `usage` 아래 `input_tokens`, `output_tokens`, `thinking_tokens`, `cache_read_tokens`, `total_tokens`는 모두 number다. 다른 객체의 `name: string`, `data: object`와 그 아래 항목 배열 2개, 배열 항목의 `name: string`, `buckets: array`를 확인했다. 계정 식별 가능성이 있는 동적 키는 마스킹했고, 값은 폐기했다. 이 구조만으로 5시간·7일 창, 잔여율·사용률·초기화 시각의 존재나 Tokenly statusLine 버킷과의 대응은 확인할 수 없다. `num_turns`와 토큰 필드의 **값도 기록하지 않았으므로** 실제 0임을 실측으로 주장하지 않는다.
+- **남은 경계·판단:** 공식 문서는 모델 턴·쿼터·대화 기록이 없다고 설명하지만 실제 계정의 전후 사용량이나 대화 기록은 비교하지 않았다. CLI 자체의 인증 캐시·설정·로그 쓰기 여부도 측정하지 않았다. 임시 cwd만으로 홈·Keychain 쓰기가 격리된다고 가정하지 않는다. 공식 CLI의 독립적인 비대화형 JSON 조회는 실제 성공했으므로 구현 후보지만, 필수 필드와 버킷 매핑·실제 비용·안정성을 검증하기 전에는 제품 자동 갱신을 확정하지 않는다. 추가 조회는 이번 승인 범위에 포함되지 않는다.
+
 ## Claude Code·Antigravity 독립 사용량 조회 재조사 (2026-10-30)
+
+아래 AGY의 "실행하지 않았다"는 기록은 위 단일 실행 **이전** 조사 시점의 상태다.
 
 - **현행 구현 [코드 확인]:** `ExternalProviderStore`의 300초 타이머와 수동 버튼은 `ClaudeSubscriptionProvider`·`AGYStatusLineProvider`가 받은 로컬 JSON을 다시 읽는다. 두 Provider 모두 원격 사용량을 요청하지 않는다. `captured_at`이 15분을 넘으면 오래된 데이터다. 회색 표시 정책은 이번 조사 범위에서 변경하지 않았다.
 - **Claude Code [공식 문서·로컬 CLI 도움말]:** 설치본 v2.1.292의 `--help`에 구독 한도 전용 비대화형 명령은 없었다. [명령 문서](https://code.claude.com/docs/en/commands)의 `/usage`는 세션의 사용량·플랜 한도 화면이고, [CLI 참조](https://code.claude.com/docs/en/cli-reference)의 `-p`는 SDK를 통한 질문 실행이다. `-p "/usage"`가 과금 없이 구조화된 구독 한도를 반환한다는 공식 계약은 확인하지 못했으므로 실행하지 않았다. [statusLine 문서](https://code.claude.com/docs/en/statusline)는 5시간·7일 `rate_limits`가 Pro/Max에서 **세션의 첫 API 응답 이후에만** 나타날 수 있다고 설명한다. statusLine 스크립트 자체는 토큰을 쓰지 않지만 Claude Code가 세션을 실행하지 않으면 새 입력이 보장되지 않는다. `refreshInterval`은 스크립트를 다시 실행할 뿐 서버 한도 재조회 계약이 아니다. [Usage and Cost Analytics API](https://platform.claude.com/docs/en/manage-claude/usage-cost-analytics-api)와 [기존 Admin API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api)는 조직의 과거 API 토큰·비용 보고용으로, 개인 구독의 현재 5시간·7일 잔여율과 같지 않다.
