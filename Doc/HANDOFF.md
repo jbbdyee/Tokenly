@@ -1,6 +1,12 @@
 # Tokenly 작업 인수인계
 
-## Claude `rate_limits=null` 원인 조사·실험 보류 (2026-10-30)
+## Claude 비필수 트래픽 제한 변수 제거 후 단발성 조회 (2026-10-30)
+
+- `experiment/claude-usage-refresh` HEAD `08a5817`에서 시작. 기존 임시 helper의 Claude Code 자식 환경에서만 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`를 제거하고, 공식 SDK `0.3.169`·CLI `2.1.292`의 무프롬프트 usage 제어 요청을 승인된 범위에서 **정확히 1회** 실행했다. 부모의 주요 관련 환경 변수는 값 없이 존재 여부만 확인했고 설정되지 않았다. 제품 코드·설치 앱·사용자 설정은 변경하지 않았다.
+- initialize·usage 요청 성공, `rate_limits_available=true`, `rate_limits=object`; 5시간·7일 창 모두 객체와 0~100 범위의 숫자 `utilization`을 반환했다. 5시간 `resets_at`은 `null`, 7일은 문자열이며 ISO 8601 파싱 여부는 미확인이다. 약 802 ms. 사용자·assistant 메시지, 양의 세션 비용, 모델별 사용 기록은 관찰되지 않았다. 실제 수치·시각·원본 응답·계정 정보·인증 정보는 기록하지 않았다.
+- 이전 두 조회는 차단 변수가 설정된 조건에서 표시 가능한 값을 얻지 못했다(첫 조회는 컨테이너 형태 미분류, 둘째는 명시적 `true/null`). 이번 변화는 플래그 원인 가설을 강하게 지지하지만 시간·서버/캐시 변수를 통제한 반복 비교나 공식 보증은 아니다. 실험적 SDK, 5시간 초기화 시각 `null`, 응답 신선도·인증 영향·호출 제한·제3자 폴링 허용 범위 때문에 **제품 통합·자동 폴링은 보류**한다. 기존 Claude statusLine·stale 표시는 유지한다. 상세 근거와 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 있다. GPU 로그 2개 보존. 추가 실계정 조회는 새 승인 전까지 하지 않는다.
+
+## 이전 Claude `rate_limits=null` 원인 조사·당시 실험 보류 판단 (2026-10-30)
 
 - `experiment/claude-usage-refresh` `9064eb3`에서 시작해 실제 계정·인증 저장소를 다시 조회하지 않고 공식 SDK 타입·구현·문서와 공개 이슈를 조사했다. 두 실험 helper 모두 자식 환경에 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`을 넣은 것이 **확인된 로컬 조건**이다. 공식 문서는 이 변수가 비필수 네트워크 요청을 막는다고 설명한다. 별도 프로젝트의 A/B 보고에서는 같은 `true/null` 응답이 이 플래그 제거 후 채워졌으나 Anthropic의 공식 원인 판정은 아니다.
 - Pro·Max·Team 및 더 최신 CLI/SDK에서도 `true/null` 공개 사례가 있어 특정 플랜·버전만의 문제로 확정할 수 없다. 사용량 소진, 첫 모델 턴 부재, 내부 429 등도 로컬 증거가 없다. **가장 유력한 원인은 실험 환경 플래그지만 로컬 인과 검증은 없다.** 공식적으로 지원된 복구 절차는 확인하지 못했다.
