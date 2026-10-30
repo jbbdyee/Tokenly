@@ -268,7 +268,7 @@ xcodebuild가 자동으로 만드는 스킴은 테스트 커버리지를 수집�
 
 - `Doc/SPEC.md`(제품 사양), `Doc/IMP-PLAN.md`(구현 계획과 결정 기록), `Doc/TODO.md`(진행 상황), `Doc/SYSTEM-MONITOR.md`(시스템 모니터 사양·검증)
 - [`Doc/BRANCHING.md`](Doc/BRANCHING.md): 브랜치 운영 규칙(`feature/*` → `test` → `main`)과 릴리즈 태그 규칙
-- `Doc/BLOG-NOTES.md`: 기술 블로그용 정리(근거 파일 링크 포함)
+- 기술 블로그 원문은 프로젝트 밖 `TokenlyArchive.noindex/blog-notes-20261030/BLOG-NOTES.md`와 [커밋 81afae9의 BLOG-NOTES](https://github.com/jbbdyee/Tokenly/blob/81afae9/Doc/BLOG-NOTES.md)에 보존했습니다. 이후 작업 기록은 `Doc/HANDOFF.md`에 남깁니다.
 - `Preview/`: 디자인 시안과 측정 스크립트·이미지(`Preview/README.md` 참고). 일부 과거 스크립트는 현재 코드로 실행되지 않으며 결과 이미지만 보존합니다.
 
 ## 개발 방식

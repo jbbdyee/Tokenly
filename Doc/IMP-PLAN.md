@@ -1,9 +1,11 @@
 # Tokenly 구현 계획
 
+> 이전 `BLOG-NOTES.md` 참조는 [커밋 81afae9의 Git 보관본](https://github.com/jbbdyee/Tokenly/blob/81afae9/Doc/BLOG-NOTES.md)을 가리킨다. 원문은 프로젝트 밖에도 SHA-256 검증 후 보관했다.
+
 ## 84. v0.3.0 배포 결과 (2026-10-30)
 
-- `main`의 `d8e5cf1`에서 `release.sh --final 0.3.0` 검사와 v0.2.0(4) → v0.3.0(5) 설치를 완료했다. GitHub 주석 태그 `v0.3.0`과 Pre-release의 ZIP·SHA-256 자산을 게시하고 공개 다운로드가 로컬 산출물과 일치함을 확인했다. 설정 22개와 Claude·AGY 연결 상태를 보존했다.
-- 새 Gemini 그룹 UI는 코드와 전체 XCTest 406개·Debug/Release 빌드로 검증했다. 설치본 팝오버는 보조 접근 권한이 없어 직접 확인하지 못했으며 Codex·AGY 자동 조회의 설치 후 성공도 아직 관찰하지 않았다. 조회 경로·인증·fallback·stale 정책은 이번 UI 변경에서 수정하지 않았다. 이전 절의 준비/미출시 표현은 당시 기록으로 읽는다.
+- `main`의 `d8e5cf1`에서 `release.sh --final 0.3.0` 검사와 v0.2.0(4) → v0.3.0(5) 설치를 완료했다. GitHub 주석 태그 `v0.3.0`과 정식 Release의 ZIP·SHA-256 자산을 게시하고 공개 다운로드가 로컬 산출물과 일치함을 확인했다. 설정 22개와 Claude·AGY 연결 상태를 보존했다.
+- 새 Gemini 그룹 UI는 코드와 전체 XCTest 406개·Debug/Release 빌드로 검증했다. 이후 사용자가 설치본 팝오버의 Codex·Claude·AGY 표시와 Gemini UI를 직접 확인했다. 정보(i)와 Codex·AGY 자동 조회의 설치 후 장시간 성공은 아직 관찰하지 않았다. 조회 경로·인증·fallback·stale 정책은 이번 UI 변경에서 수정하지 않았다. 이전 절의 준비/미출시 표현은 당시 기록으로 읽는다.
 
 ## 83. AI 팝오버 갱신 상태 문구 정리 (2026-10-30)
 

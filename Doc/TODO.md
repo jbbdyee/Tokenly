@@ -1,9 +1,12 @@
 # Tokenly 개발 TODO (가칭)
 
+> 이전 `BLOG-NOTES.md` 참조는 [커밋 81afae9의 Git 보관본](https://github.com/jbbdyee/Tokenly/blob/81afae9/Doc/BLOG-NOTES.md)을 가리킨다. 원문은 프로젝트 밖에도 SHA-256 검증 후 보관했다.
+
 ## v0.3.0 배포 후 확인 (2026-10-30)
 
-- [x] v0.3.0(5) 설치, 설정 22개 보존, Claude·AGY 연결 유지, GitHub `v0.3.0` Pre-release ZIP·체크섬 게시 및 다운로드 검증
-- [ ] 사용자가 설치본의 Codex·Claude·AGY 표시, Gemini 일반 상세와 두 원본 항목의 정보(i)를 직접 확인. 자동화 도구는 macOS 보조 접근이 거부되어 화면 결과를 확인하지 못함
+- [x] v0.3.0(5) 설치, 설정 22개 보존, Claude·AGY 연결 유지, GitHub `v0.3.0` 정식 Release ZIP·체크섬 게시 및 다운로드 검증
+- [x] 사용자가 설치본 팝오버의 Codex·Claude·AGY 표시와 AGY Gemini UI를 직접 확인
+- [ ] 설치본 정보(i)의 두 원본 항목을 직접 확인. 자동화 도구는 macOS 보조 접근이 거부되어 화면 결과를 확인하지 못함
 - [ ] 설치본에서 Codex 1분·AGY 5분 갱신의 실제 성공 시각을 관찰. 장기 안정성·절전 복귀·키보드/VoiceOver는 별도 검증
 
 ## AI 팝오버 갱신 상태 문구 (2026-10-30, 기능 브랜치)

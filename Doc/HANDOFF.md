@@ -1,5 +1,11 @@
 # Tokenly 작업 인수인계
 
+## v0.3.0 정식 Release 후 문서 보관·정리 (2026-10-30)
+
+- 사용자는 설치본 팝오버의 Codex·Claude·AGY 표시와 AGY Gemini UI를 직접 확인했다. GitHub `v0.3.0`은 같은 태그·ZIP·체크섬을 유지한 채 정식 Release로 전환했다. Claude 독립 자동 조회는 없고 이 계정의 Claude 5시간 한도 미표시 원인은 미확정이며 설치 후 장시간 자동 갱신 성공은 미검증이다.
+- `Doc/BLOG-NOTES.md` 전체를 프로젝트 밖 `TokenlyArchive.noindex/blog-notes-20261030/BLOG-NOTES.md`에 읽기 전용으로 백업했다. 원본·백업·`git show 81afae9:Doc/BLOG-NOTES.md`의 SHA-256은 모두 `b76d9847a55b935c62f538ddf113fba72ffaf562463c8712233550d1d2d21221`이었다. 백업 폴더에 `.sha256`도 보관했다. 확인 뒤 저장소의 원본을 삭제했다. 이전 절의 `BLOG-NOTES.md`·`Doc/BLOG-NOTES.md` 참조는 [커밋 81afae9의 Git 보관본](https://github.com/jbbdyee/Tokenly/blob/81afae9/Doc/BLOG-NOTES.md)을 가리키며, 새 기술 기록은 이 인수인계 문서에 남긴다.
+- 생성된 LLVM 커버리지 프로파일 `default.profraw`와 `src/Tokenly/default.profraw`만 추가로 삭제했다. `Preview/` 설계 자료, Xcode 개인 작업공간 데이터, 저장소 밖 `.noindex` 실험·릴리즈 폴더는 유지한다. 미추적 GPU 로그 2개와 v0.2.0 복구 백업·설치 앱·설정·Keychain은 변경하지 않았다. 제품 코드가 바뀌지 않아 이번 정리에서 XCTest·빌드는 다시 실행하지 않는다.
+
 ## v0.3.0 설치·GitHub Pre-release (2026-10-30)
 
 - `main`의 `4b2c7ea` AGY UI 변경 뒤 릴리즈 설명을 `d8e5cf1`에 커밋했다. `Info.plist`는 `0.3.0 (5)`이며 제품 코드는 추가 변경하지 않았다. 기존 XCTest 406개 통과(실패·건너뜀 0), Debug·Release 빌드 성공, `git diff --check` 통과를 재사용했다.
