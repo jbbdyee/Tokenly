@@ -1,5 +1,18 @@
 # Tokenly 기술 블로그 자료
 
+## AGY 그룹 표시 결정과 검증 (2026-10-30)
+
+- **결정:** 사용자는 AGY를 CLI로만 사용하므로 별도 앱·웹 사용량 화면을 확인하지 않는다. 공식 문서가 내부 ID와 개별 모델 접근성을 확정하지 않는 한계는 그대로 명시하고, 일반 팝오버의 헤더는 `Google Antigravity`만 표시한다. `gemini-weekly`는 그룹 표시명 `Gemini`로 보여 주되 개별 Gemini 모델의 사용 가능 여부는 단정하지 않는다. `3p-weekly`는 일반 화면에서 숨기고 정보(i)에 두 원본 ID의 잔여율·초기화 시각과 함께 표시한다. 원본 응답·계산·자동 조회·statusLine 대체·stale 정책은 그대로다.
+- **예외:** Gemini 항목이 없어도 다른 버킷이 있으면 전체 `데이터 없음`이라고 하지 않고 정보(i)에서 다른 한도를 확인하도록 안내한다. 두 ID의 정확한 그룹 의미와 개별 모델 접근성은 공식 계약으로 미확정이다. `3p-weekly`가 100%여도 사용 가능함을 뜻하지 않는다.
+- **검증:** 모의 버킷으로 Gemini 우선 선택, 3p만 있을 때의 별도 안내와 기존 상태 판정을 확인했다. 정보(i)의 원본 ID·잔여율·초기화 시각 표시 경로는 코드로 확인했다. 전체 XCTest 406개 통과(실패·건너뜀 0), Debug·Release 빌드와 `git diff --check` 통과. fixture 실제 화면은 별도 확인이 필요하다. 실제 AGY 계정 조회는 이번 UI 작업에서 실행하지 않는다.
+
+## AGY `3p-weekly` 의미와 릴리즈 보류 (2026-10-30)
+
+- **공식 자료:** [AGY 모델 문서](https://antigravity.google/docs/models)는 사용량 화면에 `Gemini Models`와 `Claude and GPT models`를 별도 그룹으로 표시한다. [CLI `/usage` 문서](https://antigravity.google/docs/cli/commands/usage)는 모델별 한도 조회를 설명하며, [statusLine 계약](https://antigravity.google/docs/cli/statusline)은 `quota` 항목에 `remaining_fraction` 외 선택적 `disabled`가 있을 수 있다고 한다. 조사한 공식 문서에는 `3p-weekly`·`gemini-weekly` ID의 정확한 사용자용 의미, 현재 계정의 사용 자격, 잔여율과 개별 모델의 대응 규칙이 명시되지 않았다.
+- **보조 근거와 한계:** 공개 프로젝트의 [T3 Code 이슈](https://github.com/pingdotgg/t3code/issues/24800)와 [Heddle 구현 문서](https://github.com/mmayasaurus/heddle-dashboard/blob/main/docs/USAGE_TAP.md)는 `3p-weekly`를 Claude/GPT 공유 주간 그룹, `gemini-weekly`를 Gemini 주간 그룹으로 해석한다. 이는 타사 관찰이며 AGY 공식 계약이나 이 사용자 계정의 모델 접근성 입증은 아니다. 사용자는 실제 AGY 사용 중 `3p-weekly`를 본 적이 없다고 보고했다.
+- **Tokenly 코드 점검:** 직접 조회 파서는 두 ID의 `remaining_fraction`·`reset_time`만 선택하고 응답 그룹의 `name`·`description` 및 선택적 사용 가능 상태를 표시 모델에 반영하지 않는다. 이전 승인된 두 CLI 구조 검증은 그룹·버킷의 필드명/자료형과 주간 ID 존재만 남겼고 원본 값은 폐기했다. 따라서 `3p-weekly` 100%는 해당 모델을 이 계정에서 실제 쓸 수 있다는 증거가 아니다. 주간 비율은 공유 그룹 후보이지 Claude·GPT 개별 모델별 사용량이 아니다.
+- **당시 결정:** 공식 ID 매핑을 더 확인할 때까지 UI 변경을 보류했다. 이후 사용자가 CLI 전용 사용 환경과 그룹 표시 방식을 지정해 위의 UI 결정을 승인했다. v0.3.0 설치·공개 릴리즈는 여전히 별도 단계다. 원본 응답·인증·실제 수치는 기록하지 않는다.
+
 ## AGY 헤더 문구 마무리와 릴리즈 전 검증 (2026-10-30)
 
 - **사용자 화면 관찰:** 별도 번들 ID `io.github.jbbdyee.tokenly.uifixture.20261030`의 임시 Debug fixture에서 가상 AGY 성공값·Claude 무데이터, 하단 안내, 정보(i), 전체 배치를 사용자가 확인했고 문제를 보고하지 않았다. 수치는 실제 계정 응답이 아니다. 키보드·VoiceOver 접근성, 실패·상태줄 대체 화면과 설치본은 이 관찰 범위 밖이다. 첫 fixture는 임시 suite 초기화 `nil`로 종료됐고, 표준 설정 도메인을 **별도 번들 ID**로 분리한 수정 fixture가 실행됐다. 제품 소스의 설정·조회 로직을 바꿔 해결한 것이 아니다.

@@ -50,21 +50,23 @@ final class TokenlyTests: XCTestCase {
         XCTAssertFalse(ProviderDisplaySettings(defaults: defaults).agyExpanded)
     }
 
-    func testAGYSummaryShowsRangeInsteadOfMisleadingSingleBucket() {
+    func testAGYPopoverShowsOnlyGeminiAndPreservesOtherBucketForInfo() {
         let quotas = [
             QuotaMetric(name: "3p-weekly", remainingPercent: 100, resetsAt: nil),
             QuotaMetric(name: "gemini-weekly", remainingPercent: 0, resetsAt: nil)
         ]
-        XCTAssertEqual(AGYQuotaSummary.text(for: quotas), "0–100% 남음")
-        let twoActive = [QuotaMetric(name: "3p-weekly", remainingPercent: 64, resetsAt: nil),
-                         QuotaMetric(name: "gemini-weekly", remainingPercent: 41, resetsAt: nil)]
-        XCTAssertEqual(AGYQuotaSummary.text(for: twoActive), "41–64% 남음")
+        XCTAssertEqual(AGYPopoverPresentation.geminiQuota(in: quotas), quotas[1])
+        XCTAssertEqual(AGYPopoverPresentation.infoOrder(quotas[1].name), 0)
+        XCTAssertEqual(AGYPopoverPresentation.infoOrder(quotas[0].name), 1)
         XCTAssertTrue(AGYQuotaSummary.hasExhaustedBucket(quotas))
         let exhausted = ExternalUsageSnapshot(metrics: .quotas(quotas), fetchedAt: Date(), source: .directCLI)
         XCTAssertEqual(UsagePopoverCopy.agyStatus(.success(exhausted)), "일부 한도 소진")
-        XCTAssertEqual(AGYQuotaLabel.displayName(for: "3p-weekly"), "3p-weekly")
-        XCTAssertEqual(AGYQuotaSummary.text(for: [quotas[1]]), "0% 남음")
-        XCTAssertEqual(AGYQuotaSummary.text(for: []), "데이터 없음")
+        XCTAssertNil(AGYPopoverPresentation.geminiQuota(in: [quotas[0]]))
+        XCTAssertEqual(AGYPopoverPresentation.missingGeminiMessage(for: [quotas[0]]),
+                       "Gemini 한도 정보 없음 · 다른 항목은 정보(i)에서 확인")
+        let otherOnly = ExternalUsageSnapshot(metrics: .quotas([quotas[0]]), fetchedAt: Date(), source: .directCLI)
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(.success(otherOnly)), "자동 갱신")
+        XCTAssertEqual(AGYPopoverPresentation.missingGeminiMessage(for: []), "데이터 없음")
     }
 
     @MainActor

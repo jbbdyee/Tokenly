@@ -1,5 +1,16 @@
 # Tokenly 작업 인수인계
 
+## AGY 일반 표시와 정보(i) 분리 (2026-10-30)
+
+- 사용자 결정에 따라 AGY 헤더를 `Google Antigravity`만 표시하고, 일반 상세에는 `gemini-weekly`만 `Gemini` 그룹 이름으로 표시한다. `3p-weekly`와 두 원본 ID의 잔여율·초기화 시각은 정보(i)에 표시한다. 개별 모델 사용 가능 여부 및 ID의 정확한 뜻은 공식적으로 확인되지 않았다. Gemini 부재와 전체 데이터 부재를 구분한다. 제품의 원본 데이터·조회·인증·대체·stale·계산 로직은 변경하지 않는다.
+- 전체 XCTest 406개 통과(실패·건너뜀 0), Debug·Release 빌드와 `git diff --check` 통과. fixture 실제 화면은 별도 확인이 필요하다. 기존 `/Applications/Tokenly.app`, 설정·인증, GPU 로그 2개를 보존하고, 설치·Push·공개 Release는 하지 않는다.
+
+## AGY 항목 의미 조사로 v0.3.0 설치 보류 (2026-10-30)
+
+- 사용자 추가 관찰: AGY는 사용하지만 `3p-weekly`는 본 적 없고 해당 100%가 사용 가능 한도처럼 오해된다. 공식 모델 문서는 Gemini와 Claude/GPT 사용량 그룹을 구분하고 공식 statusLine 계약에는 선택적 `disabled`가 있으나 내부 ID의 정확한 의미·계정별 사용 가능 판정은 확인되지 않았다. 타사 구현은 `3p-weekly`를 Claude/GPT 공유 주간 그룹, `gemini-weekly`를 Gemini 주간 그룹으로 해석하지만 공식 계약으로 취급하지 않는다. Tokenly 파서는 현재 그룹 설명·사용 가능 상태를 반영하지 않아 100%만으로 접근 가능성을 판단할 수 없다. 개별 모델별 사용량 대응도 미확인이다. 근거 링크와 구분은 `BLOG-NOTES.md` 첫 절 참조.
+- 로컬 `main`은 기능 브랜치를 Fast-forward 병합한 `1b3b126`, 전체 XCTest 406개·Debug/Release·diff 검사 통과. `release.sh --final 0.3.0`의 로컬 ZIP·검사는 성공했지만 설치·태그·Push·공개 Release는 하지 않았다. 기존 `/Applications/Tokenly.app`은 0.2.0(4) 파일 그대로, 설정과 앱은 개인용 백업 폴더에 복사·검증했다. 설치 앱 프로세스가 검증 도중 사라진 이유는 미확정이다. 미추적 GPU 로그 2개는 보존한다.
+- **당시 제한:** 이 조사 시점에는 AGY UI 변경과 v0.3.0 설치·릴리즈를 중단했다. 이후 사용자가 CLI 전용 환경의 UI 표시 방식을 확정해 위 작업을 요청했다. 승인된 추가 실계정 조회 없이 AGY CLI를 재실행하지 않는다. 이 절은 조사 기록이며 릴리즈 완료 표시가 아니다.
+
 ## v0.3.0 로컬 릴리즈 준비 (2026-10-30)
 
 - 사용자는 별도 Debug fixture에서 AGY·Claude 상태, 하단 문구, 정보(i), 전체 배치에 문제가 없다고 보고했다. fixture는 가상 데이터이며 실제 계정 조회나 설치본 검증은 아니다. 키보드·VoiceOver는 아직 확인되지 않았다.

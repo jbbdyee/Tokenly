@@ -233,7 +233,7 @@ Finder에서 시작한 앱은 터미널의 `PATH`를 그대로 받지 않을 수
 
 **상태:** `ProviderDisplaySettings`에 Codex/AGY 펼침 Boolean을 독립적으로 두고 각각 `UserDefaults`에 기록한다. 기본값은 Codex 펼침·AGY 접힘이다. 기존 Provider 표시 설정과는 별개다. 접어도 `UsageStore`·`ExternalProviderStore`의 5분 타이머와 새로고침은 그대로 동작한다. 설정에서 숨긴 Provider만 팝오버에서 제외한다.
 
-**요약 계약:** Codex는 기존 `UsageSnapshot.menuBarSummary`와 오류·이전 데이터·소진 상태를 사용한다. AGY는 하나의 버킷을 전체의 대표로 선택하지 않는다. `AGYQuotaSummary`는 한 항목이면 `N% 남음`, 복수면 기존 최저~최고 계산을 유지해 `최저–최고% 남음`을 반환한다. 따라서 `3p-weekly` 100%와 `gemini-weekly` 0%는 전체 AGY가 0%라는 단정 없이 `0–100% 남음` 및 `일부 한도 소진`으로 표시한다. 항목별 ID·비율·진행률·초기화 시각은 상세 화면에 남긴다. `AGYQuotaLabel`이 원본 ID와 UI 이름 매핑을 분리하지만 공식 의미가 확인된 이름이 없어 지금은 원문을 그대로 반환한다. [공식 상태줄 문서](https://antigravity.google/docs/cli/statusline)는 `quota` 키를 모델/버킷 ID로 설명하지만 `3p-weekly`의 사용자용 뜻은 확정하지 않는다.
+**현재 표시 계약 (2026-10-30 갱신):** Codex는 기존 요약과 상태를 사용한다. AGY 헤더는 `Google Antigravity`만 표시한다. 일반 상세에는 `gemini-weekly`의 잔여율·진행률·초기화 시각을 `Gemini`라는 그룹 이름으로 표시하며, 다른 원본 항목은 정보(i)에 남긴다. 정보(i)는 두 원본 ID와 각각의 잔여율·초기화 시각 및 공식 의미·개별 모델 접근성이 미확정이라는 설명을 제공한다. Gemini 항목이 없고 다른 항목이 있으면 `데이터 없음`으로 오인하지 않도록 별도 안내한다. 기존 `AGYQuotaSummary` 계산과 소진 상태, Store 조회·대체·오래된 데이터 정책은 바꾸지 않는다. [공식 상태줄 문서](https://antigravity.google/docs/cli/statusline)는 `quota` 키를 모델/버킷 ID로 설명하지만 두 ID의 사용자용 뜻을 확정하지 않는다.
 
 **뷰와 높이:** 루트는 폭 340pt의 `VStack`과 `.regularMaterial`이다. 상단에 전역 새로고침·설정, 가운데 독립 아코디언, 하단에 갱신 주기·종료를 배치했다. 접힌 행은 이름·요약·chevron과 필요한 상태만 보이고 상세 문구를 숨긴다. 펼친 Codex 행은 남은 비율 막대와 제공된 사용 비율·초기화, AGY 행은 버킷별 막대·초기화·마지막 수신을 표시한다. 이전에 팝오버 전체를 최대 높이만 가진 `ScrollView`로 감쌌을 때 메뉴 막대 클릭 후 창이 보이지 않는 회귀 보고가 있어 루트 스크롤은 사용하지 않는다. AGY 버킷이 3개 이상이면 **그 목록만** 명시적 높이의 `ScrollView`로 감싸고 화면의 가시 높이를 기준으로 상한을 둔다. 실제 다중 버킷·긴 현지화 문구·작은 화면에서 잘림이 없는지는 GUI 확인 전까지 미검증이다.
 

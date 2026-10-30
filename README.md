@@ -133,7 +133,7 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 - **시스템 모니터의 비공개 값:** GPU 사용률(실험적, 기본 꺼짐)과 배터리 온도는 문서화되지 않은 시스템 값을 읽습니다. macOS 업데이트나 다른 기종(Intel Mac 포함)에서 표시되지 않거나 다를 수 있으며, 개발자 Mac(Apple M4) 밖에서는 확인하지 않았습니다.
 - **Claude 상태줄 수신:** Claude Code가 사용 중 상태줄을 그릴 때만 새 한도를 받을 수 있습니다. 로컬 재읽기는 서버 조회가 아니며, 수신 후 15분이 지나면 이전 데이터로 표시합니다. AGY는 로컬 v0.3.0부터 공식 CLI 직접 조회가 가능하고 실패 시 상태줄 수신값을 대체 표시합니다.
 - **Codex app-server**는 Codex CLI에서 experimental로 표시된 기능이라 CLI 업데이트에 따라 바뀔 수 있습니다.
-- **AGY**는 AGY CLI가 statusLine으로 보내는 `quota`의 **버킷별** 잔여 비율과 초기화 시각을 그대로 보여 주며, 5시간·7일 창으로 바꾸지 않습니다. 개발자 계정에서는 버킷 2개(`3p-weekly`, `gemini-weekly`)가 들어왔지만, 버킷의 수·이름·주기는 계정·요금제·AGY 버전에 따라 다를 수 있습니다. IDE·Gemini API 사용량과는 다릅니다.
+- **AGY**는 일반 팝오버에 `gemini-weekly`를 `Gemini` 그룹으로 표시합니다. 개별 Gemini 모델의 사용 가능 여부를 뜻하지 않습니다. `3p-weekly`를 포함한 원본 항목의 잔여율·초기화 시각은 정보(i)에서 볼 수 있습니다. 원본 ID의 정확한 그룹 의미와 계정별 모델 접근성은 공식적으로 확인되지 않았습니다. 기존 CLI 직접 조회·statusLine 대체와 주간 한도 계산은 유지하며 IDE·Gemini API 사용량과는 다릅니다.
 - **macOS 앱 목록:** 같은 번들 ID의 **다른 사본**(빌드 결과물·백업 등)이 LaunchServices에서 등록 해제되면, `/Applications`의 설치본이 그대로 있어도 앱 목록(Apps)에서 빠집니다(macOS 27, 테스트 앱과 Tokenly에서 재현). 일반 사용자의 한 번 설치에서는 생기지 않는 경로로 보이며, 개발 Mac에서 빌드할 때 생깁니다. 이 경우 `/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Tokenly.app`로 설치본 경로만 다시 등록하면 돌아옵니다(2026-10-26 확인). 그때까지는 Spotlight나 Finder에서 실행할 수 있습니다(`Doc/IMP-PLAN.md` 51–53·62절).
 - 메뉴 막대에 아이콘이 보이지 않으면 메뉴 막대 공간이 부족하거나, macOS 버전에 따라 시스템 설정의 메뉴 막대 항목에서 허용이 필요할 수 있습니다.
 - Gemini 자동 조회는 지원하지 않습니다. OpenAI API 사용량 연동 코드는 있으나 보류 상태입니다.

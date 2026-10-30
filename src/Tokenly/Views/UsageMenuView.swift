@@ -64,6 +64,20 @@ struct UsageMenuView: View {
                         }
                         Text("마지막 갱신은 직접 조회 성공 시각, 마지막 수신은 상태줄 데이터 수신 시각입니다. 다시 읽기만 해서는 시각이 바뀌지 않습니다.")
                         Text("Claude는 마지막 수신 후 15분이 지나면 이전 데이터로 표시합니다. AGY도 오래된 대체 데이터는 최신 조회로 표시하지 않습니다.")
+                        if !agyInfoQuotas.isEmpty {
+                            Divider()
+                            Text("AGY 원본 한도 항목").font(.caption.weight(.semibold))
+                            ForEach(agyInfoQuotas) { quota in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(quota.name).font(.caption.weight(.medium))
+                                    Text("\(Int(quota.remainingPercent.rounded()))% 남음 · \(resetText(quota.resetsAt))")
+                                        .monospacedDigit()
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            Text("Gemini는 그룹 표시 이름입니다. 두 ID의 정확한 그룹 의미와 개별 모델 사용 가능 여부는 공식적으로 확인되지 않았습니다.")
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     .font(.caption)
                     .frame(width: 280, alignment: .leading)
@@ -105,7 +119,7 @@ struct UsageMenuView: View {
                 }
                 if displaySettings.showsAGY {
                     if displaySettings.showsCodex || displaySettings.showsClaude { Divider() }
-                    section("Google Antigravity", summary: agySummary, status: agyStatus,
+                    section("Google Antigravity", summary: nil, status: agyStatus,
                             expanded: $displaySettings.agyExpanded) { agyDetails }
                 }
         }
@@ -113,7 +127,7 @@ struct UsageMenuView: View {
     }
 
     private func section<Details: View>(
-        _ title: String, summary: String, status: String?, expanded: Binding<Bool>,
+        _ title: String, summary: String?, status: String?, expanded: Binding<Bool>,
         @ViewBuilder details: () -> Details
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -121,11 +135,13 @@ struct UsageMenuView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                     Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
                     Spacer(minLength: 4)
-                    Text(summary)
-                        .font(.caption.weight(.medium))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    if let summary {
+                        Text(summary)
+                            .font(.caption.weight(.medium))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
                     Image(systemName: expanded.wrappedValue ? "chevron.up" : "chevron.down")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -133,7 +149,8 @@ struct UsageMenuView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(title), \(summary), \(expanded.wrappedValue ? "접기" : "펼치기")")
+            .accessibilityLabel([title, summary, expanded.wrappedValue ? "접기" : "펼치기"]
+                .compactMap { $0 }.joined(separator: ", "))
             if let status {
                 Text(status)
                     .font(.caption2)
@@ -227,16 +244,6 @@ struct UsageMenuView: View {
         }
     }
 
-    private var agySummary: String {
-        switch externalStore.state(for: .antigravity) {
-        case .idle: return "조회 대기"
-        case .loading: return "조회 중"
-        case .success(let value): return summary(value)
-        case .failure(.staleData, let previous): return previous.map(summary) ?? "최신 데이터 없음"
-        case .failure(_, let previous): return previous.map(summary) ?? "조회 불가"
-        }
-    }
-
     private var claudeSummary: String {
         switch externalStore.state(for: .claude) {
         case .idle: return "수신 대기"
@@ -307,9 +314,11 @@ struct UsageMenuView: View {
         }
     }
 
-    private func summary(_ value: ExternalUsageSnapshot) -> String {
-        guard case .quotas(let quotas) = value.metrics else { return "데이터 없음" }
-        return AGYQuotaSummary.text(for: quotas)
+    private var agyInfoQuotas: [QuotaMetric] {
+        let state = externalStore.state(for: .antigravity)
+        let snapshot = state.snapshot ?? externalStore.settledState(for: .antigravity).snapshot
+        guard let snapshot, case .quotas(let quotas) = snapshot.metrics else { return [] }
+        return quotas.sorted { AGYPopoverPresentation.infoOrder($0.name) < AGYPopoverPresentation.infoOrder($1.name) }
     }
 
     private var agyStatus: String? {
@@ -344,15 +353,14 @@ struct UsageMenuView: View {
     @ViewBuilder
     private func agyMetrics(_ metrics: ExternalMetrics) -> some View {
         if case .quotas(let quotas) = metrics {
-            if quotas.count > 2 && !needsBoundedProviderScroll {
-                ScrollView { quotaRows(quotas) }
-                    .frame(height: min(CGFloat(quotas.count) * 76, quotaScrollLimit))
-            } else { quotaRows(quotas) }
+            if let gemini = AGYPopoverPresentation.geminiQuota(in: quotas) {
+                quotaRows([gemini])
+            } else {
+                Text(AGYPopoverPresentation.missingGeminiMessage(for: quotas))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-    }
-
-    private var quotaScrollLimit: CGFloat {
-        max(120, min(230, (NSScreen.main?.visibleFrame.height ?? 700) - 430))
     }
 
     private func quotaRows(_ quotas: [QuotaMetric]) -> some View {
@@ -360,7 +368,7 @@ struct UsageMenuView: View {
             ForEach(quotas) { quota in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text(AGYQuotaLabel.displayName(for: quota.name))
+                        Text("Gemini")
                             .font(.caption.weight(.medium))
                             .lineLimit(1).truncationMode(.middle)
                         Spacer(minLength: 8)
@@ -371,7 +379,7 @@ struct UsageMenuView: View {
                         .tint(color(for: RemainingLevel(percent: quota.remainingPercent)))
                         .healthyGradientFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
                                              dark: colorScheme == .dark)
-                        .accessibilityLabel("\(quota.name) 남은 한도")
+                        .accessibilityLabel("Gemini 그룹 남은 한도")
                     Text(resetText(quota.resetsAt))
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -449,6 +457,24 @@ enum UsagePopoverCopy {
     static func agyTimestamp(_ snapshot: ExternalUsageSnapshot) -> String {
         let label = snapshot.source == .directCLI ? "마지막 갱신" : "마지막 수신"
         return "\(label) · \(CompactDateTime.string(for: snapshot.fetchedAt))"
+    }
+}
+
+enum AGYPopoverPresentation {
+    static func geminiQuota(in quotas: [QuotaMetric]) -> QuotaMetric? {
+        quotas.first { $0.name == "gemini-weekly" }
+    }
+
+    static func missingGeminiMessage(for quotas: [QuotaMetric]) -> String {
+        quotas.isEmpty ? "데이터 없음" : "Gemini 한도 정보 없음 · 다른 항목은 정보(i)에서 확인"
+    }
+
+    static func infoOrder(_ name: String) -> Int {
+        switch name {
+        case "gemini-weekly": return 0
+        case "3p-weekly": return 1
+        default: return 2
+        }
     }
 }
 
