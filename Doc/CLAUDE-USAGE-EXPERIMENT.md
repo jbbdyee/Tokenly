@@ -2,6 +2,20 @@
 
 2026-10-30 · 브랜치 `experiment/claude-usage-refresh` · 조사 뒤 승인된 단발성 조회 1회 완료
 
+## 1차 검사 로직 정적 재분석과 모의 검증 (2026-10-30)
+
+이 단계에서는 **추가 실계정 조회가 없었다.** 저장소 밖에 남은 1차 helper의 검사 코드와 공식 npm 패키지 `0.3.169`의 `sdk.d.ts`·`sdk.mjs`만 읽었다. 원본 실계정 응답, 인증 저장소, Keychain은 읽거나 복원하지 않았다.
+
+- `sdk.mjs`의 usage 메서드는 `{subtype:"get_usage"}` 제어 요청을 보내고 성공 응답의 `.response`를 **검증·변환 없이 반환**한다. 1차 helper는 `response.rate_limits?.five_hour`와 `.seven_day`를 검사했다. 이 경로와 이름은 `sdk.d.ts`의 `SDKControlGetUsageResponse`에 일치한다. `utilization`은 **사용률 0–100**이고 `resets_at`은 ISO 8601 문자열이다. 잔여율은 `100 - utilization`으로 계산해야 하므로 사용률 100은 유효한 잔여율 0%이다.
+- 타입 주석에서 `rate_limits_available=false`는 API 키·Bedrock·Vertex 또는 필요한 프로필 범위가 없는 세션의 플랜 한도 *비적용*을 뜻하며, 이때 `rate_limits=null`이라고 설명한다. 반대로 `true`가 각 창의 값 존재를 보장한다는 계약은 없다. 타입은 `rate_limits` 자체의 `null`, `five_hour?`·`seven_day?`의 부재/`null`, 내부 `utilization`·`resets_at`의 `null`을 허용한다. 즉 1차 `true`는 두 창의 숫자·시각이 확인됐다는 뜻이 아니다. `0.3.292`의 대응 타입도 두 창을 선택적으로 선언한다.
+- 1차 helper의 `presentWindow(window)`는 `Boolean(window && typeof window.utilization === 'number')`, `resetPresent(window)`는 문자열에 `Date.parse`가 성공하는지만 검사했다. 이 출력은 **키 부재, 창 `null`, 사용률 `null`/비숫자를 모두 `false`로 합친다.** 시각도 키 부재와 `null`/형식 오류를 합친다. `Date.parse`는 비 ISO 문자열도 받아들일 수 있어 타입의 ISO 8601 계약을 엄격히 검증하지 못한다. 숫자 검사 역시 유한성·0–100 범위를 검사하지 않는다. 따라서 1차의 `false`는 사용 가능한 값 미확인만 의미하며 실제 누락 원인을 증명하지 않는다.
+- 저장소 밖 임시 mock 스크립트에서 7개 가상 사례를 실행해 모두 통과했다: 두 창 있음, 5시간만 있음, 7일만 있음, 두 키 부재, 두 창 `null`, 창 내부 값 `null`, 사용률 100으로 잔여율 0%. `rate_limits_available=true`와 빈 `rate_limits={}`도 타입상 가능한 형태임을 별도 확인했다. 이는 **검사 함수 동작의 검증**이지 실제 서버 응답이나 계정 상태의 검증이 아니다.
+- **확정된 코드 원인:** 검사 결과가 여러 상태를 하나의 `false`로 압축해 1차 응답의 정확한 형태를 알 수 없게 했다. **미확정된 데이터 원인:** 실제 창 키가 없었는지, `null`이었는지, 타입이 달랐는지, 사용률만 없었는지, SDK/CLI 버전 차이 또는 서버 데이터 조건 때문인지는 알 수 없다. 패키지 `0.3.169`는 응답을 가공하지 않으므로, 그 패키지가 값을 삭제했다고 볼 근거는 없다.
+
+추가 실계정 호출은 **정적 분석을 마치는 데 필요하지 않다.** 다만 SDK만으로 개인 구독 두 창을 실제로 표시할 수 있는지 확정하려면 나중에 별도 승인된 1회 조회가 필요하다. 그때는 CLI `2.1.292`와 맞는 SDK `0.3.292`, `skipBehaviors:true`, 프롬프트 없는 제어 요청을 사용하고, 원본 수치 없이 다음 분류만 메모리에 계산해 출력한다: `rate_limits`가 `null`/객체인지, 각 창 키의 `hasOwn` 여부, 창 값이 `null`/객체인지, `utilization`의 자료형·유효 범위 여부, `resets_at`의 자료형·엄격한 ISO 8601 형식 여부, 모델 메시지·세션 비용 발생 여부. 계정 유형·원본 응답·실제 사용량은 출력하지 않는다. 타임아웃 타이머는 완료 시 해제해 요청 지연과 프로세스 총 시간을 구분한다. 인증 오류나 429는 재시도하지 않는다. 이 설계는 **제안이며 현재 추가 조회 승인은 없다.**
+
+블로그 소재는 `rate_limits_available`와 실제 창 존재를 분리한 타입 해석, 비밀정보를 보존하지 않는 실험의 진단 한계, `null`·키 부재·0%를 구분하는 모의 검증이다. 기존 Tokenly 블로그 3편과의 중복 평가는 후속 ChatGPT 판단에 맡기며, 이번에는 본문을 쓰지 않는다.
+
 ## 승인된 단발성 실험 결과 (2026-10-30)
 
 - 시작 Git: `experiment/claude-usage-refresh` `c934e7a`, 미추적 GPU 로그 2개 외 변경 없음. 설치 Claude Code CLI `2.1.292`; 프로젝트·전역 Agent SDK 설치 없음. 공식 npm 패키지 `@anthropic-ai/claude-agent-sdk@0.3.169`를 저장소 밖 임시 경로에 설치했다. 설치 스크립트와 선택적 바이너리는 실행하지 않았다.
