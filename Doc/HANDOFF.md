@@ -4,6 +4,14 @@
 
 최종 갱신: 2026-10-30 (Codex 조건부 사용량 갱신 구현·검증, Codex)
 
+## 실사용 환경 기반 1분 갱신 검증 준비 (2026-10-30, 실행 승인 대기)
+
+- 브랜치 `feature/usage-refresh-label-and-sources`, 시작 HEAD `4ffd3f2`. GPU 실측 로그 2개는 미추적 상태로 보존. 기존 `/Applications/Tokenly.app`을 종료·교체하지 않았고 root 진단과 기존 EPERM 재현은 중단했다.
+- Debug 개발 앱을 저장소 밖 `/private/tmp/tokenly-real-codex-verify-20261030/Build/Products/Debug/Tokenly.app`에 성공적으로 빌드했다. bundle ID는 `io.github.jbbdyee.tokenly.realverify.20261030`으로 설치본 `io.github.jbbdyee.tokenly`와 다르다. `/private/tmp/tokenly-real-codex-verify-20261030/launch-review.sh`는 **준비만** 했고 실행하지 않았다. 스크립트는 공식 CLI를 찾는 PATH와 공식 `CODEX_SQLITE_HOME`의 임시 DB 경로만 설정한다. 실제 `CODEX_HOME`·`HOME`은 유지한다.
+- 코드상 앱 시작의 `ProviderDisplaySettings`와 시스템 위젯 선택은 `.standard` UserDefaults를 읽는데 번들 ID가 달라 도메인이 분리된다. 새 도메인의 기본값에서 Claude·AGY 표시는 꺼져 있어 상태줄 파일 재읽기는 시작되지 않는다. 설정 화면을 열면 상태줄 파일 존재 여부를 확인할 수 있고, 버튼을 조작하면 로그인 항목·연결·Keychain 값이 바뀔 수 있으므로 테스트 중 설정 화면은 열지 않는다. `UsageStore.start()`는 앱 표시 시 Codex CLI `app-server`를 시작한다.
+- [공식 Codex 인증 문서](https://learn.chatgpt.com/docs/auth)에 따르면 CLI 로그인 캐시는 파일(`~/.codex/auth.json`) 또는 OS credential store에 있고, ChatGPT 로그인 토큰은 사용 중 자동 갱신될 수 있다. [공식 환경변수 문서](https://learn.chatgpt.com/docs/config-file/environment-variables)의 `CODEX_SQLITE_HOME`은 SQLite 상태만 임시 경로로 옮긴다. 따라서 실사용 환경에서 첫 조회를 실행하면 **기존 Codex 인증 캐시/Keychain이 CLI에 의해 갱신될 가능성은 남는다**. 인증 파일 복사·직접 읽기·로그 출력은 하지 않지만 불변성은 보장할 수 없다. 이 영향 때문에 앱을 아직 실행하지 않았다.
+- 이번 세션 검증: 격리 Debug 빌드 성공, 별도 ID·경로 확인, 실행 스크립트 `/bin/sh -n` 통과. 실제 app-server initialize·사용량 성공 조회·60초 자동 갱신·팝오버·수동·절전 복귀 및 실제 CLI 비용은 **미검증**이다. 이전 XCTest 393개 통과와 실패 전용 CLI 300초 재시도는 별도 세션의 결과다. 제품 코드 변경 없음. 다음 단계는 이 인증 캐시 자동 갱신 가능성을 사용자에게 제시하고 실행 승인을 받은 뒤, 응답 내용을 기록하지 않고 개발 앱만 실행·관찰하는 것이다.
+
 ## 남은 EPERM 진단 경로 점검 (2026-10-30)
 
 - 이번 세션 시작: `feature/usage-refresh-label-and-sources`, HEAD `79311f4`; GPU 원본 로그 2개 미추적 상태 보존. 동일한 실계정 `app-server` 실패 실행은 반복하지 않았다. CLI 버전은 여전히 `0.164.0-alpha.11.1`이다.

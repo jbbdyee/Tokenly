@@ -1,5 +1,11 @@
 # Tokenly 기술 블로그 자료
 
+## 실사용 환경 기반 Codex 검증으로 전환한 이유 (2026-10-30)
+
+- **판단:** 읽기 전용 `.codex`를 강제한 격리 앱은 SQLite 상태 DB와 후속 EPERM 때문에 실사용 조건을 재현하지 못했다. root 추적·반복 EPERM 실험을 멈추고, 설치 앱과 다른 번들 ID·실행 경로의 Debug 사본을 준비했다. 공식 `CODEX_SQLITE_HOME`만 임시로 지정해 SQLite 쓰기를 분리하고 실제 Codex CLI의 일반 로그인 캐시를 사용하는 설계다.
+- **기존 데이터 영향:** 앱 자체 UserDefaults는 새 bundle ID로 분리된다. 기본 Claude·AGY 표시는 꺼져 상태줄 파일 재읽기를 시작하지 않는다. 다만 CLI는 공식 [인증 문서](https://learn.chatgpt.com/docs/auth)에 따라 기존 로그인 캐시를 파일 또는 Keychain에서 재사용하고 사용 중 토큰을 자동 갱신할 수 있다. SQLite 경로 분리는 이 인증 변경 가능성을 없애지 않는다. 설정 화면·연결 버튼은 조작하지 않을 계획이다.
+- **이번 세션 실제 결과:** `/private/tmp/tokenly-real-codex-verify-20261030/Build/Products/Debug/Tokenly.app` Debug 빌드 성공, bundle ID `io.github.jbbdyee.tokenly.realverify.20261030` 확인. 미실행 런처 구문 검사 완료. 앱과 실계정 CLI는 실행하지 않았으므로 initialize, 서버 사용량, 60초 갱신, 화면, 실행 횟수·시간·CPU·메모리는 모두 미검증이다. 승인 전 인증 캐시의 갱신 가능성을 사용자에게 제시한다.
+
 ## 두 번째 EPERM 진단 방법 점검 (2026-10-30)
 
 - **기존 확인:** 첫 차단은 `~/.codex` 아래 SQLite 상태 런타임 초기화였고 공식 `sqlite_home`으로 임시 경로에 분리할 수 있었다. 그 뒤 남는 EPERM의 경로는 아직 확인되지 않았다. 이번에는 동일 실패를 재실행하지 않고 진단 도구의 권한과 로그 신뢰도를 조사했다.
