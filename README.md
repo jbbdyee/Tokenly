@@ -1,5 +1,8 @@
 # Tokenly
 
+> **개발 중 실험:** Claude SDK 직접 조회는 별도 실험 브랜치에서 기본 비활성 경로로만 준비 중입니다. 현재 배포 앱의 Claude 사용량은 기존 statusLine 수신 방식으로 표시됩니다. Node·SDK helper의 제품 번들링과 사용자 선택 기능은 아직 제공되지 않습니다.
+
+
 > **v0.3.0 출시(2026-10-30):** 하단은 `Codex · AGY 자동 갱신 | Claude 사용 중 갱신`으로 표시합니다. 정보(i)에서 갱신 주기와 조회 방식, AGY 원본 항목을 확인할 수 있습니다. AGY 헤더는 `Google Antigravity`만 표시하고 일반 상세에는 Gemini 그룹을 우선 표시합니다.
 
 macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다. v0.2.0부터 **CPU·RAM·GPU·Disk·배터리** 상태도 메뉴 막대 위젯과 상세 팝오버로 보여 줍니다.

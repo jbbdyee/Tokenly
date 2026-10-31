@@ -1,5 +1,25 @@
 # Tokenly 작업 인수인계
 
+## Claude 선택적 직접 조회 연결 준비 (2026-10-31)
+
+- 시작 상태: `experiment/claude-usage-refresh` / `1f0783a`, 미커밋 실험 문서 2개와 미추적 GPU 로그 2개를 보존했다. 이전 승인 단발성 SDK 조회 결과는 문서에 유지한다. 이번 단계는 실계정·SDK helper·모델 요청을 실행하지 않았다.
+- `ClaudeOptionalUsageProvider`는 기본 statusLine 전용이며, 개발자가 명시적으로 주입할 때만 기존 비활성 직접 Provider를 호출한다. 실패 시 마지막 성공값과 statusLine을 창별로 선택하고 출처별 시각을 분리한다. 앱 진입점·기본 Store·타이머·설정에는 연결하지 않아 자동 SDK 조회가 없다.
+- 검증: 정책 테스트 9개, 새 선택 경로 XCTest 5개, 전체 XCTest 423개 통과. Debug·Release 빌드와 `git diff --check` 통과. 모두 Mock/가짜 데이터이며 실계정 조회는 없다.
+- 제품 적용 전 과제: Node/SDK/helper 재현 가능한 배포와 서명, 다른 Mac 검증, 사용자 선택·출처 UI, 신선도·호출 주기·백오프, 실제 401/403/429 형태와 인증 영향 확인. 설치본 v0.3.0은 변경하지 않았다.
+
+
+## Claude 격리 래퍼 단발성 실계정 조회 (2026-10-31)
+
+- 브랜치 `experiment/claude-usage-refresh`, 시작 HEAD `1f0783a`. 승인된 임시 래퍼를 사전 해시·문법·SDK 경로 점검 후 **1회만** 실행했고 재시도하지 않았다. 성공, 오류 없음, 약 1,998 ms. `rate_limits_available=true`, 컨테이너와 5시간·7일 창이 모두 객체이며 두 `utilization`은 0–100 범위의 숫자, 두 `resets_at`은 ISO 8601 형식 검사에 통과한 문자열이었다. 실제 수치·시각·원본 JSON·계정·토큰은 출력·저장하지 않았다.
+- helper는 프롬프트 없는 `get_usage` 제어 요청을 호출하며 사용자/assistant 메시지나 양의 세션 비용이 감지되면 성공 출력하지 않는다. 이번 성공에서 해당 징후는 관찰되지 않았으나 숨은 서버 작업·최종 과금 보증은 아니다. 기존 Claude 로그인 상태의 공식 SDK/CLI 재사용 외에 별도 로그인·인증 추출은 없었다. 정상 CLI의 인증 캐시/상태 쓰기 여부는 측정하지 않았다.
+- 실계정에서 두 창의 표시 가능한 형태가 확인됐지만 실험 API의 안정성, 서버 신선도, 401/403/429 오류 계약, 반복 호출 제한, Node/SDK 배포·서명, 장시간 비용과 제3자 사용 조건이 남았다. 제품 Provider/Store/UI 및 statusLine은 변경하지 않았고 자동 폴링은 활성화하지 않았다. GPU 로그 2개 보존. 상세 비교와 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 있다.
+
+## Claude 독립 조회 실계정 검증 사전 준비 (2026-10-31)
+
+- `experiment/claude-usage-refresh` `1f0783a`에서 시작, 미추적 GPU 로그 2개만 있었다. 공식 SDK `0.3.169`의 타입·패키지 구현과 Anthropic 변경 기록에서 실험적 `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()` → CLI `get_usage` 제어 요청을 확인했다. helper는 사용자 메시지를 생성하지 않지만 공식적인 무과금·안정 사용 계약은 확인되지 않았다. 이전 3회 실험에서 모델 메시지·양의 세션 비용이 관찰되지 않은 것과 구분한다.
+- 저장소 밖 `/private/tmp/tokenly-claude-usage-preflight-20261031/`에 helper/패키지 선언 사본과 기존 SDK 설치본으로 향하는 `node_modules` 링크를 준비했다. Node `v24.22.1`, CLI `2.1.292`, SDK `0.3.169`; helper 해시·문법·모듈 경로만 확인했다. 비민감 분류만 출력하는 단발성 `verify-once.mjs`도 문법 검사만 했다. **실제 SDK import·계정 조회·인증 접근·모델 요청·자동 폴링은 없었다.** 부모 환경의 관련 변수는 존재 여부만 검사했다. 제품 코드·설치 앱·설정은 변경하지 않았다.
+- 실제 실행에는 별도 사용자 승인이 필요하다. 승인 시 임시 래퍼 1회만 실행하고 원본 사용량·시각·계정·토큰·stderr는 저장하지 않는다. 공식 CLI의 정상 네트워크 통신·인증 캐시/상태 쓰기 가능성, SDK 실험 API 변경, 숨은 모델 비용·401/403/429 오류 형태 및 제3자 제품 이용 조건은 미확정이다. 문제 발생 시 재시도하지 않는다. 상세 계획과 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)를 참조한다. GPU 로그 2개를 보존했고 RAM-02는 재개하지 않았다.
+
 ## Claude SDK 자식 프로세스 Adapter 실험 (2026-10-31)
 
 - 시작 브랜치 `experiment/claude-usage-refresh`, HEAD `1ed6b0c`, 미추적 GPU 로그 2개 외 변경 없음. 기존 Swift Provider·실험 정책·공식 SDK 0.3.169 타입을 읽고, Swift `ClaudeSDKProcessRunner`/`ClaudeSubprocessExecutor`, 개발용 Node helper와 정확 버전 `package.json`, Mock/가짜 셸 테스트를 추가했다. 새 Swift 파일 2개는 Xcode 파일 참조·그룹·Sources에 등록했다.

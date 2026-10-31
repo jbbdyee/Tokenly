@@ -1,5 +1,11 @@
 # Tokenly 구현 계획
 
+## 87. Claude 선택적 조회 연결 경계 (2026-10-31)
+
+- `ClaudeOptionalUsageProvider`의 기본 route는 statusLine 전용이다. 개발자가 `experimentalDirect`를 명시적으로 주입한 경우에만 독립 Provider를 호출한다. 직접·statusLine 결과를 창별로 선택하고, 출처별 수신 시각을 분리하며 가장 오래된 선택 창의 시각을 전체 스냅샷 시각으로 쓴다. 직접 조회 실패는 기존 성공값과 statusLine을 지우지 않는다.
+- 앱 진입점·기본 Store·타이머·사용자 설정은 그대로다. 현재 UI의 Claude `마지막 수신` 문구는 직접 조회를 나타낼 수 없으므로 제품 토글과 자동 폴링을 연결하지 않는다. 신선도·백오프·401/403/429 실제 계약·번들링을 확정한 후 별도 단계에서 연결한다.
+
+
 ## 86. Claude SDK 실행 Adapter 실험 (2026-10-31)
 
 - Swift `ClaudeSDKProcessRunner`는 `ClaudeUsageRunning` 경계를 구현하고 `ClaudeProcessExecuting`을 주입받는다. 실제 `ClaudeSubprocessExecutor`는 Node 런타임·helper·Claude CLI의 절대 경로를 명시적으로 받아 자식 환경에서 비필수 트래픽 차단 변수와 인증 override/Node 주입 변수를 제거한다. stdout은 16 KiB 상한, stderr는 `/dev/null`; 타임아웃·취소·초과 출력 시 자식 프로세스 그룹을 종료한다. actor 단위 in-flight gate는 중복 요청을 거부한다.

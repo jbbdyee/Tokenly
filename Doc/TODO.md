@@ -1,5 +1,12 @@
 # Tokenly 개발 TODO (가칭)
 
+## Claude 선택적 조회 연결 준비 (2026-10-31)
+
+- [x] 기본 비활성 `ClaudeOptionalUsageProvider`와 명시적 개발자 주입 경로, 창별 출처·수신 시각 및 실패 시 statusLine 대체를 Mock으로 구현; 새 XCTest 5개 및 전체 423개 통과, Debug·Release 빌드 성공
+- [ ] 사용자 선택 UI, 직접 조회에 맞는 화면 문구, 신선도 기준·호출 주기·백오프를 별도 검증 후 결정; 그전에는 자동 SDK 실행 금지
+- [ ] Node·SDK·helper 재현 가능한 번들링, 서명·다른 Mac 실행, 실제 오류 계약과 인증/호출 제한 검증
+
+
 ## Claude SDK 실행 Adapter 실험 (2026-10-31)
 
 - [x] 공식 SDK 0.3.169의 실험적 usage 제어 요청 형태를 정적으로 재확인하고 개발 전용 Node helper 작성; 모델 메시지 없이 initialize 후 1회 제어 요청 경로로 제한
