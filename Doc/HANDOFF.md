@@ -1,5 +1,12 @@
 # Tokenly 작업 인수인계
 
+## Claude SDK 자식 프로세스 Adapter 실험 (2026-10-31)
+
+- 시작 브랜치 `experiment/claude-usage-refresh`, HEAD `1ed6b0c`, 미추적 GPU 로그 2개 외 변경 없음. 기존 Swift Provider·실험 정책·공식 SDK 0.3.169 타입을 읽고, Swift `ClaudeSDKProcessRunner`/`ClaudeSubprocessExecutor`, 개발용 Node helper와 정확 버전 `package.json`, Mock/가짜 셸 테스트를 추가했다. 새 Swift 파일 2개는 Xcode 파일 참조·그룹·Sources에 등록했다.
+- 앱은 Adapter를 생성하지 않는다. 기본 runner는 비활성이고 기존 Claude statusLine·Codex·AGY·타이머·설정은 그대로다. helper 역시 번들에 포함되지 않으며 Node/SDK 의존성 설치나 실제 CLI 실행도 하지 않았다. 자식 환경에서 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`와 인증 override/Node 주입 변수만 제거하고 부모 환경은 건드리지 않는다. stdout에는 두 창의 최소 데이터만 허용하며 stderr는 버린다. 자식 프로세스 그룹은 취소·타임아웃 시 종료된다.
+- Node 정책 테스트 9개, 새 Adapter XCTest 5개 포함 전체 XCTest **419개 통과**, Debug·Release 빌드 성공, helper `node --check`·Xcode 프로젝트 plist·`git diff --check` 통과. 테스트는 Mock·가짜 셸 helper만 사용했고 실제 계정 조회, 모델 요청, SDK helper 실행, 자동 폴링은 없었다.
+- **남은 제약:** 401/403/429의 실제 SDK 오류 형태가 확인되지 않아 helper는 원문 없이 일반 실패로만 반환한다. helper 배포·번들링·서명, Node/SDK/CLI 버전·위치, 실제 인증 재사용, stdout의 실데이터 처리, 신선도/호출 제한 및 프로세스 비용은 미검증. 단일 runner 인스턴스 안에서만 중복 차단한다. 제품 통합과 실조회는 별도 승인 필요. 자세한 설계와 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 기록했다. 설치 v0.3.0과 GPU 로그 2개는 보존했다.
+
 ## Claude 독립 조회 Swift Provider 실험 구조 (2026-10-30)
 
 - 시작 상태 `experiment/claude-usage-refresh` `176e381`, 미커밋 실험 문서·Node 정책 파일을 보존했다. `ClaudeDirectUsageProvider.swift`와 `ClaudeDirectUsageTests.swift`를 Xcode 앱·테스트 타깃에 등록했다. 기본 runner는 비활성이며 SDK 실행 코드, 계정 조회, 모델 요청, 자동 폴링, 앱 Store/UI 연결은 없다. 설치 v0.3.0·설정·GPU 로그 2개는 변경하지 않았다.

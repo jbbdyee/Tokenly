@@ -1,5 +1,12 @@
 # Tokenly 구현 계획
 
+## 86. Claude SDK 실행 Adapter 실험 (2026-10-31)
+
+- Swift `ClaudeSDKProcessRunner`는 `ClaudeUsageRunning` 경계를 구현하고 `ClaudeProcessExecuting`을 주입받는다. 실제 `ClaudeSubprocessExecutor`는 Node 런타임·helper·Claude CLI의 절대 경로를 명시적으로 받아 자식 환경에서 비필수 트래픽 차단 변수와 인증 override/Node 주입 변수를 제거한다. stdout은 16 KiB 상한, stderr는 `/dev/null`; 타임아웃·취소·초과 출력 시 자식 프로세스 그룹을 종료한다. actor 단위 in-flight gate는 중복 요청을 거부한다.
+- 개발용 `experiments/claude-usage-refresh/claude-usage-helper.mjs`는 공식 SDK 0.3.169의 프롬프트 없는 initialize → 실험적 usage 제어 요청을 호출하도록 작성했지만 이번 단계에 실행하지 않았다. 성공 시 필요한 두 창의 숫자·시각과 가용성만 stdout에 내보내고 오류 원문·계정·토큰·세션 정보는 출력하지 않는다. SDK 오류의 실제 401/403/429 형식은 미확인이라 추측 매핑하지 않는다. `package.json`은 의존성을 정확한 버전으로 선언할 뿐 패키지 설치·앱 번들링은 아니다.
+- 앱 진입점/`ExternalProviderStore`/UI/타이머는 Adapter를 참조하지 않는다. 기본 `ClaudeDirectUsageProvider` runner도 비활성이다. 가짜 셸 helper·Mock으로 성공, 환경 변수 제거, 비정상 종료, 잘못된 JSON, 타임아웃, 출력 초과, 중복, 취소를 검증했다. Node 정책 테스트 9개, 전체 XCTest 419개, Debug·Release 빌드, `git diff --check` 통과. 실제 SDK/계정 조회 및 자동 폴링 없음.
+- 제품화 전에는 Node·SDK·CLI 위치/버전 호환성, 번들 자산 서명·업데이트, 프로세스 비용·인증 상태 영향, 오류 계약과 호출 제한, 신선도 기준을 별도로 검증해야 한다. 현재 구조는 개발 환경용이며 v0.3.0 기능으로 표시하지 않는다.
+
 ## 85. Claude 독립 조회 Swift 실험 구조 (2026-10-30)
 
 - 기존 Claude는 statusLine 수신 파일을 읽는다. 실험 브랜치에 `ClaudeDirectUsageProvider`의 비활성 `ClaudeUsageRunning` 경계와 SDK 응답 파서, `ClaudeUsageSelection`의 창별 성공값·출처·수신 시각·대체 표시 선택을 구현했다. 실제 SDK adapter와 `ExternalProviderStore`/UI 연결은 없다. 따라서 앱의 인증·조회 주기·표시는 바뀌지 않는다.

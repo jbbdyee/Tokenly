@@ -15,6 +15,8 @@ enum ClaudeUsageRunnerError: Error, Equatable {
     case unavailable
     case incompatibleSDK
     case transport
+    case inProgress
+    case unsafeOutput
 }
 
 struct DisabledClaudeUsageRunner: ClaudeUsageRunning {

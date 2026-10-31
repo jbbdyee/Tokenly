@@ -1,5 +1,7 @@
 # Tokenly 제품 사양 (가칭)
 
+> **Claude SDK 실행 Adapter 실험(2026-10-31):** 실험 브랜치에 명시적 경로 주입형 Swift 자식 프로세스 실행기와 개발용 공식 SDK helper를 추가했다. 앱의 기본 Claude Provider는 비활성 runner와 기존 statusLine을 유지하며 Adapter를 생성하거나 실행하지 않는다. SDK helper도 앱 번들에 포함되지 않아 설치본 기능이 아니다. 가짜 helper 및 Mock 테스트만 실행했다. SDK·계정 실조회, 자동 폴링, 직접 조회 UI는 미검증·미활성이다. 자세한 안전 경계는 `CLAUDE-USAGE-EXPERIMENT.md`에 기록한다.
+
 > **Claude 독립 조회 실험 구조(2026-10-30):** 실험 브랜치에 Swift `ClaudeDirectUsageProvider`와 가상 응답 파서·창별 선택 모델을 추가했다. 실행 계층은 프로토콜로 분리했고 기본 실행기는 비활성이다. 기존 앱 진입점·`ExternalProviderStore`·타이머·팝오버에는 연결하지 않았다. SDK 호출, 실제 계정 조회 및 자동 갱신은 제품 기능이 아니다. 5시간·7일 값은 `100 - utilization`, 초기화 시각 오류는 알 수 없음, `true/null`은 데이터 미수신으로 처리한다. 출처와 로컬 수신 시각을 창별로 유지한다. 상세 검증은 `CLAUDE-USAGE-EXPERIMENT.md`를 따른다.
 
 > 이전 `BLOG-NOTES.md` 참조는 [커밋 81afae9의 Git 보관본](https://github.com/jbbdyee/Tokenly/blob/81afae9/Doc/BLOG-NOTES.md)을 가리킨다. 원문은 프로젝트 밖에도 SHA-256 검증 후 보관했다. v0.3.0 정식 Release 이후 사용자는 설치본에서 세 서비스 표시와 AGY Gemini UI를 확인했다.

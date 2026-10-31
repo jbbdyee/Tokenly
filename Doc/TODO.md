@@ -1,5 +1,12 @@
 # Tokenly 개발 TODO (가칭)
 
+## Claude SDK 실행 Adapter 실험 (2026-10-31)
+
+- [x] 공식 SDK 0.3.169의 실험적 usage 제어 요청 형태를 정적으로 재확인하고 개발 전용 Node helper 작성; 모델 메시지 없이 initialize 후 1회 제어 요청 경로로 제한
+- [x] Swift 실행기를 명시적 경로 주입·자식 환경 정리·stdout 상한·stderr 폐기·프로세스 그룹 종료·타임아웃·취소·중복 요청 차단으로 구현. 가짜 helper/Mock 테스트 5개 추가, 전체 XCTest 419개 및 Debug·Release 빌드 통과
+- [ ] 공식 SDK/Node/CLI의 배포·서명·번들링, 런타임 의존성 및 401·403·429 실제 오류 형태 확인. 현재 helper는 개발 경로에만 있고 설치 앱에 연결되지 않음
+- [ ] 실제 계정 단발성 Adapter 검증과 앱 통합·자동 폴링은 각각 별도 승인 및 신선도·호출 제한 정책 확정 뒤 진행
+
 ## Claude 독립 조회 Swift 실험 구조 (2026-10-30)
 
 - [x] 기존 statusLine과 SDK 응답의 필드·시각 의미 대조, 가상 정책 테스트 9개 통과

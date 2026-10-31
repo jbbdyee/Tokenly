@@ -2,6 +2,20 @@
 
 2026-10-30 · 브랜치 `experiment/claude-usage-refresh` · 승인된 단발성 조회 총 3회 완료
 
+## SDK 자식 프로세스 Adapter 구현과 가짜 helper 검증 (2026-10-31)
+
+이번 단계는 **실계정 조회·모델 요청·인증 저장소 접근·자동 폴링 없이** 코드와 가짜 프로세스만 검증했다. 공식 SDK `0.3.169` 타입의 `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()`는 프롬프트 없는 query 세션의 제어 요청으로 선언돼 있다. 이것은 실험 API이며 안정 계약이 아니다. 기존 제품의 Claude statusLine Provider와 `ExternalProviderStore`는 수정하지 않았다.
+
+- **실행 경계:** `ClaudeSDKProcessRunner` actor가 `ClaudeProcessExecuting`을 주입받고 한 인스턴스의 진행 중 요청을 거부한다. `ClaudeSubprocessExecutor`는 Node 런타임, helper, Claude CLI의 절대 경로가 모두 주어질 때만 `posix_spawn`으로 별도 프로세스 그룹을 시작한다. 표준 입력과 오류 출력은 `/dev/null`, 표준 출력은 메모리에서 최대 16 KiB만 수집한다. 상한 초과·타임아웃·Task 취소 시 그룹에 종료 신호를 보내고 완료를 기다린다. 비정상 종료·종료 코드·빈/잘못된 JSON은 SDK 원문 없이 분류한다. 오류 원문을 기반으로 401·403·429를 임의 판정하지 않는다.
+- **자식 환경:** Swift 실행기는 부모 딕셔너리에서 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, API key/OAuth override, `ANTHROPIC_BASE_URL`, Node 주입 변수를 제거해 자식에게만 전달한다. Node helper도 SDK가 시작할 Claude Code 자식 환경에서 같은 제한 변수와 인증 override를 제거한다. 부모 프로세스, 사용자 설정, Keychain, 로그인 파일은 직접 수정·복사·조회하지 않는다. SDK/CLI의 정상 상태 파일 쓰기 가능성은 실제 실행 단계에서 별도 평가가 필요하다.
+- **helper:** `experiments/claude-usage-refresh/claude-usage-helper.mjs`는 개발 전용이다. SDK를 동적 import하고 사용자 메시지를 생성하지 않는 generator로 initialize 후 usage 제어 요청을 **1회만** 호출하도록 작성했다. 사용자/assistant 메시지 또는 양의 세션 비용이 관찰되면 성공 출력을 하지 않는다. 성공 stdout은 `rate_limits_available`와 `five_hour`/`seven_day`의 `utilization`·`resets_at`만 남기고 원본 응답·계정·세션·인증 정보는 버린다. 오류 원문과 SDK stderr는 기록하지 않는다. 실제 SDK helper는 이번 단계에서 **실행하지 않았다**. 코드 구조가 모든 숨은 모델 작업을 배제한다는 실계정 보증도 아니다.
+- **배포 경계:** `package.json`은 `@anthropic-ai/claude-agent-sdk`를 `0.3.169`로 고정 선언했지만 npm 설치, lockfile, Node/SDK/helper 번들링, 앱 서명·업데이트·런타임 위치 결정은 하지 않았다. 현재 설치 v0.3.0과 빌드된 실험 앱 어디에서도 Adapter를 만들지 않으며 배포 완료 기능으로 간주하지 않는다. 추후 SDK/CLI 호환 버전, Node 포함 여부, 코드 서명, 프로세스 비용을 검토해야 한다.
+- **검증:** 이전 Node 정책 테스트 **9개 통과**. `ClaudeSDKProcessRunnerTests` 5개는 가짜 셸 helper와 Mock executor로 환경 제거·성공 JSON, 일반/신호 종료·잘못된 JSON, 타임아웃·출력 제한, 중복 거부·취소를 검증했다. 전체 XCTest **419개 통과**, Debug·Release 빌드 성공, `node --check`, Xcode 프로젝트 plist, `git diff --check` 통과. XCTest 호스트는 Claude CLI·SDK를 실행하지 않았다. `ClaudeDirectUsageProvider`의 기본 runner는 계속 비활성이다.
+
+**남은 확인:** 실제 SDK의 401·403·429 전달 형식, 인증 캐시 영향, 서버 시각·데이터 신선도, 로그·프로세스 자원, 자동 호출 제한, helper/SDK/Node 배포는 미검증이다. 단일 runner actor의 중복 차단은 앱 전체에 인스턴스가 여러 개일 때의 전역 중복 방지가 아니다. 직접 조회 stale 기준과 자동 주기는 아직 정하지 않는다. SDK helper의 실제 단발성 호출과 제품 통합은 각각 별도 승인 후 진행한다.
+
+**블로그 소재 판단용:** 공식 SDK의 실험적 제어 요청을 앱 밖 자식 프로세스로 격리하면서 모델 메시지 경로와 출력 필드를 제한하고, 인증 원문을 앱 로그로 전파하지 않는 설계 과정. 타이머·취소 시 프로세스 그룹을 정리하고 개발 전용 helper를 제품 기능으로 오인하지 않도록 배포 경계를 명시한 점도 핵심이다. 블로그 본문은 작성하지 않는다.
+
 ## Swift Provider와 Mock 연결 단계 (2026-10-30)
 
 이 단계는 실제 계정·SDK·모델·인증 저장소에 접근하지 않았다. 기존 미커밋 Node 정책·문서를 보존하고 Node 테스트 **9개 통과**를 기준으로 했다. `src/Tokenly/Providers/ClaudeDirectUsageProvider.swift`에 `ClaudeUsageRunning` 실행 경계, 항상 비활성인 기본 runner, `ClaudeDirectUsageParser`, `ClaudeUsageSelection`을 구현했다. Swift 파일을 Xcode 타깃 Sources에 등록했다. SDK 호출 adapter, `ExternalProviderStore`·팝오버 연결 및 자동 타이머는 **없다**. 설치 v0.3.0의 Claude 동작은 statusLine 그대로다.
