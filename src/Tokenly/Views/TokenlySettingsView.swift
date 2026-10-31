@@ -107,7 +107,9 @@ struct TokenlySettingsView: View {
             Text("Claude Code · 구독 한도").font(.subheadline.weight(.semibold))
 #if TOKENLY_CLAUDE_DEV
             if ClaudeDevelopmentConfiguration.isEnabled {
-                Text("개발 검증 앱: SDK 조회와 기존 상태줄 수신을 함께 사용합니다. 실계정 자동 조회는 별도 승인 후 실행하세요.")
+                Text(ClaudeDevelopmentConfiguration.isMock
+                     ? "가상 데이터 검증 앱: 실제 Claude 계정에 요청하지 않습니다."
+                     : "개발 검증 앱: SDK 조회와 기존 상태줄 수신을 함께 사용합니다. 실계정 자동 조회는 별도 승인 후 실행하세요.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 Text("공식 상태줄의 5시간·7일 한도만 사용합니다. 설정 연결과 실제 계정 수신은 별도 확인이 필요합니다.")

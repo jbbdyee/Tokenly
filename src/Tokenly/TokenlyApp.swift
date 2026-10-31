@@ -4,7 +4,11 @@ import SwiftUI
 
 /// Started by `TokenlyMain` (the process entry point) when no command-line mode was requested.
 struct TokenlyApp: App {
+#if TOKENLY_CLAUDE_DEV
+    @StateObject private var store = UsageStore(provider: ClaudeDevelopmentConfiguration.DisabledCodexProvider())
+#else
     @StateObject private var store = UsageStore(provider: CodexUsageProvider())
+#endif
     @StateObject private var loginItem = LoginItemManager()
     @StateObject private var displaySettings: ProviderDisplaySettings
     @StateObject private var externalStore: ExternalProviderStore
@@ -19,7 +23,11 @@ struct TokenlyApp: App {
     private let quitMenu = MenuBarQuitMenu()
 
     init() {
+#if TOKENLY_CLAUDE_DEV
+        let display = ProviderDisplaySettings(defaultCodexVisible: false, defaultClaudeVisible: true)
+#else
         let display = ProviderDisplaySettings()
+#endif
         _displaySettings = StateObject(wrappedValue: display)
         appearanceApplier = AppAppearanceApplier(settings: display)
 #if TOKENLY_CLAUDE_DEV

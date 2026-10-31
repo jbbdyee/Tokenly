@@ -56,7 +56,9 @@ struct UsageMenuView: View {
                         Text("Codex는 1분 조건, AGY는 5분 조건으로 자동 조회합니다.")
 #if TOKENLY_CLAUDE_DEV
                     if ClaudeDevelopmentConfiguration.isEnabled {
-                        Text("Claude 개발 검증 앱: SDK 조회와 Claude Code 상태줄 수신을 구분해 표시합니다. SDK 조회 실패 시 이전 데이터나 상태줄 데이터를 사용할 수 있습니다.")
+                        Text(ClaudeDevelopmentConfiguration.isMock
+                             ? "가상 데이터 검증: 실제 Claude 계정 조회가 아닙니다. SDK 조회와 상태줄 대체 표시를 시험합니다."
+                             : "Claude 개발 검증 앱: SDK 조회와 Claude Code 상태줄 수신을 구분해 표시합니다. SDK 조회 실패 시 이전 데이터나 상태줄 데이터를 사용할 수 있습니다.")
                     } else {
                         Text("Claude는 Claude Code 사용 중 전달된 한도를 표시합니다. 앱에서 서버에 직접 조회하지 않습니다.")
                     }
@@ -299,7 +301,8 @@ struct UsageMenuView: View {
 #if TOKENLY_CLAUDE_DEV
         if ClaudeDevelopmentConfiguration.isEnabled,
            let direct = snapshot.sourceTimes[.directCLI] {
-            var pieces = ["SDK 조회 마지막 성공 \(CompactDateTime.string(for: direct))"]
+            let prefix = ClaudeDevelopmentConfiguration.isMock ? "가상 SDK 조회" : "SDK 조회"
+            var pieces = ["\(prefix) 마지막 성공 \(CompactDateTime.string(for: direct))"]
             if let feed = snapshot.sourceTimes[.statusLine] {
                 pieces.append("상태줄 마지막 수신 \(CompactDateTime.string(for: feed))")
             }
@@ -431,7 +434,9 @@ enum UsagePopoverCopy {
     static var footer: String {
 #if TOKENLY_CLAUDE_DEV
         if ClaudeDevelopmentConfiguration.isEnabled {
-            return "Codex · AGY 자동 갱신 | Claude SDK 개발 검증 중"
+            return ClaudeDevelopmentConfiguration.isMock
+                ? "가상 Claude 데이터 · 실제 계정 조회 없음"
+                : "Codex · AGY 자동 갱신 | Claude SDK 개발 검증 중"
         }
 #endif
         return "Codex · AGY 자동 갱신 | Claude 사용 중 갱신"

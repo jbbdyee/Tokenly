@@ -198,4 +198,69 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         do { _ = try await provider.fetch(); XCTFail("expected cancellation") }
         catch { XCTAssertTrue(error is CancellationError) }
     }
+
+    @MainActor
+    func testExternalStoreKeepsClaudeDataAfterMockProcessFailure() async throws {
+        let clock = Clock()
+        let runner = SequenceRunner([.success(directJSON), .failure(.timeout)])
+        let provider = ClaudeOptionalUsageProvider(
+            statusLine: MockStatusLine(result: .success(status(clock.date.addingTimeInterval(-5)))),
+            route: .experimentalDirect(provider: ClaudeDirectUsageProvider(runner: runner,
+                                                                           now: { clock.date }),
+                                       maxAge: 900), now: { clock.date })
+        let name = "tokenly.claude.integration.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = ProviderDisplaySettings(defaults: defaults)
+        let store = ExternalProviderStore(displaySettings: settings, now: { clock.date },
+                                          providers: [.claude: provider])
+        let firstTask = try XCTUnwrap(store.refresh(.claude))
+        await firstTask.value
+        guard case .success(let first) = store.state(for: .claude) else {
+            return XCTFail("first mock result should be available")
+        }
+        XCTAssertEqual(first.source, .directCLI)
+        clock.date = clock.date.addingTimeInterval(300)
+        let secondTask = try XCTUnwrap(store.refresh(.claude))
+        await secondTask.value
+        guard case .success(let second) = store.state(for: .claude) else {
+            return XCTFail("previous direct result should survive process failure")
+        }
+        XCTAssertEqual(second.sourceTimes[.directCLI], first.fetchedAt)
+        XCTAssertEqual(second.fetchedAt, first.fetchedAt)
+    }
+
+#if TOKENLY_CLAUDE_DEV
+    @MainActor
+    func testDevelopmentDefaultsShowOnlyClaudeWithoutWritingProductionDomain() {
+        let name = "tokenly.claude.mock.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = ProviderDisplaySettings(defaults: defaults,
+                                               defaultCodexVisible: false,
+                                               defaultClaudeVisible: true)
+        XCTAssertFalse(settings.showsCodex)
+        XCTAssertFalse(settings.showsAGY)
+        XCTAssertTrue(settings.showsClaude)
+    }
+
+    func testDevelopmentMockRequiresSafeProcessAndFeedPaths() {
+        let unsafe = ClaudeDevelopmentConfiguration.makeProvider(environment: [
+            "TOKENLY_CLAUDE_DEV_ENABLE": "1", "TOKENLY_CLAUDE_DEV_MOCK": "1",
+            "TOKENLY_CLAUDE_DEV_NODE": "/opt/homebrew/bin/node",
+            "TOKENLY_CLAUDE_DEV_HELPER": "/private/tmp/tokenly-claude-dev-mock-1/helper.sh",
+            "TOKENLY_CLAUDE_DEV_CLI": "/opt/homebrew/bin/claude",
+            "TOKENLY_CLAUDE_DEV_STATUSLINE": "/private/tmp/tokenly-claude-dev-mock-1/feed.json",
+        ])
+        if case .statusLineOnly = unsafe.route {} else { XCTFail("unsafe mock paths must be disabled") }
+        let safe = ClaudeDevelopmentConfiguration.makeProvider(environment: [
+            "TOKENLY_CLAUDE_DEV_ENABLE": "1", "TOKENLY_CLAUDE_DEV_MOCK": "1",
+            "TOKENLY_CLAUDE_DEV_NODE": "/bin/sh",
+            "TOKENLY_CLAUDE_DEV_HELPER": "/private/tmp/tokenly-claude-dev-mock-1/helper.sh",
+            "TOKENLY_CLAUDE_DEV_CLI": "/usr/bin/true",
+            "TOKENLY_CLAUDE_DEV_STATUSLINE": "/private/tmp/tokenly-claude-dev-mock-1/feed.json",
+        ])
+        if case .experimentalDirect = safe.route {} else { XCTFail("safe mock route should connect") }
+    }
+#endif
 }

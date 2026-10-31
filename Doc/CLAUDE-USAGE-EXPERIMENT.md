@@ -1,5 +1,14 @@
 # Claude 개인 구독 사용량 독립 조회 실험 조사
 
+## 개발 앱 가상 응답 사전 검증 (2026-10-31)
+
+- 시작 상태: `experiment/claude-usage-refresh` / `b77d345`, 미추적 GPU 로그 2개 외 작업 트리 깨끗함. 기존 개발 앱의 번들 ID는 `io.github.jbbdyee.tokenly.claudeverify.20261031`, 표시명은 `Tokenly Claude 검증`, 경로는 `/private/tmp/tokenly-claude-dev-20261031/DerivedData/Build/Products/Debug/Tokenly.app`이다. 같은 번들 ID의 `.standard` UserDefaults 도메인은 설치 앱과 분리된다. Node 24.22.1, Claude CLI 2.1.292, SDK 0.3.169 설치 경로와 helper 파일 존재를 확인했지만 **실제 SDK/계정 조회는 실행하지 않았다**.
+- 개발 빌드에 `TOKENLY_CLAUDE_DEV_MOCK=1` 전용 제한을 추가했다. 이 모드에서는 `/bin/sh`·`/usr/bin/true`·`/private/tmp/tokenly-claude-dev-mock-*` helper 경로만 허용하며 임시 상태줄 파일을 읽는다. 개발 빌드의 Codex Provider는 비활성 가짜 Provider이고 기본 화면에는 Claude만 표시된다. 따라서 가상 앱 실행이 Codex·AGY 인증 조회를 시작하지 않는다. 설정 화면의 연결 변경 버튼도 개발 빌드에서 숨겼다. 정식 빌드는 기존 Provider·기본값을 유지한다.
+- 임시 Mock helper는 가상 5시간·7일 JSON만 출력하고 호출 시각만 기록한다. 가상 상태줄 파일도 임시 경로에 있다. 개발 앱 프로세스를 실행했지만 팝오버를 열기 전 가짜 helper 호출은 **0회**였다. 별도 개발 도메인에는 메뉴 막대 상태 항목만 생겼다. UI 자동화 native pipe가 시작되지 않아 화면은 직접 확인하지 못했다. 사용자에게 `Tokenly Claude 검증` 아이콘의 Claude 항목과 `가상 데이터` 안내 캡처를 요청했다. 프로세스 실행/가짜 helper 호출과 실제 Claude 조회 성공을 혼동하지 않는다.
+- **사용자 화면 확인(후속):** 개발용 Mock 팝오버 캡처에서 가상 5시간 80%·7일 65% 잔여, 메뉴 막대와 팝오버 값 일치, 초기화 시각·가상 SDK 마지막 성공 시각·가상 데이터 안내를 확인했고 눈에 띄는 겹침/잘림은 없었다. 이 캡처는 가상 데이터 UI 검증이며 실제 SDK 호출·계정 조회의 증거가 아니다. 별도 calls.txt에는 호출 수가 기록되지 않아 프로세스 실행 횟수는 이 파일로 확정하지 않는다.
+- Mock 통합 XCTest에서 첫 직접 결과가 Store에 반영되고 다음 가짜 실패 뒤 같은 성공 시각/값이 보존됨을 확인했다. 개발 조건 XCTest 13개와 일반 전체 XCTest 430개, 개발 Debug·일반 Release 빌드가 통과했다. 화면의 가상 직접 조회 값과 시각 문구는 사용자 캡처로 확인했고, 상태줄 폴백·실패 화면은 자동 테스트 범위다. 현재 개발 앱은 Mock으로만 실행 중이며 실제 SDK 호출이 가능한 환경 변수는 전달하지 않았다. 별도 임시 사전점검 폴더에 최신 helper 코드만 복사하고 기존 SDK `node_modules` 링크를 두어 Node 문법·SDK 모듈 경로 해석과 helper SHA-256 일치를 확인했다. SDK import, helper 실행, 인증 접근은 없었다.
+
+
 ## 개발 앱 전용 자동 조회 구현 (2026-10-31)
 
 - `scripts/build-claude-dev.sh`는 저장소 밖 `/private/tmp/tokenly-claude-dev-20261031/`에 `TOKENLY_CLAUDE_DEV` 컴파일 조건과 별도 번들 ID `io.github.jbbdyee.tokenly.claudeverify.20261031`을 가진 Debug 앱을 빌드한다. 표시명도 `Tokenly Claude 검증`으로 구분한다. 빌드 스크립트는 앱을 실행하거나 SDK를 호출하지 않는다. 별도 번들 ID로 `.standard` UserDefaults 도메인이 분리되며, 기존 statusLine 수신 파일은 읽기 전용 폴백으로 유지한다. 개발 앱 설정 UI에서는 기존 Claude·AGY 연결 변경 버튼을 숨겼다. 기존 연결·설정·설치본은 변경하지 않았다.

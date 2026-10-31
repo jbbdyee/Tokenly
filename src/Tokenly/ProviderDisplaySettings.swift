@@ -73,11 +73,12 @@ final class ProviderDisplaySettings: ObservableObject {
 
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard,
+         defaultCodexVisible: Bool = true, defaultClaudeVisible: Bool = false) {
         self.defaults = defaults
-        showsCodex = defaults.object(forKey: Self.codexVisibilityKey) as? Bool ?? true
+        showsCodex = defaults.object(forKey: Self.codexVisibilityKey) as? Bool ?? defaultCodexVisible
         showsAGY = defaults.bool(forKey: Self.agyVisibilityKey)
-        showsClaude = defaults.bool(forKey: Self.claudeVisibilityKey)
+        showsClaude = defaults.object(forKey: Self.claudeVisibilityKey) as? Bool ?? defaultClaudeVisible
         showsOpenAIAPI = defaults.bool(forKey: Self.openAIVisibilityKey)
         codexExpanded = defaults.object(forKey: Self.codexExpandedKey) as? Bool ?? true
         agyExpanded = defaults.object(forKey: Self.agyExpandedKey) as? Bool ?? false
