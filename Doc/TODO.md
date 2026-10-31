@@ -1,5 +1,13 @@
 # Tokenly 개발 TODO (가칭)
 
+## Claude 개발 앱 구현 상태 (2026-10-31)
+
+- [x] 별도 번들 ID·경로의 개발 빌드와 명시적 SDK 활성화 조건, 실행 환경 누락 시 statusLine 경로 유지
+- [x] 5분 최소 조건·중복 방지·실패 백오프·절전 복귀 기한 검사 및 401/403/429/SDK 오류 안전 처리의 Mock 경로; 전체 XCTest 429개 및 일반 Debug·Release/개발 Debug 빌드 통과
+- [ ] 실제 SDK 오류 객체 형태와 429 Retry-After, 자동 조회 호출 제한·비용·인증 상태 검증
+- [ ] 사용자 승인 뒤 개발 앱 실계정/장시간 검증, Node·SDK·helper 번들링과 다른 Mac 배포 시험
+
+
 ## Claude 개발 앱 검증 후 정식 출시 (2026-10-31)
 
 - [x] 실험 Provider·SDK Adapter·helper·단발성 두 창 응답과 기본 비활성 Mock 경로 확보

@@ -1,7 +1,6 @@
 import Foundation
 
-/// This is an explicit, developer-injected experiment. Production initialization never selects
-/// `.experimentalDirect`; no persisted flag, UI toggle, or SDK package is shipped for it yet.
+/// Only the separately built development app may inject `.experimentalDirect`.
 enum ClaudeUsageRoute {
     case statusLineOnly
     case experimentalDirect(provider: ClaudeDirectUsageProvider, maxAge: TimeInterval)
@@ -13,13 +12,16 @@ struct ClaudeOptionalUsageProvider: ExternalUsageProvider {
     let route: ClaudeUsageRoute
     let now: () -> Date
     private let state = ClaudeOptionalUsageState()
+    private let gate: ClaudeDirectRefreshGate
 
     init(statusLine: any ExternalUsageProvider = ClaudeSubscriptionProvider(),
          route: ClaudeUsageRoute = .statusLineOnly,
-         now: @escaping () -> Date = Date.init) {
+         now: @escaping () -> Date = Date.init,
+         gate: ClaudeDirectRefreshGate = ClaudeDirectRefreshGate()) {
         self.statusLine = statusLine
         self.route = route
         self.now = now
+        self.gate = gate
     }
 
     func fetch() async throws -> ExternalUsageSnapshot {
@@ -29,7 +31,18 @@ struct ClaudeOptionalUsageProvider: ExternalUsageProvider {
         case .experimentalDirect(let direct, let maxAge):
             // Both sources are attempted independently. A direct failure never prevents the
             // existing statusLine path from supplying a fresh snapshot.
-            let directResult = try? await direct.fetch()
+            var directResult: ClaudeDirectResult?
+            if await gate.begin(at: now()) {
+                do {
+                    directResult = try await direct.fetch()
+                    await gate.finish(error: nil, at: now())
+                } catch is CancellationError {
+                    await gate.finish(error: CancellationError(), at: now())
+                    throw CancellationError()
+                } catch {
+                    await gate.finish(error: error, at: now())
+                }
+            }
             let statusResult = try? await statusLine.fetch()
             return try await state.combine(direct: directResult, statusLine: statusResult,
                                            now: now(), directMaxAge: maxAge)

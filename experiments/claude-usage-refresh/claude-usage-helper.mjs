@@ -1,6 +1,7 @@
 // Development-only SDK bridge. Do not invoke without separate real-account authorization.
 // stdout is one minimal JSON object on success; never print SDK errors or raw responses.
-const EXIT = { unavailable: 20, unexpectedMessage: 21, failed: 22, incompatible: 23 };
+const EXIT = { unavailable: 20, unexpectedMessage: 21, failed: 22, incompatible: 23,
+               authentication: 24, permission: 25, rateLimited: 26 };
 let session;
 let timer;
 let messageSeen = false;
@@ -69,9 +70,15 @@ try {
     await Promise.race([observed, new Promise((resolve) => setTimeout(resolve, 100))]);
   }
 } catch (error) {
-  // Actual SDK errors and HTTP status shapes are not a supported contract yet.
+  // Inspect only numeric status fields; never print SDK error text or a response body.
+  // The SDK's actual error shape is not yet verified against a real failure.
+  const status = [error?.status, error?.statusCode, error?.response?.status]
+    .find((value) => typeof value === 'number');
   process.exitCode = error?.message === 'incompatible_sdk' ? EXIT.incompatible
-    : error?.code === 'ERR_MODULE_NOT_FOUND' ? EXIT.unavailable : EXIT.failed;
+    : error?.code === 'ERR_MODULE_NOT_FOUND' ? EXIT.unavailable
+    : status === 401 ? EXIT.authentication
+    : status === 403 ? EXIT.permission
+    : status === 429 ? EXIT.rateLimited : EXIT.failed;
 } finally {
   if (timer) clearTimeout(timer);
   session?.close();

@@ -19,7 +19,7 @@ struct UsageMenuView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Codex·AGY는 공식 CLI로 조회하고 Claude는 로컬 상태줄 파일을 다시 읽습니다")
+                .help(UsagePopoverCopy.refreshHelp)
                 .accessibilityLabel("모든 서비스 새로고침")
                 Button { settingsWindow.show(openSettings: openSettings.callAsFunction) } label: {
                     Image(systemName: "gearshape")
@@ -54,7 +54,15 @@ struct UsageMenuView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("갱신 방식").font(.headline)
                         Text("Codex는 1분 조건, AGY는 5분 조건으로 자동 조회합니다.")
+#if TOKENLY_CLAUDE_DEV
+                    if ClaudeDevelopmentConfiguration.isEnabled {
+                        Text("Claude 개발 검증 앱: SDK 조회와 Claude Code 상태줄 수신을 구분해 표시합니다. SDK 조회 실패 시 이전 데이터나 상태줄 데이터를 사용할 수 있습니다.")
+                    } else {
                         Text("Claude는 Claude Code 사용 중 전달된 한도를 표시합니다. 앱에서 서버에 직접 조회하지 않습니다.")
+                    }
+#else
+                    Text("Claude는 Claude Code 사용 중 전달된 한도를 표시합니다. 앱에서 서버에 직접 조회하지 않습니다.")
+#endif
                         Text("AGY 직접 조회가 실패하면 상태줄 수신값을 대신 표시할 수 있습니다.")
                         if let date = externalStore.agySourceTimes[.directCLI] {
                             Text("AGY 직접 조회 마지막 성공: \(CompactDateTime.string(for: date))")
@@ -274,17 +282,31 @@ struct UsageMenuView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let previous {
                     claudeMetrics(previous.metrics)
-                    Text("이전 데이터 · 마지막 수신 \(CompactDateTime.string(for: previous.fetchedAt))")
+                    Text("이전 데이터 · \(claudeReceipt(previous))")
                         .font(.caption2).foregroundStyle(.secondary)
                         .help(CompactDateTime.fullString(for: previous.fetchedAt))
                 }
             case .success(let value):
                 claudeMetrics(value.metrics)
-                Text("마지막 수신 \(CompactDateTime.string(for: value.fetchedAt))")
+                Text(claudeReceipt(value))
                     .font(.caption2).foregroundStyle(.secondary)
                     .help(CompactDateTime.fullString(for: value.fetchedAt))
             }
         }
+    }
+
+    private func claudeReceipt(_ snapshot: ExternalUsageSnapshot) -> String {
+#if TOKENLY_CLAUDE_DEV
+        if ClaudeDevelopmentConfiguration.isEnabled,
+           let direct = snapshot.sourceTimes[.directCLI] {
+            var pieces = ["SDK 조회 마지막 성공 \(CompactDateTime.string(for: direct))"]
+            if let feed = snapshot.sourceTimes[.statusLine] {
+                pieces.append("상태줄 마지막 수신 \(CompactDateTime.string(for: feed))")
+            }
+            return pieces.joined(separator: " · ")
+        }
+#endif
+        return "마지막 수신 \(CompactDateTime.string(for: snapshot.fetchedAt))"
     }
 
     @ViewBuilder
@@ -406,7 +428,23 @@ struct UsageMenuView: View {
 }
 
 enum UsagePopoverCopy {
-    static let footer = "Codex · AGY 자동 갱신 | Claude 사용 중 갱신"
+    static var footer: String {
+#if TOKENLY_CLAUDE_DEV
+        if ClaudeDevelopmentConfiguration.isEnabled {
+            return "Codex · AGY 자동 갱신 | Claude SDK 개발 검증 중"
+        }
+#endif
+        return "Codex · AGY 자동 갱신 | Claude 사용 중 갱신"
+    }
+
+    static var refreshHelp: String {
+#if TOKENLY_CLAUDE_DEV
+        if ClaudeDevelopmentConfiguration.isEnabled {
+            return "Codex·AGY를 조회하고 Claude 개발용 SDK 조회 조건을 확인합니다"
+        }
+#endif
+        return "Codex·AGY는 공식 CLI로 조회하고 Claude는 로컬 상태줄 파일을 다시 읽습니다"
+    }
 
     static func claudeStatus(_ state: ExternalLoadState) -> String? {
         switch state {

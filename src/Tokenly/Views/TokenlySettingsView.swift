@@ -96,14 +96,38 @@ struct TokenlySettingsView: View {
                     if form.agyFeedExists { _ = externalStore.refresh(.antigravity) }
                 }
             }
+#if TOKENLY_CLAUDE_DEV
+            Text("개발 검증 앱에서는 기존 AGY 연결 설정을 변경하지 않습니다.")
+                .font(.caption).foregroundStyle(.secondary)
+#else
             connectCommandButton(.agy)
+#endif
             externalStatus(.antigravity)
             Divider()
             Text("Claude Code · 구독 한도").font(.subheadline.weight(.semibold))
+#if TOKENLY_CLAUDE_DEV
+            if ClaudeDevelopmentConfiguration.isEnabled {
+                Text("개발 검증 앱: SDK 조회와 기존 상태줄 수신을 함께 사용합니다. 실계정 자동 조회는 별도 승인 후 실행하세요.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("공식 상태줄의 5시간·7일 한도만 사용합니다. 설정 연결과 실제 계정 수신은 별도 확인이 필요합니다.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+#else
             Text("공식 상태줄의 5시간·7일 한도만 사용합니다. 설정 연결과 실제 계정 수신은 별도 확인이 필요합니다.")
                 .font(.caption).foregroundStyle(.secondary)
+#endif
             HStack {
+#if TOKENLY_CLAUDE_DEV
                 Toggle("Claude를 팝오버에 표시", isOn: $displaySettings.showsClaude)
+                    .onChange(of: displaySettings.showsClaude) { _, enabled in
+                        if enabled, ClaudeDevelopmentConfiguration.isEnabled {
+                            externalStore.start()
+                        }
+                    }
+#else
+                Toggle("Claude를 팝오버에 표시", isOn: $displaySettings.showsClaude)
+#endif
                 Button("수신 확인") {
                     form.claudeFeedExists = ClaudeSubscriptionProvider().hasFeed
                     _ = externalStore.refresh(.claude)
@@ -111,7 +135,12 @@ struct TokenlySettingsView: View {
             }
             Text(form.claudeFeedExists ? "상태줄 수신 파일 있음" : "상태줄 수신 파일 없음 · Claude Code 설정 필요")
                 .font(.caption).foregroundStyle(.secondary)
+#if TOKENLY_CLAUDE_DEV
+            Text("개발 검증 앱에서는 기존 Claude 연결 설정을 변경하지 않습니다.")
+                .font(.caption).foregroundStyle(.secondary)
+#else
             connectCommandButton(.claude)
+#endif
             externalStatus(.claude)
             Divider()
             Text("Gemini · 연동 검증 예정").font(.subheadline)

@@ -1,5 +1,15 @@
 # Claude 개인 구독 사용량 독립 조회 실험 조사
 
+## 개발 앱 전용 자동 조회 구현 (2026-10-31)
+
+- `scripts/build-claude-dev.sh`는 저장소 밖 `/private/tmp/tokenly-claude-dev-20261031/`에 `TOKENLY_CLAUDE_DEV` 컴파일 조건과 별도 번들 ID `io.github.jbbdyee.tokenly.claudeverify.20261031`을 가진 Debug 앱을 빌드한다. 표시명도 `Tokenly Claude 검증`으로 구분한다. 빌드 스크립트는 앱을 실행하거나 SDK를 호출하지 않는다. 별도 번들 ID로 `.standard` UserDefaults 도메인이 분리되며, 기존 statusLine 수신 파일은 읽기 전용 폴백으로 유지한다. 개발 앱 설정 UI에서는 기존 Claude·AGY 연결 변경 버튼을 숨겼다. 기존 연결·설정·설치본은 변경하지 않았다.
+- 개발 빌드에서도 런타임 `TOKENLY_CLAUDE_DEV_ENABLE=1`과 Node/helper/Claude CLI 절대 경로 3개를 명시해야 직접 조회 route가 생성된다. 누락 시 statusLine 전용이다. 정식 빌드에는 이 연결 코드가 컴파일되지 않는다. 개발 앱이 실행될 때 Codex·AGY 기존 경로는 남아 있으므로 실제 계정 검증 단계에서 별도 영향 점검이 필요하다. 이번에는 개발 앱을 실행하지 않았다.
+- `ExternalProviderStore`의 기존 300초 타이머가 개발 앱의 Claude route를 조건부 검사한다. 별도 `ClaudeDirectRefreshGate`가 성공 뒤 최소 300초, 중복 진행 중 요청 거부, 일시적 실패 뒤 5/10/20/40/60분 백오프를 담당한다. 401/403, SDK 부재·비호환은 자동 조회를 중지하고, 429는 `Retry-After`가 현재 helper에서 전달되지 않으므로 자동 조회를 중지한다. 절전 복귀 알림은 개발 빌드에서만 기한 조건을 다시 검사한다. 이 주기는 공식 Anthropic 호출 제한이 아닌 초기 개발 정책이다. statusLine은 각 검사에서 계속 독립적으로 읽으며 마지막 직접 성공 시각을 실패 시 바꾸지 않는다.
+- helper는 오류 원문을 출력하지 않고 `status`, `statusCode`, `response.status`의 숫자 값이 있으면 401/403/429만 전용 종료 코드로 변환한다. Swift Adapter는 이를 별도 오류로 바꾼다. 실제 SDK 오류 객체 형태와 `Retry-After` 지원은 미검증이므로 오류를 실제로 정확히 분류한다고 단정하지 않는다. 미지 SDK 오류(전용 종료 코드 22)는 자동 조회를 중지하고, 별도의 프로세스 전송 실패만 백오프한다. SDK/helper/Node가 없으면 앱은 statusLine으로 계속 동작한다.
+- 검증: 기존 정책 Node 테스트 9개, 전체 XCTest **429개** 통과. 일반 Debug·Release 및 별도 ID 개발 Debug 앱 빌드 성공, `node --check`, Xcode 프로젝트 plist, `git diff --check` 통과. 개발 앱 번들 ID/표시명은 빌드 산출물에서 확인했다. CoreSimulator 버전 경고는 있었으나 macOS 테스트·빌드는 종료 코드 0이었다. SDK helper·실계정 자동 조회는 실행하지 않았다.
+- 개발 UI는 직접 조회 성공 시각과 상태줄 수신 시각을 별도로 표시하며 개발 검증 표식을 쓴다. 두 창이 서로 다른 출처이면 스냅샷 시각은 더 오래된 수신 시각으로 보수적으로 잡는다. 창별 출처를 UI에 정확히 붙이는 상세 표시와 장시간 신선도 검증은 남았다. 현재 helper는 개발용 절대 경로 의존이며 lockfile·번들링·서명·다른 Mac 실행 검증이 없다. 실제 SDK 실행·계정 조회·모델 요청·장시간 자동 폴링은 이번 단계에 없었다.
+
+
 ## 개발 앱 완성·검증 계획 (2026-10-31, 계획만 확정)
 
 **현재 상태:** `ClaudeDirectUsageProvider`/파서, SDK 자식 프로세스 Adapter·개발 helper, 기본 비활성 `ClaudeOptionalUsageProvider`와 Mock 테스트가 있다. 승인된 단발성 실계정 조회에서는 두 창의 사용률과 초기화 시각 형태가 확인됐다. 현재 `ExternalProviderStore` 기본 Claude Provider는 `ClaudeSubscriptionProvider`이고 앱 진입점·타이머·UI에서 SDK 실행기를 만들지 않는다. 이번 계획 단계에는 계정 조회, helper 실행, 자동 폴링 및 설치 앱 변경이 없다.
@@ -9,7 +19,7 @@
 1. 별도 소스/DerivedData/실행 경로와 번들 ID(예: `io.github.jbbdyee.tokenly.claudeverify.20261031`)로 개발 앱을 빌드한다. UserDefaults 도메인·Tokenly 앱 데이터 쓰기 경로를 분리하고 `/Applications/Tokenly.app`과 기존 statusLine 설정은 그대로 둔다. statusLine 폴백은 기존 수신 파일을 읽기 전용으로 이용하되 재연결 명령은 실행하지 않는다. Claude 인증은 실계정 단계에서 SDK/CLI의 공식 로그인 재사용만 허용하며 파일·Keychain 비밀값을 직접 읽거나 복사하지 않는다.
 2. 개발 빌드 전용 구성에서만 `ClaudeSDKProcessRunner`와 `ClaudeOptionalUsageProvider.experimentalDirect`를 명시적으로 만들고 Store에 주입한다. 사용자의 별도 개발 앱 선택 전에는 비활성으로 둔다. 기존 앱/정식 빌드에는 토글과 실행 경로를 추가하지 않는다. 개발 앱 UI는 직접 조회와 statusLine의 출처·각 마지막 성공/수신 시각을 구분하며, 오래된 이전값을 최신 성공으로 표시하지 않는다. `마지막 수신`·`Claude 사용 중 갱신`이라는 현행 문구는 직접 조회가 활성화된 개발 앱에 그대로 쓰지 않는다.
 3. 직접 조회 스케줄러는 statusLine 파일 재읽기 타이머와 분리한다. **초기 제안 정책**은 성공 후 최소 5분 간격의 조건부 검사다. 명시적으로 활성화하고 최초 조회를 승인받기 전에는 실행하지 않는다. 요청 중에는 중복 금지; 절전 복귀와 팝오버 재열기는 기한이 지났을 때만 1회 요청한다. 일시적 실패/타임아웃은 5·10·20·40·60분 지수 백오프(상한 60분)를 제안하고, 성공 시 초기화한다. 수동 조회의 정책·호출 제한은 실측 후 정한다. 이 수치는 공식 호출 제한이 아니라 안전한 개발 기본안이며 서버 제한 확인 전 제품 정책으로 확정하지 않는다.
-4. `rate_limits_available=true`/`rate_limits=null`, 필드 부재/부분 성공, 잘못된 숫자·시각은 가용한 창만 채택하고 마지막 성공값의 원래 시각을 보존한다. 직접 조회 실패 시 statusLine을 창별로 사용한다. 15분 초과 값은 이전 데이터로만 표시하는 임시 신선도안을 검토한다. 401/403은 자동 조회를 멈추고 재로그인을 자동 실행하지 않는다. 429는 공식 재시도 시각이 확인되면 이를 따르고, 없으면 최소 60분 정지 후 사용자 재검토를 요구한다. 현재 helper가 실제 SDK 오류를 일반 실패로 감추므로 **오류 코드가 비민감하게 분류되는 계약을 확인하기 전에는 이 정책을 활성화할 수 없다.** 타임아웃·취소는 프로세스 그룹 정리와 상태 복원을 확인한다.
+4. `rate_limits_available=true`/`rate_limits=null`, 필드 부재/부분 성공, 잘못된 숫자·시각은 가용한 창만 채택하고 마지막 성공값의 원래 시각을 보존한다. 직접 조회 실패 시 statusLine을 창별로 사용한다. 15분 초과 값은 이전 데이터로만 표시하는 임시 신선도안을 검토한다. 401/403은 자동 조회를 멈추고 재로그인을 자동 실행하지 않는다. 429는 현재 `Retry-After`를 전달하지 못하므로 자동 중지한다. helper는 숫자 상태 필드만 401/403/429로 분류하지만 **실제 SDK 오류 형태를 확인하기 전에는 이 분류가 완전하다고 볼 수 없다.** 타임아웃·취소는 프로세스 그룹 정리와 상태 복원을 확인한다.
 5. 개발 환경에서는 Node·SDK 0.3.169·helper·Claude CLI의 절대 경로를 주입한다. 다른 Mac 배포 후보는 호환 Node와 정확한 SDK 버전을 lockfile로 고정해 앱 내부에 포함하고 helper 무결성/서명·notarization·아키텍처·최소 macOS·Claude CLI 탐색/버전·오프라인 누락을 시험하는 것이다. 현재 package.json에는 lockfile이 없고 `scripts/release.sh`도 이 세 가지를 번들링하지 않는다. 외부 `node`/개발용 `node_modules` 절대 경로에 의존하는 빌드는 다른 Mac에서 실행 가능하다고 판정하지 않는다.
 
 ### 단계별 통과 기준과 중단 조건

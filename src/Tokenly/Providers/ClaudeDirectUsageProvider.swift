@@ -14,6 +14,7 @@ enum ClaudeUsageRunnerError: Error, Equatable {
     case timeout
     case unavailable
     case incompatibleSDK
+    case sdkFailure
     case transport
     case inProgress
     case unsafeOutput

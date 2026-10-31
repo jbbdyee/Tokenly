@@ -1,4 +1,7 @@
 import Foundation
+#if TOKENLY_CLAUDE_DEV
+import AppKit
+#endif
 
 enum ExternalLoadState {
     case idle
@@ -29,6 +32,9 @@ final class ExternalProviderStore: ObservableObject {
     private let now: () -> Date
     private var timer: Timer?
     private var lastAutomaticAGYAttempt: Date?
+#if TOKENLY_CLAUDE_DEV
+    private var claudeWakeObserver: NSObjectProtocol?
+#endif
 
     init(displaySettings: ProviderDisplaySettings,
          now: @escaping () -> Date = Date.init,
@@ -45,6 +51,18 @@ final class ExternalProviderStore: ObservableObject {
     func start() {
         guard timer == nil else { return }
         refreshSelected()
+#if TOKENLY_CLAUDE_DEV
+        if claudeWakeObserver == nil, ClaudeDevelopmentConfiguration.isEnabled {
+            claudeWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self, self.displaySettings.showsClaude else { return }
+                    _ = self.refresh(.claude) // The provider gate checks eligibility after wake.
+                }
+            }
+        }
+#endif
         timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.refreshSelected() }
         }

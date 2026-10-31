@@ -22,7 +22,15 @@ struct TokenlyApp: App {
         let display = ProviderDisplaySettings()
         _displaySettings = StateObject(wrappedValue: display)
         appearanceApplier = AppAppearanceApplier(settings: display)
+#if TOKENLY_CLAUDE_DEV
+        _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display, providers: [
+            .claude: ClaudeDevelopmentConfiguration.makeProvider(),
+            .antigravity: AGYCombinedProvider(),
+            .openAIAPI: OpenAIAPIUsageProvider()
+        ]))
+#else
         _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display))
+#endif
         _systemWidgets = StateObject(wrappedValue: SystemWidgetController(store: SystemMonitorStore(),
                                                                           processTop: ProcessTopStore()))
     }
@@ -49,7 +57,14 @@ struct TokenlyApp: App {
                     .accessibilityLabel("Tokenly, \(label)")
                     .onAppear {
                         store.start()
+#if TOKENLY_CLAUDE_DEV
+                        if displaySettings.showsAGY ||
+                            (ClaudeDevelopmentConfiguration.isEnabled && displaySettings.showsClaude) {
+                            externalStore.start()
+                        }
+#else
                         if displaySettings.showsAGY { externalStore.start() }
+#endif
                         quitMenu.install()
                     }
             }

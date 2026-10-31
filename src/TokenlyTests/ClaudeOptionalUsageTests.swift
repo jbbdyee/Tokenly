@@ -13,6 +13,10 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         }
     }
 
+    private struct CancelRunner: ClaudeUsageRunning {
+        func getUsage() async throws -> Data { throw CancellationError() }
+    }
+
     private struct MockStatusLine: ExternalUsageProvider {
         let id: ExternalProviderID = .claude
         let result: Result<ExternalUsageSnapshot, ExternalProviderError>
@@ -81,13 +85,13 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         let provider = ClaudeOptionalUsageProvider(
             statusLine: MockStatusLine(result: .failure(.setupRequired)),
             route: .experimentalDirect(provider: ClaudeDirectUsageProvider(runner: runner, now: { clock.date }),
-                                       maxAge: 60), now: { clock.date })
+                                       maxAge: 600), now: { clock.date })
         let first = try await provider.fetch()
-        clock.date = clock.date.addingTimeInterval(30)
+        clock.date = clock.date.addingTimeInterval(300)
         let second = try await provider.fetch()
         XCTAssertEqual(second.fetchedAt, first.fetchedAt)
         XCTAssertEqual(second.sourceTimes[.directCLI], first.fetchedAt)
-        clock.date = clock.date.addingTimeInterval(31)
+        clock.date = clock.date.addingTimeInterval(301)
         do { _ = try await provider.fetch(); XCTFail("old direct data must be stale") }
         catch { XCTAssertEqual(error as? ExternalProviderError, .claudeStaleData) }
     }
@@ -107,5 +111,91 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertEqual(snapshot.sourceTimes[.statusLine], feed.fetchedAt)
         guard case .quotas(let quotas) = snapshot.metrics else { return XCTFail("expected quotas") }
         XCTAssertEqual(quotas.map(\.remainingPercent), [75, 70])
+    }
+
+    func testAutomaticGateWaitsFiveMinutesAndPreventsDuplicateStart() async {
+        let gate = ClaudeDirectRefreshGate()
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let gateValue1 = await gate.begin(at: start)
+        XCTAssertTrue(gateValue1)
+        let gateValue2 = await gate.begin(at: start)
+        XCTAssertFalse(gateValue2)
+        await gate.finish(error: nil, at: start)
+        let gateValue3 = await gate.begin(at: start.addingTimeInterval(299))
+        XCTAssertFalse(gateValue3)
+        let gateValue4 = await gate.begin(at: start.addingTimeInterval(300))
+        XCTAssertTrue(gateValue4)
+    }
+
+    func testTransientFailuresBackOffAndSuccessResetsInterval() async {
+        let gate = ClaudeDirectRefreshGate()
+        var time = Date(timeIntervalSince1970: 1_800_000_000)
+        for minutes in [5, 10, 20, 40, 60, 60] {
+            let gateValue5 = await gate.begin(at: time)
+            XCTAssertTrue(gateValue5)
+            await gate.finish(error: ClaudeUsageRunnerError.timeout, at: time)
+            let gateValue6 = await gate.begin(at: time.addingTimeInterval(TimeInterval(minutes * 60 - 1)))
+            XCTAssertFalse(gateValue6)
+            time = time.addingTimeInterval(TimeInterval(minutes * 60))
+        }
+        let gateValue7 = await gate.begin(at: time)
+        XCTAssertTrue(gateValue7)
+        await gate.finish(error: nil, at: time)
+        let gateValue8 = await gate.nextEligibleAt
+        XCTAssertEqual(gateValue8, time.addingTimeInterval(300))
+    }
+
+    func testAuthAndUnavailablePauseAutomaticAttempts() async {
+        for error in [ClaudeUsageRunnerError.authenticationRequired, .permissionDenied,
+                      .unavailable, .incompatibleSDK, .sdkFailure] {
+            let gate = ClaudeDirectRefreshGate()
+            let time = Date(timeIntervalSince1970: 1_800_000_000)
+            let gateValue9 = await gate.begin(at: time)
+            XCTAssertTrue(gateValue9)
+            await gate.finish(error: error, at: time)
+            let gateValue10 = await gate.isPaused
+            XCTAssertTrue(gateValue10)
+            let gateValue11 = await gate.begin(at: time.addingTimeInterval(86_400))
+            XCTAssertFalse(gateValue11)
+        }
+    }
+
+    func testRateLimitPausesAndCancellationWaitsBeforeRetry() async {
+        let gate = ClaudeDirectRefreshGate()
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let gateValue12 = await gate.begin(at: start)
+        XCTAssertTrue(gateValue12)
+        await gate.finish(error: ClaudeUsageRunnerError.rateLimited, at: start)
+        let gateValue13 = await gate.begin(at: start.addingTimeInterval(86_400))
+        XCTAssertFalse(gateValue13)
+        let cancelGate = ClaudeDirectRefreshGate()
+        let gateValue14 = await cancelGate.begin(at: start)
+        XCTAssertTrue(gateValue14)
+        await cancelGate.finish(error: CancellationError(), at: start)
+        let gateValue15 = await cancelGate.begin(at: start.addingTimeInterval(299))
+        XCTAssertFalse(gateValue15)
+        let gateValue16 = await cancelGate.begin(at: start.addingTimeInterval(300))
+        XCTAssertTrue(gateValue16)
+    }
+
+    func testWakeEligibilityDoesNotBypassMinimumInterval() async {
+        let gate = ClaudeDirectRefreshGate()
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let initial = await gate.begin(at: start)
+        XCTAssertTrue(initial)
+        await gate.finish(error: nil, at: start)
+        let earlyWake = await gate.begin(at: start.addingTimeInterval(120))
+        XCTAssertFalse(earlyWake)
+        let lateWake = await gate.begin(at: start.addingTimeInterval(7200))
+        XCTAssertTrue(lateWake)
+    }
+
+    func testCancelledDirectRequestPropagatesCancellation() async {
+        let provider = ClaudeOptionalUsageProvider(
+            statusLine: MockStatusLine(result: .failure(.setupRequired)),
+            route: .experimentalDirect(provider: ClaudeDirectUsageProvider(runner: CancelRunner()),
+                                       maxAge: 900))
+        do { _ = try await provider.fetch(); XCTFail("expected cancellation") }
+        catch { XCTAssertTrue(error is CancellationError) }
     }
 }

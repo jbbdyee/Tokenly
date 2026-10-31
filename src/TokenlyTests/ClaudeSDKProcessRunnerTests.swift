@@ -56,6 +56,15 @@ final class ClaudeSDKProcessRunnerTests: XCTestCase {
         try Data("exit 20\n".utf8).write(to: script)
         do { _ = try await executor(script).execute(); XCTFail("expected missing dependency") }
         catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .unavailable) }
+        try Data("exit 22\n".utf8).write(to: script)
+        do { _ = try await executor(script).execute(); XCTFail("expected unknown SDK error") }
+        catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .sdkFailure) }
+        for (exitCode, expected) in [(24, ClaudeUsageRunnerError.authenticationRequired),
+                                     (25, .permissionDenied), (26, .rateLimited)] {
+            try Data("exit \(exitCode)\n".utf8).write(to: script)
+            do { _ = try await executor(script).execute(); XCTFail("expected classified error") }
+            catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, expected) }
+        }
         try Data("printf 'bad json\\n'\n".utf8).write(to: script)
         let bad = try await executor(script).execute()
         XCTAssertThrowsError(try ClaudeDirectUsageParser.parse(bad, receivedAt: Date())) {

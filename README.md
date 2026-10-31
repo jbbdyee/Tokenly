@@ -1,5 +1,8 @@
 # Tokenly
 
+> 개발용 Claude 자동 조회는 `scripts/build-claude-dev.sh`로 만든 별도 Debug 앱에만 들어갑니다. 실행 시 명시적 활성화와 Node·SDK helper·Claude CLI 경로가 필요하며, 정식 v0.3.0 앱에는 포함되지 않습니다. 개발용 앱의 실계정 자동 조회는 아직 검증하지 않았습니다.
+
+
 > Claude 독립 자동 조회는 별도 개발 환경에서 검증 중입니다. 현재 정식 v0.3.0은 기존 Claude Code statusLine 수신 방식을 유지하며, 개발용 SDK 경로가 설치 앱에서 자동 실행되지는 않습니다.
 
 
