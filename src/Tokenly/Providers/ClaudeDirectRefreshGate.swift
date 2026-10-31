@@ -3,14 +3,20 @@ import Foundation
 /// A conservative gate for the development app. The five-minute interval is an initial
 /// experiment policy, not an Anthropic published minimum or a production polling contract.
 actor ClaudeDirectRefreshGate {
+    private let maxAttempts: Int?
+    private var attempts = 0
     private(set) var nextEligibleAt: Date?
     private(set) var isPaused = false
     private(set) var isInFlight = false
     private var transientFailures = 0
 
+    init(maxAttempts: Int? = nil) { self.maxAttempts = maxAttempts }
+
     func begin(at now: Date) -> Bool {
         guard !isPaused, !isInFlight,
+              maxAttempts.map({ attempts < $0 }) ?? true,
               nextEligibleAt.map({ now >= $0 }) ?? true else { return false }
+        attempts += 1
         isInFlight = true
         return true
     }

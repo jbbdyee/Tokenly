@@ -34,6 +34,7 @@ final class ExternalProviderStore: ObservableObject {
     private var lastAutomaticAGYAttempt: Date?
 #if TOKENLY_CLAUDE_DEV
     private var claudeWakeObserver: NSObjectProtocol?
+    private var realOnceStarted = false
 #endif
 
     init(displaySettings: ProviderDisplaySettings,
@@ -49,6 +50,14 @@ final class ExternalProviderStore: ObservableObject {
     }
 
     func start() {
+#if TOKENLY_CLAUDE_DEV
+        if ClaudeDevelopmentConfiguration.isRealOnce {
+            guard !realOnceStarted else { return }
+            realOnceStarted = true
+            refreshSelected()
+            return // No repeating timer or wake observer for the one-shot account check.
+        }
+#endif
         guard timer == nil else { return }
         refreshSelected()
 #if TOKENLY_CLAUDE_DEV
@@ -94,6 +103,11 @@ final class ExternalProviderStore: ObservableObject {
             }
             states[id] = settled
             settledStates[id] = settled
+#if TOKENLY_CLAUDE_DEV
+            if id == .claude, case .success(let snapshot) = settled {
+                ClaudeDevelopmentConfiguration.recordStore(snapshot)
+            }
+#endif
             if case .success(let snapshot) = result, id == .antigravity {
                 for (source, date) in snapshot.sourceTimes {
                     if date > (agySourceTimes[source] ?? .distantPast) { agySourceTimes[source] = date }

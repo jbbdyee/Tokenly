@@ -1,5 +1,14 @@
 # Claude 개인 구독 사용량 독립 조회 실험 조사
 
+## 별도 개발 앱의 승인된 단발 실계정 검증 (2026-10-31)
+
+- 기존 Mock 앱 검증 변경 8개 파일을 `462c278`로 커밋했다. 미추적 GPU 로그 2개는 제외·보존했다. 실계정 검증 앱은 저장소 밖 `/private/tmp/tokenly-claude-real-once-20261031/DerivedData/Build/Products/Debug/Tokenly.app`에 별도 번들 ID `io.github.jbbdyee.tokenly.clauderealone.20261031`로 빌드했다. `.standard` 설정 도메인은 기존 설치 앱과 Mock 앱의 번들 ID와 다르다. 설치 앱과 Mock 앱을 교체하거나 종료하지 않았다.
+- 실행 조건은 개발 컴파일 플래그, 명시적 활성화 환경 변수, **실계정 검증 번들 ID**, Node/helper/CLI 절대 경로를 모두 요구한다. `ClaudeDirectRefreshGate(maxAttempts: 1)`가 두 번째 직접 조회를 막는다. 이 앱의 `ExternalProviderStore.start()`는 최초 확인 뒤 반복 타이머와 절전 감시를 등록하지 않는다. Codex는 개발 빌드의 비활성 Provider이고 AGY는 기본 숨김 설정이다. 실제 모델 메시지 없이 `query()` 초기화와 공식 Agent SDK `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()`만 사용했다.
+- Node 24.22.1, Claude CLI 2.1.292, Agent SDK 0.3.169, helper SHA-256 일치와 모듈 해석을 사전 확인했다. 일반 샌드박스 XCTest는 SwiftUI 매크로 서버 오류로 중단됐고, 같은 소스의 승격 실행에서 관련 XCTest 13개가 통과했다. 별도 개발 Debug 빌드도 성공했다. 최초 셸 백그라운드 시작은 앱 프로세스가 즉시 종료됐고 비민감 진단 파일이 비어 있었다. 지속 세션으로 다시 시작했을 때 승인된 SDK 조회가 **1회** 완료됐다. 이것은 첫 시도에서 조회가 실행됐다는 의미가 아니다.
+- 비민감 진단 결과: SDK 직접 조회 성공, 5시간·7일 창 모두 유효, 오류 코드 없음, 조회 소요 **2.085초**. Swift `ExternalProviderStore`는 직접 조회 출처, 두 창, 직접 조회 성공 시각 존재를 기록했다. 진단 파일에는 실제 사용률·초기화 시각·계정 식별자·원본 JSON·인증 정보를 쓰지 않았다. SDK 내부의 네트워크 요청 횟수와 서버 데이터 신선도는 측정하지 못했다. 이번 프로세스에서 모델 메시지·양의 세션 비용을 직접 관측하는 별도 진단은 없으므로 과금 부재를 새로 확정하지 않는다.
+- **화면은 사용자 확인 대기:** Swift Store까지 전달된 것은 확인됐으나 실계정 Claude 팝오버와 메뉴 막대의 실제 표시는 아직 사용자가 보지 않았다. 검증 앱을 실행 상태로 유지해 Claude 5시간·7일 항목과 `SDK 조회 마지막 성공` 문구의 존재만 확인받는다. 실제 숫자·시각 캡처는 공유하지 않는다. statusLine 대체 및 다른 서비스 회귀는 이전 Mock/전체 테스트 범위이며 이번 실계정 조회에서 독립 검증하지 않았다.
+- 남은 위험: SDK API의 실험적 계약, 다른 Mac의 Node/SDK 배포, 인증 오류 실제 형식, 서버 신선도, 반복 호출 한도, 장시간 자동 폴링과 화면 표시는 미검증이다. 이번 검증 결과로 정식 제품 자동 폴링을 활성화하지 않는다. 📸 캡처 추천: 실계정 화면은 민감 값이 있어 공개 캡처를 권장하지 않는다. 기술 블로그에는 비민감 상태 파일과 단발 게이트 구조만 사용할 수 있다.
+
 ## 개발 앱 가상 응답 사전 검증 (2026-10-31)
 
 - 시작 상태: `experiment/claude-usage-refresh` / `b77d345`, 미추적 GPU 로그 2개 외 작업 트리 깨끗함. 기존 개발 앱의 번들 ID는 `io.github.jbbdyee.tokenly.claudeverify.20261031`, 표시명은 `Tokenly Claude 검증`, 경로는 `/private/tmp/tokenly-claude-dev-20261031/DerivedData/Build/Products/Debug/Tokenly.app`이다. 같은 번들 ID의 `.standard` UserDefaults 도메인은 설치 앱과 분리된다. Node 24.22.1, Claude CLI 2.1.292, SDK 0.3.169 설치 경로와 helper 파일 존재를 확인했지만 **실제 SDK/계정 조회는 실행하지 않았다**.

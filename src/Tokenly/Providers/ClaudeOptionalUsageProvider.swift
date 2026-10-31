@@ -33,13 +33,26 @@ struct ClaudeOptionalUsageProvider: ExternalUsageProvider {
             // existing statusLine path from supplying a fresh snapshot.
             var directResult: ClaudeDirectResult?
             if await gate.begin(at: now()) {
+                let started = ProcessInfo.processInfo.systemUptime
                 do {
                     directResult = try await direct.fetch()
+#if TOKENLY_CLAUDE_DEV
+                    ClaudeDevelopmentConfiguration.recordAttempt(result: directResult, error: nil,
+                        elapsed: ProcessInfo.processInfo.systemUptime - started)
+#endif
                     await gate.finish(error: nil, at: now())
                 } catch is CancellationError {
+#if TOKENLY_CLAUDE_DEV
+                    ClaudeDevelopmentConfiguration.recordAttempt(result: nil, error: CancellationError(),
+                        elapsed: ProcessInfo.processInfo.systemUptime - started)
+#endif
                     await gate.finish(error: CancellationError(), at: now())
                     throw CancellationError()
                 } catch {
+#if TOKENLY_CLAUDE_DEV
+                    ClaudeDevelopmentConfiguration.recordAttempt(result: nil, error: error,
+                        elapsed: ProcessInfo.processInfo.systemUptime - started)
+#endif
                     await gate.finish(error: error, at: now())
                 }
             }

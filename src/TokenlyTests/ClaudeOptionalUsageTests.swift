@@ -190,6 +190,19 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertTrue(lateWake)
     }
 
+    func testOneShotGateNeverRetriesAfterSuccessOrFailure() async {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let outcomes: [Error?] = [nil, ClaudeUsageRunnerError.timeout]
+        for failure in outcomes {
+            let gate = ClaudeDirectRefreshGate(maxAttempts: 1)
+            let first = await gate.begin(at: start)
+            XCTAssertTrue(first)
+            await gate.finish(error: failure, at: start)
+            let later = await gate.begin(at: start.addingTimeInterval(86_400))
+            XCTAssertFalse(later)
+        }
+    }
+
     func testCancelledDirectRequestPropagatesCancellation() async {
         let provider = ClaudeOptionalUsageProvider(
             statusLine: MockStatusLine(result: .failure(.setupRequired)),
