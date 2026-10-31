@@ -1,5 +1,8 @@
 # Tokenly 제품 사양 (가칭)
 
+> **Claude 개발 전략 변경(2026-10-31):** 공식 SDK 독립 조회는 정식 앱에 비활성 옵션부터 넣지 않는다. 별도 개발 앱에서 Mock 연결, 승인된 실계정·장시간 조회, 다른 Mac 배포 검증을 완료한 뒤 다음 정식 릴리즈 포함 여부를 판단한다. 현재 v0.3.0과 기본 statusLine 경로는 그대로다. 상세 출시 게이트는 `CLAUDE-USAGE-EXPERIMENT.md`에 있다.
+
+
 > **Claude 선택적 직접 조회 경로(실험 브랜치, 2026-10-31):** `ClaudeOptionalUsageProvider`는 기본 `statusLineOnly` 경로와 개발자가 명시적으로 주입하는 `experimentalDirect` 경로를 분리한다. 직접 조회 성공 시 창별 출처·수신 시각을 보존하고, 실패 시 마지막 직접 성공값과 기존 statusLine을 사용하되 오래된 창을 최신값으로 표시하지 않는다. 앱 진입점과 기본 `ExternalProviderStore`에는 연결하지 않아 사용자 선택이나 자동 SDK 조회는 아직 없다. Node·SDK helper도 배포되지 않았다.
 
 

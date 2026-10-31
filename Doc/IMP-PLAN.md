@@ -1,5 +1,12 @@
 # Tokenly 구현 계획
 
+## 88. Claude 개발 앱 검증 후 출시 계획 (2026-10-31)
+
+- 정식 v0.3.0에 실험 옵션을 먼저 넣지 않는다. 별도 번들 ID·설정/쓰기 경로의 개발 앱에서 기존 비활성 Provider/Adapter를 주입하고 Mock으로 Store·타이머·화면을 검증한다. 기존 statusLine은 대체 데이터로 유지한다.
+- 초기 제안은 성공 후 최소 5분 조건부 조회, 중복 방지, 절전 복귀 기한 검사, 일시적 실패 시 5/10/20/40/60분 백오프다. 401/403 자동 중지, 429 공식 재시도 시각 우선/없으면 정지. 실제 SDK 오류 형태와 호출 제한이 미확인이라 실행 정책은 실계정 승인 전 확정하지 않는다. 직접 조회와 statusLine의 시각/출처를 UI에서 분리한다.
+- Node/SDK/helper lockfile·번들·서명, Claude CLI 호환성, 다른 Mac 검증과 실계정/장시간 안정성은 정식 출시 게이트다. 구체적 단계와 통과 기준은 `CLAUDE-USAGE-EXPERIMENT.md`를 따른다.
+
+
 ## 87. Claude 선택적 조회 연결 경계 (2026-10-31)
 
 - `ClaudeOptionalUsageProvider`의 기본 route는 statusLine 전용이다. 개발자가 `experimentalDirect`를 명시적으로 주입한 경우에만 독립 Provider를 호출한다. 직접·statusLine 결과를 창별로 선택하고, 출처별 수신 시각을 분리하며 가장 오래된 선택 창의 시각을 전체 스냅샷 시각으로 쓴다. 직접 조회 실패는 기존 성공값과 statusLine을 지우지 않는다.

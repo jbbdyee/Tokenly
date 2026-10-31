@@ -1,5 +1,14 @@
 # Tokenly 개발 TODO (가칭)
 
+## Claude 개발 앱 검증 후 정식 출시 (2026-10-31)
+
+- [x] 실험 Provider·SDK Adapter·helper·단발성 두 창 응답과 기본 비활성 Mock 경로 확보
+- [x] 별도 개발 앱, statusLine 폴백, 스케줄러·오류·절전 정책 및 단계별 통과 기준 문서화
+- [ ] 개발 빌드 전용 독립 조회 연결·출처 UI·Mock 스케줄러/백오프 테스트 구현. 기본 앱과 설치본에는 자동 SDK 조회 금지
+- [ ] 별도 승인 후 실계정 단발성·장시간 검증, 모델/비용/인증/호출 제한 확인
+- [ ] Node·SDK·helper 고정 번들링/서명 및 다른 Mac 검증 후 정식 릴리즈 여부 결정
+
+
 ## Claude 선택적 조회 연결 준비 (2026-10-31)
 
 - [x] 기본 비활성 `ClaudeOptionalUsageProvider`와 명시적 개발자 주입 경로, 창별 출처·수신 시각 및 실패 시 statusLine 대체를 Mock으로 구현; 새 XCTest 5개 및 전체 423개 통과, Debug·Release 빌드 성공
