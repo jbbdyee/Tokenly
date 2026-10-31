@@ -129,6 +129,7 @@ struct ClaudeSubprocessExecutor: ClaudeProcessExecuting {
         switch (status >> 8) & 0xff {
         case 0: return output
         case 20: throw ClaudeUsageRunnerError.unavailable
+        case 21: throw ClaudeUsageRunnerError.unexpectedModelActivity
         case 22: throw ClaudeUsageRunnerError.sdkFailure
         case 23: throw ClaudeUsageRunnerError.incompatibleSDK
         case 24: throw ClaudeUsageRunnerError.authenticationRequired

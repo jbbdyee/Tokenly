@@ -17,8 +17,13 @@ enum ClaudeDevelopmentConfiguration {
             && Bundle.main.bundleIdentifier == "io.github.jbbdyee.tokenly.clauderealone.20261031"
     }
 
+    static var isRealTwo: Bool {
+        ProcessInfo.processInfo.environment["TOKENLY_CLAUDE_DEV_REAL_TWO"] == "1"
+            && Bundle.main.bundleIdentifier == "io.github.jbbdyee.tokenly.claudereal2.20261031"
+    }
+
     static func recordAttempt(result: ClaudeDirectResult?, error: Error?, elapsed: TimeInterval) {
-        guard isRealOnce else { return }
+        guard isRealOnce || isRealTwo else { return }
         let code: String
         switch error as? ClaudeUsageRunnerError {
         case .authenticationRequired: code = "authentication_required"
@@ -31,18 +36,20 @@ enum ClaudeDevelopmentConfiguration {
         case .transport: code = "transport"
         case .inProgress: code = "in_progress"
         case .unsafeOutput: code = "unsafe_output"
+        case .unexpectedModelActivity: code = "unexpected_model_activity"
         case nil: code = error == nil ? "none" : "invalid_response"
         }
         let lines = ["status=\(result == nil ? "failure" : "success")",
                      "five_hour_valid=\(result?.windows[.fiveHour] != nil)",
                      "seven_day_valid=\(result?.windows[.sevenDay] != nil)",
                      "error=\(code)",
-                     "elapsed_ms=\(Int((elapsed * 1000).rounded()))"]
+                     "elapsed_ms=\(Int((elapsed * 1000).rounded()))",
+                     "completed_uptime_ms=\(Int((ProcessInfo.processInfo.systemUptime * 1000).rounded()))"]
         write(lines.joined(separator: "\n") + "\n", filename: "attempt.txt")
     }
 
     static func recordStore(_ snapshot: ExternalUsageSnapshot) {
-        guard isRealOnce else { return }
+        guard isRealOnce || isRealTwo else { return }
         let names: Set<String>
         if case .quotas(let quotas) = snapshot.metrics { names = Set(quotas.map(\.name)) }
         else { names = [] }
@@ -54,9 +61,11 @@ enum ClaudeDevelopmentConfiguration {
     }
 
     private static func write(_ value: String, filename: String) {
-        let url = URL(fileURLWithPath: "/private/tmp/tokenly-claude-real-once-20261031/\(filename)")
+        let root = isRealTwo ? "/private/tmp/tokenly-claude-real-two-20261031"
+                             : "/private/tmp/tokenly-claude-real-once-20261031"
+        let url = URL(fileURLWithPath: "\(root)/\(filename)")
         guard let handle = try? FileHandle(forWritingTo: url) else { return }
-        try? handle.truncate(atOffset: 0)
+        _ = try? handle.seekToEnd()
         try? handle.write(contentsOf: Data(value.utf8))
         try? handle.close()
     }
@@ -88,7 +97,7 @@ enum ClaudeDevelopmentConfiguration {
                   environment["TOKENLY_CLAUDE_DEV_STATUSLINE"]?.hasPrefix("/private/tmp/") == true else {
                 return ClaudeOptionalUsageProvider(statusLine: statusLine)
             }
-        } else if !isRealOnce {
+        } else if !isRealOnce && !isRealTwo {
             return ClaudeOptionalUsageProvider(statusLine: statusLine)
         }
         let executor = ClaudeSubprocessExecutor(runtimeURL: URL(fileURLWithPath: node),
@@ -97,7 +106,11 @@ enum ClaudeDevelopmentConfiguration {
         let direct = ClaudeDirectUsageProvider(runner: ClaudeSDKProcessRunner(executor: executor))
         return ClaudeOptionalUsageProvider(statusLine: statusLine,
             route: .experimentalDirect(provider: direct, maxAge: 900),
-            gate: ClaudeDirectRefreshGate(maxAttempts: isRealOnce ? 1 : nil))
+            gate: ClaudeDirectRefreshGate(maxAttempts: isRealOnce ? 1 : isRealTwo ? 2 : nil,
+                                          stopOnFailure: isRealTwo,
+                                          reservationDirectory: isRealTwo
+                                              ? URL(fileURLWithPath: "/private/tmp/tokenly-claude-real-two-20261031")
+                                              : nil))
     }
 #else
     static let isEnabled = false

@@ -35,6 +35,8 @@ final class ExternalProviderStore: ObservableObject {
 #if TOKENLY_CLAUDE_DEV
     private var claudeWakeObserver: NSObjectProtocol?
     private var realOnceStarted = false
+    private var realTwoStarted = false
+    private var realTwoSecondScheduled = false
 #endif
 
     init(displaySettings: ProviderDisplaySettings,
@@ -56,6 +58,12 @@ final class ExternalProviderStore: ObservableObject {
             realOnceStarted = true
             refreshSelected()
             return // No repeating timer or wake observer for the one-shot account check.
+        }
+        if ClaudeDevelopmentConfiguration.isRealTwo {
+            guard !realTwoStarted else { return }
+            realTwoStarted = true
+            _ = refresh(.claude)
+            return // Completion may schedule one nonrepeating timer; no wake observer.
         }
 #endif
         guard timer == nil else { return }
@@ -107,6 +115,17 @@ final class ExternalProviderStore: ObservableObject {
             if id == .claude, case .success(let snapshot) = settled {
                 ClaudeDevelopmentConfiguration.recordStore(snapshot)
             }
+            if id == .claude, ClaudeDevelopmentConfiguration.isRealTwo,
+               !realTwoSecondScheduled, Self.shouldScheduleSecondClaudeAttempt(settled) {
+                realTwoSecondScheduled = true
+                timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: false) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.timer = nil
+                        _ = self.refresh(.claude)
+                    }
+                }
+            }
 #endif
             if case .success(let snapshot) = result, id == .antigravity {
                 for (source, date) in snapshot.sourceTimes {
@@ -123,4 +142,11 @@ final class ExternalProviderStore: ObservableObject {
 
     func state(for id: ExternalProviderID) -> ExternalLoadState { states[id] ?? .idle }
     func settledState(for id: ExternalProviderID) -> ExternalLoadState { settledStates[id] ?? .idle }
+
+#if TOKENLY_CLAUDE_DEV
+    static func shouldScheduleSecondClaudeAttempt(_ state: ExternalLoadState) -> Bool {
+        guard case .success(let snapshot) = state else { return false }
+        return snapshot.sourceTimes[.directCLI] != nil
+    }
+#endif
 }

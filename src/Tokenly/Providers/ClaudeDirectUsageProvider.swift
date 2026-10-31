@@ -18,6 +18,7 @@ enum ClaudeUsageRunnerError: Error, Equatable {
     case transport
     case inProgress
     case unsafeOutput
+    case unexpectedModelActivity
 }
 
 struct DisabledClaudeUsageRunner: ClaudeUsageRunning {

@@ -203,6 +203,87 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         }
     }
 
+    func testTwoAttemptGateAllowsOnlySecondSuccessAfterFiveMinutes() async {
+        let gate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true)
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = await gate.begin(at: start)
+        XCTAssertTrue(first)
+        let overlap = await gate.begin(at: start)
+        XCTAssertFalse(overlap)
+        await gate.finish(error: nil, at: start)
+        let early = await gate.begin(at: start.addingTimeInterval(299))
+        XCTAssertFalse(early)
+        let second = await gate.begin(at: start.addingTimeInterval(300))
+        XCTAssertTrue(second)
+        await gate.finish(error: nil, at: start.addingTimeInterval(300))
+        let third = await gate.begin(at: start.addingTimeInterval(86_400))
+        XCTAssertFalse(third)
+    }
+
+    func testTwoAttemptGateStopsAfterEveryFailureClass() async {
+        let failures: [Error] = [ClaudeUsageRunnerError.timeout,
+                                 ClaudeUsageRunnerError.authenticationRequired,
+                                 ClaudeUsageRunnerError.permissionDenied,
+                                 ClaudeUsageRunnerError.rateLimited,
+                                 ClaudeUsageRunnerError.sdkFailure,
+                                 ClaudeUsageRunnerError.unavailable,
+                                 ClaudeUsageRunnerError.incompatibleSDK,
+                                 ClaudeUsageRunnerError.transport,
+                                 ClaudeUsageRunnerError.unexpectedModelActivity,
+                                 ExternalProviderError.noData, CancellationError()]
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        for failure in failures {
+            let gate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true)
+            let first = await gate.begin(at: start)
+            XCTAssertTrue(first)
+            await gate.finish(error: failure, at: start)
+            let paused = await gate.isPaused
+            XCTAssertTrue(paused)
+            let next = await gate.begin(at: start.addingTimeInterval(86_400))
+            XCTAssertFalse(next)
+        }
+    }
+
+    func testTwoAttemptReservationsSurviveNewGateInstances() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-reservations-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        for _ in 1...2 {
+            let gate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+                                               reservationDirectory: directory)
+            let allowed = await gate.begin(at: start)
+            XCTAssertTrue(allowed)
+        }
+        let thirdGate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+                                               reservationDirectory: directory)
+        let denied = await thirdGate.begin(at: start)
+        XCTAssertFalse(denied)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 2)
+        let missing = ClaudeDirectRefreshGate(maxAttempts: 2, reservationDirectory:
+            directory.appendingPathComponent("missing"))
+        let missingDenied = await missing.begin(at: start)
+        XCTAssertFalse(missingDenied)
+    }
+
+    func testTwoAttemptProviderPreservesStatusLineAfterFirstFailure() async throws {
+        let clock = Clock()
+        let runner = SequenceRunner([.failure(.timeout), .success(directJSON)])
+        let feed = status(clock.date.addingTimeInterval(-5))
+        let provider = ClaudeOptionalUsageProvider(
+            statusLine: MockStatusLine(result: .success(feed)),
+            route: .experimentalDirect(provider: ClaudeDirectUsageProvider(runner: runner), maxAge: 900),
+            now: { clock.date }, gate: ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true))
+        let first = try await provider.fetch()
+        XCTAssertEqual(first.source, .statusLine)
+        clock.date = clock.date.addingTimeInterval(300)
+        let second = try await provider.fetch()
+        XCTAssertEqual(second, first)
+        let calls = await runner.calls
+        XCTAssertEqual(calls, 1)
+    }
+
     func testCancelledDirectRequestPropagatesCancellation() async {
         let provider = ClaudeOptionalUsageProvider(
             statusLine: MockStatusLine(result: .failure(.setupRequired)),
@@ -244,6 +325,17 @@ final class ClaudeOptionalUsageTests: XCTestCase {
     }
 
 #if TOKENLY_CLAUDE_DEV
+    @MainActor
+    func testSecondAttemptSchedulesOnlyAfterDirectSuccess() {
+        let direct = ExternalUsageSnapshot(metrics: .quotas([]), fetchedAt: Date(),
+                                           source: .directCLI, sourceTimes: [.directCLI: Date()])
+        XCTAssertTrue(ExternalProviderStore.shouldScheduleSecondClaudeAttempt(.success(direct)))
+        let feed = status(Date())
+        XCTAssertFalse(ExternalProviderStore.shouldScheduleSecondClaudeAttempt(.success(feed)))
+        XCTAssertFalse(ExternalProviderStore.shouldScheduleSecondClaudeAttempt(
+            .failure(.connection, previous: direct)))
+    }
+
     @MainActor
     func testDevelopmentDefaultsShowOnlyClaudeWithoutWritingProductionDomain() {
         let name = "tokenly.claude.mock.\(UUID().uuidString)"

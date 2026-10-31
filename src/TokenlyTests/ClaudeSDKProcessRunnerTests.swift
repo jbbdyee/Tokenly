@@ -59,6 +59,9 @@ final class ClaudeSDKProcessRunnerTests: XCTestCase {
         try Data("exit 22\n".utf8).write(to: script)
         do { _ = try await executor(script).execute(); XCTFail("expected unknown SDK error") }
         catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .sdkFailure) }
+        try Data("exit 21\n".utf8).write(to: script)
+        do { _ = try await executor(script).execute(); XCTFail("expected model activity guard") }
+        catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .unexpectedModelActivity) }
         for (exitCode, expected) in [(24, ClaudeUsageRunnerError.authenticationRequired),
                                      (25, .permissionDenied), (26, .rateLimited)] {
             try Data("exit \(exitCode)\n".utf8).write(to: script)

@@ -1,5 +1,13 @@
 # Tokenly 작업 인수인계
 
+## Claude 자동 갱신 제한 시험 준비 (2026-10-31)
+
+- 브랜치 `experiment/claude-usage-refresh`, 시작 HEAD `96a961e`. 기존 5분 조건·중복 거부·백오프·절전 기한과 statusLine 대체를 Mock으로 재검증했다. 실제 SDK/계정 요청이나 모델 메시지는 이번 단계에 없었다.
+- 다음 시험용 별도 Debug 앱은 `/private/tmp/tokenly-claude-real-two-20261031/DerivedData/Build/Products/Debug/Tokenly.app`, ID `io.github.jbbdyee.tokenly.claudereal2.20261031`이다. 빌드·정적 준비만 완료하고 실행하지 않았다. `TOKENLY_CLAUDE_DEV_ENABLE=1` 및 `TOKENLY_CLAUDE_DEV_REAL_TWO=1`과 정확한 ID/Node/helper/CLI 경로가 있어야 직접 조회가 연결된다. 성공 완료 후 300초에 두 번째를 한 번 예약하며 첫 실패·데이터 부재는 중단한다. Gate와 `O_EXCL` 임시 예약 파일로 재실행을 포함해 최대 2회로 막는다. 예약 파일을 삭제하지 말 것.
+- 다음 실계정 시험은 **새 사용자 승인 필요**. 시험 시 `attempt.txt`/`store.txt`의 비민감 상태·단조 시계로 조회 횟수/간격/소요 시간만 확인한다. helper의 메시지·양의 세션 비용 감지 시 종료 코드 21로 중단한다. 숨은 서버 비용 부재는 단정하지 않는다. 자동 재시도·반복 타이머·절전 트리거를 이 시험 앱에 넣지 않았다.
+- Node 24.22.1, SDK 0.3.169(`node >=18`), CLI 2.1.292, helper 문법/해시와 SDK 임시 모듈 링크를 확인했다. Node/SDK는 앱에 번들되지 않아 다른 Mac 배포는 미준비다. 실제 오류 객체 형태, 제한 정책, 서버 신선도, 실시간 두 번째 조회는 남았다.
+- 최종 검증: Node 9개, 전체 XCTest 436개, 개발 전용 관련 XCTest 25개 통과; 일반 Debug·Release 및 분리 개발 Debug 빌드 통과; `git diff --check` 통과. 새 테스트 컴파일 오류와 상태줄 stale 조건의 시험 오류를 고친 후 최종 재검증했다. 정식 v0.3.0, 기존 개발 앱·설정·인증, GPU 로그 2개는 보존했다. 📸 캡처 추천: 공개 자료에는 비민감 예약/진단 파일 형식과 테스트 결과만 사용하고 실계정 수치 화면은 제외한다.
+
 # Claude 별도 개발 앱 실계정 단발 검증 (2026-10-31)
 
 - `experiment/claude-usage-refresh`에서 기존 Mock UI 준비 변경을 `462c278`로 보존했다. 사용자 확인 Mock 화면은 가상 5시간 80%·7일 65%, 메뉴 막대/팝오버 일치, 초기화 및 가상 성공 시각, 가상 데이터 안내, 겹침 없음이다.

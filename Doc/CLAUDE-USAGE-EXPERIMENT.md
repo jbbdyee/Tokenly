@@ -1,5 +1,16 @@
 # Claude 개인 구독 사용량 독립 조회 실험 조사
 
+## 자동 갱신 안정성 Mock 검증과 제한된 실계정 시험 준비 (2026-10-31)
+
+- 시작 상태는 `experiment/claude-usage-refresh` / `96a961e`, 미추적 GPU 실측 로그 2개 외 미커밋 변경이 없었다. 앞선 단발성 실계정 검증과 사용자 UI 확인은 참고만 했다. **이번 단계에서는 실제 SDK helper, Claude 계정 조회, 모델 요청을 실행하지 않았다.** 정식 설치 v0.3.0 및 기존 Mock·단발 검증 앱도 변경하지 않았다.
+- 기존 개발 자동 조회 정책은 Store의 300초 조건 검사와 별도 Gate의 성공 후 300초 최소 간격, 진행 중 중복 거부, 일시적 실패 후 5/10/20/40/60분 백오프, 401·403·429·SDK 부재/비호환/미지 오류 중단, 개발 빌드의 절전 복귀 기한 검사다. 이 5분은 **실험 초기값**이며 Anthropic이 보증한 최소 호출 간격이 아니다. Mock 테스트로 성공·타임아웃·취소·인증/권한/요청 제한·SDK 오류·중복·절전 기한을 검증했다. statusLine의 창별 대체와 마지막 직접 성공값·시각 보존도 Mock으로 검증했다. 실제 절전·장시간 폴링·실제 오류 응답 형식은 미검증이다.
+- **다음 시험 전용 앱:** `/private/tmp/tokenly-claude-real-two-20261031/DerivedData/Build/Products/Debug/Tokenly.app`, 번들 ID `io.github.jbbdyee.tokenly.claudereal2.20261031`, 표시명 `Tokenly Claude 2회 검증`. 번들 ID별 `.standard` 설정 도메인은 정식 앱 `io.github.jbbdyee.tokenly`, 기존 Mock 앱 및 단발 앱과 구분된다. 개발 빌드의 Codex Provider는 비활성이고 AGY는 새 도메인에서 기본 숨김이다. 이 모드는 명시적 `TOKENLY_CLAUDE_DEV_ENABLE=1`과 `TOKENLY_CLAUDE_DEV_REAL_TWO=1`, 정확한 번들 ID, Node/helper/CLI 절대 경로가 모두 있을 때만 직접 조회를 만든다. 앱은 **아직 실행하지 않았다.**
+- 다음 승인된 시험에서는 첫 직접 조회 성공 완료 뒤 300초에 **반복하지 않는 타이머 1개**로 두 번째를 예약한다. 첫 조회 실패 또는 직접 데이터 부재이면 statusLine이 성공해도 두 번째를 예약하지 않는다. Gate는 진행 중 중복을 막고 최대 2회만 허용하며, 모든 실패·취소 후 즉시 중단한다. 각 시도는 `/private/tmp/tokenly-claude-real-two-20261031/attempt-1.reserved`·`attempt-2.reserved`를 `O_EXCL`로 원자 예약한다. 앱 재실행·동시 실행에도 예약 파일이 남아 2회를 넘기지 않으며, 경로가 없거나 쓰기 불가이면 실패로 닫는다. 프로세스 시작 전에 실패해도 한 시도를 소비하는 보수적 정책이다. 이 파일을 임의로 삭제하거나 앱을 여러 번 시작하지 않는다.
+- 비민감 진단은 성공/오류 종류, 5시간·7일 필드 유효성, Swift Store 출처·성공 시각 존재, 요청 소요 시간과 단조 시계 완료 시각만 남긴다. 원본 JSON·사용률·초기화 시각·계정·인증 정보는 기록하지 않는다. helper는 사용자/assistant 메시지 또는 양의 세션 비용이 관찰되면 전용 종료 코드 21을 반환하며 Swift는 `unexpectedModelActivity`로 분류하고 중단한다. 이는 **관찰 가능한 신호에 대한 방어**이지 숨은 서버 비용이 없다는 보증은 아니다. helper의 `CLAUDE_CODE_MAX_RETRIES=0`도 SDK 내부 모든 네트워크 재시도 부재를 증명하지 않는다. 다음 시험은 별도 사용자 승인 전까지 실행하지 않는다.
+- 정적 환경: Node 24.22.1, Claude CLI 2.1.292, Agent SDK 0.3.169(`node >=18`), helper 문법·SHA-256, 분리 앱 번들 ID, 임시 runtime의 SDK 모듈 링크를 확인했다. `scripts/prepare-claude-real-two.sh`는 코드와 진단 파일만 준비하며 helper를 실행하지 않는다. 현재 SDK는 저장소 밖 임시 `node_modules`에 링크되어 있다. 다른 Mac에서 쓰려면 지원 Node와 정확한 SDK 의존성 설치/번들, 기존 Claude CLI 로그인, helper 경로·서명·배포, 실험 API 호환성을 따로 검증해야 한다. 지금 빌드만으로 이식 가능하다고 볼 수 없다.
+- 검증: Node 정책 테스트 **9개**, 전체 XCTest **436개**, 개발 플래그 관련 XCTest **25개** 통과. 일반 Debug·Release 및 분리 개발 Debug 빌드, `node --check`, `git diff --check` 통과. 첫 전체 테스트는 새 테스트의 Swift 타입 생략 표기 오류로 컴파일되지 않았고 수정 후 재실행했다. 다음 전체 실행에서 Mock 상태줄의 15분 신선도보다 긴 대기값을 기대한 시험이 실패해 300초 시점으로 고친 뒤 최종 전체 테스트가 통과했다. 이는 테스트 조건 수정이며 제품 동작을 바꾸지 않았다.
+- **미검증:** 실제 두 번째 SDK 성공, 300초 실시간 간격, 실제 401/403/429 오류 형태와 비용, 서버 데이터 신선도, 다른 Mac 배포, 장시간 안정성, 실제 절전 복귀. 정식 앱의 자동 조회는 계속 비활성이다. 📸 캡처 추천: 시험 전에는 분리 앱의 번들 ID와 비민감 예약 파일·진단 구조만 캡처하고 실제 계정 화면의 수치/시각은 공개하지 않는다.
+
 ## 별도 개발 앱의 승인된 단발 실계정 검증 (2026-10-31)
 
 - 기존 Mock 앱 검증 변경 8개 파일을 `462c278`로 커밋했다. 미추적 GPU 로그 2개는 제외·보존했다. 실계정 검증 앱은 저장소 밖 `/private/tmp/tokenly-claude-real-once-20261031/DerivedData/Build/Products/Debug/Tokenly.app`에 별도 번들 ID `io.github.jbbdyee.tokenly.clauderealone.20261031`로 빌드했다. `.standard` 설정 도메인은 기존 설치 앱과 Mock 앱의 번들 ID와 다르다. 설치 앱과 Mock 앱을 교체하거나 종료하지 않았다.
