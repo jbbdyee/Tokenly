@@ -127,10 +127,10 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertTrue(gateValue4)
     }
 
-    func testTransientFailuresBackOffAndSuccessResetsInterval() async {
+    func testTransientFailuresBackOffThenPauseWithoutInfiniteRetry() async {
         let gate = ClaudeDirectRefreshGate()
         var time = Date(timeIntervalSince1970: 1_800_000_000)
-        for minutes in [5, 10, 20, 40, 60, 60] {
+        for minutes in [5, 10] {
             let gateValue5 = await gate.begin(at: time)
             XCTAssertTrue(gateValue5)
             await gate.finish(error: ClaudeUsageRunnerError.timeout, at: time)
@@ -140,9 +140,49 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         }
         let gateValue7 = await gate.begin(at: time)
         XCTAssertTrue(gateValue7)
-        await gate.finish(error: nil, at: time)
+        await gate.finish(error: ClaudeUsageRunnerError.transport, at: time)
+        let paused = await gate.isPaused
+        XCTAssertTrue(paused)
+        let denied = await gate.begin(at: time.addingTimeInterval(86_400))
+        XCTAssertFalse(denied)
+        let next = await gate.nextEligibleAt
+        XCTAssertNil(next)
+    }
+
+    func testSuccessResetsTransientFailureCount() async {
+        let gate = ClaudeDirectRefreshGate()
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = await gate.begin(at: start)
+        XCTAssertTrue(first)
+        await gate.finish(error: ClaudeUsageRunnerError.timeout, at: start)
+        let second = start.addingTimeInterval(300)
+        let secondAttempt = await gate.begin(at: second)
+        XCTAssertTrue(secondAttempt)
+        await gate.finish(error: nil, at: second)
+        let third = second.addingTimeInterval(300)
+        let thirdAttempt = await gate.begin(at: third)
+        XCTAssertTrue(thirdAttempt)
+        await gate.finish(error: ClaudeUsageRunnerError.timeout, at: third)
         let gateValue8 = await gate.nextEligibleAt
-        XCTAssertEqual(gateValue8, time.addingTimeInterval(300))
+        XCTAssertEqual(gateValue8, third.addingTimeInterval(300))
+    }
+
+    func testNetworkRecoveryAndPopoverBurstsCannotBypassGate() async {
+        let gate = ClaudeDirectRefreshGate()
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = await gate.begin(at: start)
+        XCTAssertTrue(first)
+        for offset in [0.0, 1, 30, 60] {
+            let duplicate = await gate.begin(at: start.addingTimeInterval(offset))
+            XCTAssertFalse(duplicate)
+        }
+        await gate.finish(error: ClaudeUsageRunnerError.transport, at: start)
+        for offset in [0.0, 1, 60, 299] {
+            let early = await gate.begin(at: start.addingTimeInterval(offset))
+            XCTAssertFalse(early)
+        }
+        let recovered = await gate.begin(at: start.addingTimeInterval(300))
+        XCTAssertTrue(recovered)
     }
 
     func testAuthAndUnavailablePauseAutomaticAttempts() async {

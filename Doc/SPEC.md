@@ -1,5 +1,7 @@
 # Tokenly 제품 사양 (가칭)
 
+> **Claude 자동 갱신 안전장치 실험(2026-11-01):** 개발용 300초 조건 검사와 단일 실행·절전 게이트를 유지하고 반복 일시 실패는 세 번째에서 자동 중단하도록 제한했다. 5분은 공식 최소 주기가 아닌 후보이며 실제 SDK 반복 조회는 실행하지 않았다. 정식 v0.3.0은 기존 statusLine 방식이다. 세부 검증은 `CLAUDE-USAGE-EXPERIMENT.md`를 따른다.
+
 > **Claude 개발 앱 단발 조회(2026-11-01):** 별도 번들 ID의 앱에서 공식 SDK 실계정 사용량 조회 1회가 성공해 5시간·7일 유효 창과 Swift Store의 직접 조회 출처·성공 시각을 비민감 진단으로 확인했다. 실제 화면은 사용자 확인 대기이며 정식 v0.3.0의 Claude는 statusLine 그대로다. 자세한 검증 경계는 `CLAUDE-USAGE-EXPERIMENT.md`를 따른다.
 
 > **Claude SDK 배포 경계(2026-11-01):** 현재 개발 앱은 임시 `node_modules`와 로컬 Node/Claude CLI 절대 경로에 의존한다. `release.sh`는 helper·Node·SDK를 번들하지 않아 다른 Mac에서의 실행은 미검증이다. 누락 시 안전하게 실패하고 기존 statusLine을 유지하는 Mock 정책만 확인했다. 배포안은 `CLAUDE-USAGE-EXPERIMENT.md`에 기록했다.

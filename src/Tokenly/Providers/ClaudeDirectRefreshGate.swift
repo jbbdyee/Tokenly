@@ -1,9 +1,10 @@
 import Darwin
 import Foundation
 
-/// A conservative gate for the development app. The five-minute interval is an initial
-/// experiment policy, not an Anthropic published minimum or a production polling contract.
+/// A conservative gate for the development app. Five minutes is an experiment candidate,
+/// not an Anthropic published minimum or a production polling contract.
 actor ClaudeDirectRefreshGate {
+    private static let maximumTransientFailures = 3
     private let maxAttempts: Int?
     private let stopOnFailure: Bool
     private let reservationDirectory: URL?
@@ -69,7 +70,12 @@ actor ClaudeDirectRefreshGate {
             nextEligibleAt = nil
         default:
             transientFailures += 1
-            let minutes = min(5 * (1 << min(transientFailures - 1, 4)), 60)
+            guard transientFailures < Self.maximumTransientFailures else {
+                isPaused = true
+                nextEligibleAt = nil
+                return
+            }
+            let minutes = 5 * (1 << (transientFailures - 1))
             nextEligibleAt = now.addingTimeInterval(TimeInterval(minutes * 60))
         }
     }
