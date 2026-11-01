@@ -346,3 +346,13 @@ Tokenly는 현재 Claude Code의 [statusLine JSON](https://code.claude.com/docs/
 사용자 화면의 `조회 실패`/`데이터 없음`/`사용량 응답을 해석하지 못했습니다`는 실계정 오류가 아니다. 이전 `run-mock-ui.sh success`의 helper는 `/private/tmp/tokenly-claude-ui-mock-...`에 있었지만 `ClaudeDevelopmentConfiguration`은 `/private/tmp/tokenly-claude-dev-mock-...`만 허용해 직접 Mock 실행을 열지 않았다. 이어서 `{}` statusLine 파일이 `ClaudeQuotaParser`의 필수 `captured_at`/`rate_limits` 계약을 만족하지 않아 invalidResponse가 표시됐다. 직접 JSON 자체는 `rate_limits_available`, `rate_limits.five_hour/seven_day.utilization/resets_at` 형식으로 SDK 최소 helper 출력과 일치한다. 제품 파서는 수정하지 않는다.
 
 수정한 버전 관리 스크립트와 fixture는 허용된 별도 임시 경로와 유효한 가상 statusLine을 사용한다. 성공 가상 값은 5시간 80%·7일 65%, 대체값은 73%·58%로 출처를 구별한다. 수정 앱의 성공·fallback 별도 실행에서 각각 helper 호출 1회와 메뉴 막대 직접 값 80%·65%, 대체값 73%·58%를 확인했다. 이 숫자는 가상 데이터이며 계정·서버 응답이 아니다. Mock 경로 거부·정상 JSON 직접 파싱·helper 실패 뒤 statusLine 대체는 Swift XCTest로 검증한다. 팝오버 본문의 성공 시각과 fallback 출처 문구는 사용자 캡처 전까지 미검증이다. 300초 전 종료 안전장치를 유지하며 실제 SDK 조회·모델 요청·자동 폴링은 수행하지 않았다. 전체 개발 플래그 XCTest 453개, Node 정책 테스트 11개, Debug·Release 빌드, `git diff --check` 통과. 📸 캡처 추천: `success` 팝오버의 두 한도와 `가상 SDK 조회 마지막 성공`, `fallback`의 `마지막 수신` 문구.
+
+## 60초 선택 옵션 구현과 Mock 검증 (2026-11-01)
+
+별도 이식형 개발 앱의 설정에 300초 기본값과 60초 실험값을 추가했다. 60초를 고르고 앱을 재실행해도 실제 SDK 경로는 명시적 `TOKENLY_CLAUDE_DEV_ALLOW_60=1` 없이는 300초를 유지한다. 승인된 실험에서는 60초 경로를 최대 2회로 제한하고 체크포인트의 이전 시도·허용 시각·중단 상태를 지우지 않는다. 따라서 300초 시도가 누적된 개발 앱에서 60초 선택이 보수적으로 차단될 수 있으며 자동 초기화하지 않는다. 인증·429·SDK 중단 오류는 자동 중단, 일시 실패는 첫 300초 백오프, 연속 실패는 기존 유한 정책을 따른다. 화면 표시 갱신은 실제 SDK 네트워크 요청과 별도다. Mock UI fixture는 첫 가상 조회 후 자동 타이머와 절전 관찰자를 설치하지 않는다.
+
+**사용자 직접 UI 검증:** Success 팝오버에서 가상 80%·65%, 정상 막대 두 개, `가상 SDK 조회 마지막 성공 오늘 오후 4:31`과 가상 안내가 표시됐다. Fallback에서는 가상 73%·58%, 정상 막대 두 개, `마지막 수신 오늘 오후 4:32`와 가상 안내가 표시됐다. 실제 계정 조회가 아니라 Mock 직접/상태줄 대체 표시 결과다. 동일 실행에서 두 번째 자동 조회 성공 후 UI 시각 변화는 아직 확인하지 않았다.
+
+**이번 검증:** 격리 Mock 개발 앱의 설정 접근성 트리에서 `5분 · 기본`이 선택되고 `1분 · 최대 2회` 선택지가 표시되는 것을 확인했다. 실행 조건 안내는 300초였다. 1분을 선택해 재시작한 실제 화면은 미확인이다. Node 정책 11개, 개발 플래그 XCTest 456개, Debug·Release 빌드, `git diff --check`가 통과했다. Mock 앱은 종료했다.
+
+**남은 검증:** 동일 실행 두 번째 성공 시각의 실제 UI 변화, 1분 선택 후 UI, 클린 Mac/Intel과 외부 CLI 오류, Developer ID 서명·공증, 60초 장시간 요청의 429·비용·서버 신선도. 기존 1분 단발 2회 성공은 공식 최소 호출 간격의 근거가 아니다. 이번 단계의 실제 SDK·모델 요청은 0회다. 📸 캡처 추천: 기존 사용자 Mock 팝오버 기록과 개발 앱 설정의 간격 선택지를 사용하고 캡처만을 위한 계정 조회는 하지 않는다. 기술 블로그 본문은 작성하지 않는다.

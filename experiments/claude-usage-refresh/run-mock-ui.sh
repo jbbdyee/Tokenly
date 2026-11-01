@@ -8,7 +8,8 @@ if [[ "$mode" != success && "$mode" != fallback ]]; then
 fi
 repo="$(cd "$(dirname "$(realpath "$0")")/../.." && pwd)"
 root=/private/tmp/tokenly-claude-dev-mock-ui-20261101
-app=/private/tmp/tokenly-claude-portable-app-final-20261101/DerivedData/Build/Products/Debug/Tokenly.app/Contents/MacOS/Tokenly
+app="${TOKENLY_CLAUDE_MOCK_APP:-/private/tmp/tokenly-claude-portable-app-final-20261101/DerivedData/Build/Products/Debug/Tokenly.app/Contents/MacOS/Tokenly}"
+[[ "$app" == /private/tmp/* ]] || { printf '%s\n' 'Mock app path must be under /private/tmp' >&2; exit 20; }
 [[ -x "$app" ]] || { printf '%s\n' 'Mock development app is missing' >&2; exit 20; }
 [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$(dirname "$(dirname "$app")")/Info.plist")" == io.github.jbbdyee.tokenly.claudebundle.20261101 ]] || {
   printf '%s\n' 'Unexpected app bundle ID' >&2; exit 20

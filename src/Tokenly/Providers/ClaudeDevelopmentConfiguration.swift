@@ -28,8 +28,24 @@ enum ClaudeDevelopmentConfiguration {
     }
 
     static var isBundledDevelopment: Bool {
-        ProcessInfo.processInfo.environment["TOKENLY_CLAUDE_DEV_BUNDLED_ENABLE"] == "1"
-            && Bundle.main.bundleIdentifier == "io.github.jbbdyee.tokenly.claudebundle.20261101"
+        bundledRouteAllowed(environment: ProcessInfo.processInfo.environment,
+                            bundleID: Bundle.main.bundleIdentifier)
+    }
+
+    static let portableBundleID = "io.github.jbbdyee.tokenly.claudebundle.20261101"
+
+    static func bundledRouteAllowed(environment: [String: String], bundleID: String?) -> Bool {
+        bundleID == portableBundleID && environment["TOKENLY_CLAUDE_DEV_BUNDLED_ENABLE"] == "1"
+            && environment["TOKENLY_CLAUDE_DEV_MOCK"] != "1"
+    }
+
+    /// 60 seconds is a guarded development trial, never an implicit production default.
+    static func refreshInterval(selected: Int, bundleID: String?,
+                                environment: [String: String]) -> TimeInterval {
+        guard bundleID == portableBundleID, selected == 60,
+              environment["TOKENLY_CLAUDE_DEV_MOCK"] == "1" ||
+              environment["TOKENLY_CLAUDE_DEV_ALLOW_60"] == "1" else { return 300 }
+        return 60
     }
 
     static func recordAttempt(result: ClaudeDirectResult?, error: Error?, elapsed: TimeInterval) {
@@ -94,7 +110,8 @@ enum ClaudeDevelopmentConfiguration {
         return true
     }
 
-    static func makeProvider(environment: [String: String] = ProcessInfo.processInfo.environment)
+    static func makeProvider(environment: [String: String] = ProcessInfo.processInfo.environment,
+                             refreshInterval: TimeInterval = 300)
         -> ClaudeOptionalUsageProvider {
         let statusLine: ClaudeSubscriptionProvider
         if environment["TOKENLY_CLAUDE_DEV_MOCK"] == "1",
@@ -120,9 +137,13 @@ enum ClaudeDevelopmentConfiguration {
                                                          attributes: [.posixPermissions: 0o700]) }
             catch { return ClaudeOptionalUsageProvider(statusLine: statusLine) }
             let direct = ClaudeDirectUsageProvider(runner: ClaudeSDKProcessRunner(executor: executor))
+            let limitedSixty = refreshInterval == 60
             return ClaudeOptionalUsageProvider(statusLine: statusLine,
                 route: .experimentalDirect(provider: direct, maxAge: 900),
-                gate: ClaudeDirectRefreshGate(checkpointURL: directory.appendingPathComponent("refresh-checkpoint.json")))
+                gate: ClaudeDirectRefreshGate(maxAttempts: limitedSixty ? 2 : nil,
+                    successInterval: refreshInterval,
+                    reservationDirectory: limitedSixty ? directory : nil,
+                    checkpointURL: directory.appendingPathComponent("refresh-checkpoint.json")))
         }
         guard environment["TOKENLY_CLAUDE_DEV_ENABLE"] == "1",
               let node = environment["TOKENLY_CLAUDE_DEV_NODE"],
@@ -170,7 +191,7 @@ enum ClaudeDevelopmentConfiguration {
             route: .experimentalDirect(provider: direct, maxAge: 900),
             gate: ClaudeDirectRefreshGate(maxAttempts: isRealOnce ? 1 : isRealTwo || isRealSixty ? 2 : nil,
                                           stopOnFailure: isRealTwo || isRealSixty,
-                                          successInterval: isRealSixty ? 60 : 300,
+                                          successInterval: isRealSixty ? 60 : refreshInterval,
                                           reservationDirectory: reservationDirectory,
                                           checkpointURL: checkpointURL))
     }

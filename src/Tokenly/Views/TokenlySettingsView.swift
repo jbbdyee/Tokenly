@@ -115,6 +115,16 @@ struct TokenlySettingsView: View {
                 Text("공식 상태줄의 5시간·7일 한도만 사용합니다. 설정 연결과 실제 계정 수신은 별도 확인이 필요합니다.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if Bundle.main.bundleIdentifier == ClaudeDevelopmentConfiguration.portableBundleID {
+                Picker("SDK 조회 간격 · 실험", selection: $displaySettings.claudeRefreshSeconds) {
+                    Text("5분 · 기본").tag(300)
+                    Text("1분 · 최대 2회").tag(60)
+                }
+                .pickerStyle(.segmented)
+                Text("현재 실행 조건은 \(Int(externalStore.automaticTickInterval))초입니다. 변경 후 개발 앱을 재실행하세요. 실제 계정 1분 조회는 별도 승인과 실행 플래그가 필요합니다.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 #else
             Text("공식 상태줄의 5시간·7일 한도만 사용합니다. 설정 연결과 실제 계정 수신은 별도 확인이 필요합니다.")
                 .font(.caption).foregroundStyle(.secondary)

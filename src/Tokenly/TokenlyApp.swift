@@ -31,8 +31,12 @@ struct TokenlyApp: App {
         _displaySettings = StateObject(wrappedValue: display)
         appearanceApplier = AppAppearanceApplier(settings: display)
 #if TOKENLY_CLAUDE_DEV
-        _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display, providers: [
-            .claude: ClaudeDevelopmentConfiguration.makeProvider(),
+        let claudeInterval = ClaudeDevelopmentConfiguration.refreshInterval(
+            selected: display.claudeRefreshSeconds, bundleID: Bundle.main.bundleIdentifier,
+            environment: ProcessInfo.processInfo.environment)
+        _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display,
+            automaticTickInterval: claudeInterval, providers: [
+            .claude: ClaudeDevelopmentConfiguration.makeProvider(refreshInterval: claudeInterval),
             .antigravity: AGYCombinedProvider(),
             .openAIAPI: OpenAIAPIUsageProvider()
         ]))

@@ -30,6 +30,7 @@ final class ExternalProviderStore: ObservableObject {
     private let providers: [ExternalProviderID: any ExternalUsageProvider]
     private let displaySettings: ProviderDisplaySettings
     private let now: () -> Date
+    let automaticTickInterval: TimeInterval
     private var timer: Timer?
     private var lastAutomaticAGYAttempt: Date?
 #if TOKENLY_CLAUDE_DEV
@@ -37,10 +38,12 @@ final class ExternalProviderStore: ObservableObject {
     private var realOnceStarted = false
     private var realTwoStarted = false
     private var realTwoSecondScheduled = false
+    private var mockStarted = false
 #endif
 
     init(displaySettings: ProviderDisplaySettings,
          now: @escaping () -> Date = Date.init,
+         automaticTickInterval: TimeInterval = 300,
          providers: [ExternalProviderID: any ExternalUsageProvider] = [
              .claude: ClaudeSubscriptionProvider(),
              .antigravity: AGYCombinedProvider(),
@@ -48,11 +51,18 @@ final class ExternalProviderStore: ObservableObject {
          ]) {
         self.displaySettings = displaySettings
         self.now = now
+        self.automaticTickInterval = automaticTickInterval == 60 ? 60 : 300
         self.providers = providers
     }
 
     func start() {
 #if TOKENLY_CLAUDE_DEV
+        if ClaudeDevelopmentConfiguration.isMock {
+            guard !mockStarted else { return }
+            mockStarted = true
+            refreshSelected()
+            return // UI fixture never installs an automatic timer or wake observer.
+        }
         if ClaudeDevelopmentConfiguration.isRealOnce {
             guard !realOnceStarted else { return }
             realOnceStarted = true
@@ -80,7 +90,7 @@ final class ExternalProviderStore: ObservableObject {
             }
         }
 #endif
-        timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: automaticTickInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.refreshSelected() }
         }
     }

@@ -1653,3 +1653,11 @@ Mock 앱은 격리 HOME, `/bin/sh` 가상 helper, `/usr/bin/true` CLI 경로와 
 ## Claude Mock UI fixture 수정과 검증 경계 (2026-11-01)
 
 실패 원인은 `/private/tmp/tokenly-claude-ui-mock-...` helper가 개발 앱의 `/private/tmp/tokenly-claude-dev-mock-...` 허용 경로와 달라 statusLine 전용 경로가 선택된 것이다. 이전 `{}` feed는 의도한 폴백 진단에도 부적합했다. 버전 관리되는 `experiments/claude-usage-refresh/run-mock-ui.sh`와 최소 SDK 형식의 `fixtures/mock-ui-success.json`을 사용하며, 직접 조회와 statusLine을 서로 다른 가상 값으로 구분한다. Mock 앱의 성공·fallback 각각에서 helper 1회와 메뉴 막대 값(80%·65% / 73%·58%)을 확인했다. 팝오버 본문·시각은 사용자 확인이 남아 있고, 실제 계정/자동 조회는 실행하지 않는다.
+
+## Claude 개발 전용 60초 옵션과 남은 배포 순서 (2026-11-01)
+
+기존 300초 후보를 기본으로 두고, 별도 이식형 개발 앱의 설정에서만 60초를 선택할 수 있게 했다. 앱 재실행 시 Store 검사 주기와 Provider 게이트에 같은 값을 주입한다. 실제 60초 SDK 경로는 별도 실행 플래그·최대 2회 체크포인트 제한을 요구하고, 이전 시도를 지우지 않는다. 401/403/429·SDK 중단 오류는 자동 중단, 일시 실패는 300초부터 백오프한다. Mock 앱은 첫 조회만 실행한다. 화면 표시 갱신은 네트워크 조회와 구별한다.
+
+사용자 직접 화면 확인으로 Mock Success 두 한도·막대·첫 성공 시각과 Fallback 두 한도·막대·마지막 수신 시각은 검증됐다. 동일 실행의 두 번째 성공 시각 화면 변화, 60초 설정 UI, 클린 Mac/Intel/CLI 대체, 서명·공증·Gatekeeper, 지속 호출의 비용·429·신선도는 남았다. 60초 실계정 반복 시험은 별도 승인 전 실행하지 않는다.
+
+격리 Mock 개발 앱 설정의 접근성 트리에서 기본 5분 선택과 실험 1분 선택지, 현재 조건 300초 안내를 확인했다. 실제 1분 선택 후 UI는 미검증이다. Node 정책 11개, 개발 플래그 XCTest 456개, Debug·Release 빌드와 `git diff --check` 통과. Mock 앱은 종료했으며 실제 SDK 요청은 없었다.

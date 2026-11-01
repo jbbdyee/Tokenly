@@ -59,6 +59,9 @@ struct UsageMenuView: View {
                         Text(ClaudeDevelopmentConfiguration.isMock
                              ? "가상 데이터 검증: 실제 Claude 계정 조회가 아닙니다. SDK 조회와 상태줄 대체 표시를 시험합니다."
                              : "Claude 개발 검증 앱: SDK 조회와 Claude Code 상태줄 수신을 구분해 표시합니다. SDK 조회 실패 시 이전 데이터나 상태줄 데이터를 사용할 수 있습니다.")
+                        Text(ClaudeDevelopmentConfiguration.isMock
+                             ? "가상 검증은 첫 조회만 실행합니다. 선택한 간격은 실제 SDK 조회가 아닙니다."
+                             : "Claude SDK 조회 조건: \(Int(externalStore.automaticTickInterval))초 · 화면 표시는 별도로 갱신됩니다.")
                     } else {
                         Text("Claude는 Claude Code 사용 중 전달된 한도를 표시합니다. 앱에서 서버에 직접 조회하지 않습니다.")
                     }

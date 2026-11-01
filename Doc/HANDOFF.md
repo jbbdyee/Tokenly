@@ -1477,3 +1477,11 @@ CPU·RAM·Battery의 계산 기준과 출처, Battery 실시간 상태, Store �
 - 사용자는 이전 Mock 개발 앱에서 `조회 실패`, Claude `데이터 없음`, `사용량 응답을 해석하지 못했습니다`를 확인했다. 원인은 임시 스크립트의 helper 경로가 `ClaudeDevelopmentConfiguration.makeProvider`의 허용 접두사와 달라 `.statusLineOnly`로 안전하게 후퇴한 것이다. fallback feed `{}`는 `ClaudeQuotaParser`에서 invalidResponse였다. 기존 직접 응답의 필드명·자료형은 SDK helper와 Swift 파서 계약에 맞았으며 제품 파서는 수정하지 않았다.
 - 버전 관리용 `experiments/claude-usage-refresh/run-mock-ui.sh`와 가상 JSON fixture를 추가하고 임시 스크립트는 새 파일 링크로 교체했다. 새 스크립트는 허용 경로, 유효한 가상 상태줄 feed, 4분 watchdog을 사용한다. 성공·fallback의 가상 비율을 달리해 UI 출처를 구별한다.
 - 수정 후 별도 개발 앱에서 가상 helper 호출 1회, 메뉴 막대 `Claude 5시간 80%, 7일 65%` 표시를 접근성으로 확인했다. 실제 SDK/Claude CLI/모델 요청·반복 조회는 0회다. fallback을 별도 실행해 가상 helper 1회 및 메뉴 막대 5시간 73%·7일 58% 표시도 확인했다. 팝오버의 두 값·마지막 성공 시각·fallback 출처 문구는 사용자 캡처 대기이며 같은 프로세스 두 번째 시각은 Mock Store 테스트만 확인했다. 전체 개발 플래그 XCTest 453개, Node 정책 테스트 11개, Debug·Release 빌드 및 `git diff --check` 통과. 📸 캡처 추천: 새 스크립트 `success`에서 가상 두 값과 성공 시각, `fallback`에서 `마지막 수신`.
+
+## Claude 60초 개발 옵션 구현과 검증 (2026-11-01)
+
+- 출발점 `experiment/claude-usage-refresh` / `8ff97e0`, 미추적 GPU 로그 2개 보존. 제품 설치본 v0.3.0, main, 인증·설정, 실제 SDK 계정은 건드리지 않았다.
+- 별도 개발 앱 설정 도메인에 300초 기본/60초 실험 선택을 추가했다. 실제 60초 SDK는 명시적 환경 플래그와 최대 2회 제한이 있어야 하며 체크포인트·중복 차단·백오프·중단 상태를 재사용한다. 기존 시도는 설정 변경으로 초기화하지 않는다. Mock UI fixture는 첫 가상 조회만 실행하고 타이머/절전 자동 조회를 설치하지 않는다. 설정 변경은 개발 앱 재실행 후 반영된다.
+- 사용자 직접 화면 확인: Mock Success 80%·65%, 두 막대, `가상 SDK 조회 마지막 성공 오늘 오후 4:31`, 가상 안내. Fallback 73%·58%, 두 막대, `마지막 수신 오늘 오후 4:32`, 가상 안내. 동일 프로세스 두 번째 성공 시각 변화는 미검증이다.
+- 격리 Mock 개발 앱의 설정 접근성 트리에서 `5분 · 기본`(선택됨), `1분 · 최대 2회`, 현재 실행 조건 300초를 확인했다. 1분을 선택한 실제 화면은 확인하지 않았다. Node 정책 11개, 전체 개발 플래그 XCTest 456개, Debug·Release 빌드 및 `git diff --check` 통과. Mock 앱은 검증 후 종료했다. 실제 SDK·모델 요청은 0회다.
+- 출시 필수: 동일 실행 두 번째 시각의 UI 변화, 1분 선택 후 UI, 클린 Mac·Intel·CLI/인증 오류 대체, Developer ID/Hardened Runtime/notarization/Gatekeeper 및 장시간 호출 안정성 검증. 후속 개선: 공식 제한·서버 신선도·비용 관찰과 60초 기본값 채택 여부. 블로그 소재는 안전한 개발 옵션과 출처별 성공 시각 구분이며 본문은 작성하지 않는다. 📸 캡처 추천: Mock 개발 앱의 설정 `SDK 조회 간격 · 실험`과 팝오버 성공 시각. 실계정 값이 보이는 화면은 캡처하지 않는다.

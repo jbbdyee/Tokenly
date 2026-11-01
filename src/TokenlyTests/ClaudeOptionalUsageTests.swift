@@ -440,6 +440,57 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertNil(fields["rate_limits"])
     }
 
+    func testSixtySecondCheckpointBlocksEarlyRestartAndWakeBurst() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-sixty-checkpoint-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("refresh.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        await assertBegin(first, at: start, expected: true)
+        await first.finish(error: nil, at: start)
+        let restarted = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        await assertBegin(restarted, at: start.addingTimeInterval(59), expected: false)
+        await assertBegin(restarted, at: start.addingTimeInterval(60), expected: true)
+        let overlapping = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        await assertBegin(overlapping, at: start.addingTimeInterval(60), expected: false)
+        await restarted.finish(error: nil, at: start.addingTimeInterval(60))
+        await assertBegin(overlapping, at: start.addingTimeInterval(119), expected: false)
+        let afterWake = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        await assertBegin(afterWake, at: start.addingTimeInterval(3_600), expected: true)
+        for _ in 0..<3 {
+            let duplicate = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+            await assertBegin(duplicate, at: start.addingTimeInterval(3_600), expected: false)
+        }
+        await afterWake.finish(error: nil, at: start.addingTimeInterval(3_600))
+    }
+
+    func testSixtySecondTransientBackoffAndRateLimitStop() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-sixty-failures-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("refresh.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        await assertBegin(first, at: start, expected: true)
+        await first.finish(error: ClaudeUsageRunnerError.timeout, at: start)
+        let second = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        await assertBegin(second, at: start.addingTimeInterval(60), expected: false)
+        await assertBegin(second, at: start.addingTimeInterval(299), expected: false)
+        await assertBegin(second, at: start.addingTimeInterval(300), expected: true)
+        await second.finish(error: nil, at: start.addingTimeInterval(300))
+        let recovered = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        await assertBegin(recovered, at: start.addingTimeInterval(359), expected: false)
+        await assertBegin(recovered, at: start.addingTimeInterval(360), expected: true)
+        await recovered.finish(error: ClaudeUsageRunnerError.rateLimited, at: start.addingTimeInterval(360))
+        let paused = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        await assertBegin(paused, at: start.addingTimeInterval(86_400), expected: false)
+        let isPaused = await paused.isPaused
+        XCTAssertTrue(isPaused)
+    }
+
     func testCheckpointPersistsFiniteFailuresAndSuccessReset() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("tokenly-claude-failure-checkpoint-\(UUID().uuidString)")
@@ -685,6 +736,34 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         if case .statusLineOnly = wrongFixtureRoot.route {} else {
             XCTFail("mock helper outside the approved prefix must not run")
         }
+    }
+
+    @MainActor
+    func testPortableDevelopmentIntervalDefaultsAndRequiresExplicitRealOptIn() {
+        let domain = "tokenly.claude.interval.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let settings = ProviderDisplaySettings(defaults: defaults)
+        XCTAssertEqual(settings.claudeRefreshSeconds, 300)
+        settings.claudeRefreshSeconds = 60
+        XCTAssertEqual(ProviderDisplaySettings(defaults: defaults).claudeRefreshSeconds, 60)
+        let id = ClaudeDevelopmentConfiguration.portableBundleID
+        XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 60, bundleID: id,
+            environment: [:]), 300)
+        XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 60, bundleID: id,
+            environment: ["TOKENLY_CLAUDE_DEV_MOCK": "1"]), 60)
+        XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 60, bundleID: id,
+            environment: ["TOKENLY_CLAUDE_DEV_ALLOW_60": "1"]), 60)
+        XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 60,
+            bundleID: "io.github.jbbdyee.tokenly", environment: ["TOKENLY_CLAUDE_DEV_ALLOW_60": "1"]), 300)
+        XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 300, bundleID: id,
+            environment: ["TOKENLY_CLAUDE_DEV_ALLOW_60": "1"]), 300)
+        XCTAssertFalse(ClaudeDevelopmentConfiguration.bundledRouteAllowed(environment: [
+            "TOKENLY_CLAUDE_DEV_BUNDLED_ENABLE": "1", "TOKENLY_CLAUDE_DEV_MOCK": "1"], bundleID: id))
+        XCTAssertTrue(ClaudeDevelopmentConfiguration.bundledRouteAllowed(environment: [
+            "TOKENLY_CLAUDE_DEV_BUNDLED_ENABLE": "1"], bundleID: id))
+        XCTAssertEqual(ExternalProviderStore(displaySettings: settings, automaticTickInterval: 60)
+            .automaticTickInterval, 60)
     }
 
     func testMockUIFixtureMatchesSDKContractAndStatusLineFallback() async throws {
