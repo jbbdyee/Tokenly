@@ -1,3 +1,9 @@
+## Claude 60초 제한 실계정 실험 (2026-11-01)
+
+시작 `experiment/claude-usage-refresh` HEAD `da7f7e2`, 미추적 GPU 로그 2개 외 변경 없음. 기존 300초 예약/체크포인트는 건드리지 않았다. 기존 단발성 개발 앱 1개가 실행 중이었고, 새 앱은 별도 번들 ID `io.github.jbbdyee.tokenly.claudereal60.20261101`, 별도 설정 도메인과 `/private/tmp/tokenly-claude-real-sixty-20261101` 예약 폴더를 사용했다. Mock은 60초 전 거부, 재시작/절전·재열기 대응, 최대 2회, 세 번째 거부를 확인했다. Node 11개, 전체 XCTest 446개, Debug·Release 및 별도 개발 앱 빌드, `git diff --check` 통과.
+
+실제 SDK 계정 조회는 정확히 2회: 둘 다 성공, 5시간·7일 필드 유효, 오류 없음, Swift Store의 직접 조회 출처/마지막 성공 시각 존재가 두 번 기록됐다. 실행 시간 2.309초·1.761초, 첫 성공 완료부터 두 번째 시작까지 60.014초(단조 증가 uptime 기준). 예약 파일 2개·체크포인트는 남겼고 새 앱/helper 프로세스는 종료됐다. 모델 메시지·양의 세션 비용 감지 안전장치는 발동하지 않았지만 무과금 보증은 아니다. 실제 사용률·초기화 시각·인증/계정 자료·원본 응답은 기록하지 않았다. 두 번째 성공의 화면 반영은 Store 기록만 확인했으며 화면은 미검증. 기존 300초 기본 후보 정책·정식 v0.3.0·인증/설정·GPU 로그는 변경하지 않았다. 1분 상시 조회는 공식 제한·비용·서버 신선도·호환성 확인 전 보류. 📸 캡처 추천: 없음. 실제 값이 표시되는 팝오버는 이번 단계에서 캡처하지 않았다.
+
 ## Claude helper 배포 준비 (2026-11-01)
 
 시작 브랜치 `experiment/claude-usage-refresh`, HEAD `272716c`, 기존 변경은 미추적 GPU 로그 2개뿐이었다. SDK 0.3.169 lockfile을 생성하고 개발용 helper payload 제작 스크립트를 추가했다. `/private/tmp/tokenly-claude-helper-package-272716c`에 SDK 의존성 105개, helper, 잠금 파일과 SHA-256 목록을 생성했다. 이 산출물은 Node/Claude CLI 미포함이며 정식 앱 Resources에도 연결되지 않아 다른 Mac 실행은 미검증이다. Homebrew Node는 다수의 Homebrew dylib를 참조해 단독 복사 대상이 아니다. Swift 실행 전 권한 검사를 보강하고 Mock으로 누락/권한 오류를 검증한다. 실계정 조회, 모델 요청, 자동 폴링, 설치본 변경은 없었다. 5분은 SDK 네트워크 조회 후보 간격이며 화면 표시 갱신과 구분한다. 1분 네트워크 조회는 보류한다. 다음 단계는 공식 Node 배포물·다중 아키텍처·서명/notarization·클린 Mac·CLI 호환성 확인이다. 📸 캡처 추천: 없음. 이번 단계는 화면을 실행하지 않았다.

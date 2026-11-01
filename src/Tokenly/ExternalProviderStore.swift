@@ -59,7 +59,7 @@ final class ExternalProviderStore: ObservableObject {
             refreshSelected()
             return // No repeating timer or wake observer for the one-shot account check.
         }
-        if ClaudeDevelopmentConfiguration.isRealTwo {
+        if ClaudeDevelopmentConfiguration.isRealTwo || ClaudeDevelopmentConfiguration.isRealSixty {
             guard !realTwoStarted else { return }
             realTwoStarted = true
             _ = refresh(.claude)
@@ -115,10 +115,12 @@ final class ExternalProviderStore: ObservableObject {
             if id == .claude, case .success(let snapshot) = settled {
                 ClaudeDevelopmentConfiguration.recordStore(snapshot)
             }
-            if id == .claude, ClaudeDevelopmentConfiguration.isRealTwo,
+            if id == .claude,
+               ClaudeDevelopmentConfiguration.isRealTwo || ClaudeDevelopmentConfiguration.isRealSixty,
                !realTwoSecondScheduled, Self.shouldScheduleSecondClaudeAttempt(settled) {
                 realTwoSecondScheduled = true
-                timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: false) { [weak self] _ in
+                let interval: TimeInterval = ClaudeDevelopmentConfiguration.isRealSixty ? 60 : 300
+                timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
                     Task { @MainActor [weak self] in
                         guard let self else { return }
                         self.timer = nil

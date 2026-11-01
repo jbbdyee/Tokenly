@@ -265,6 +265,34 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertFalse(third)
     }
 
+    func testIsolatedSixtySecondTrialCannotRunEarlyOrAfterRestart() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-sixty-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("refresh.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let gate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+            successInterval: 60, reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(gate, at: start, expected: true)
+        await assertBegin(gate, at: start.addingTimeInterval(30), expected: false)
+        let completed = start.addingTimeInterval(8)
+        await gate.finish(error: nil, at: completed)
+        await assertBegin(gate, at: completed.addingTimeInterval(59), expected: false)
+        let restarted = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+            successInterval: 60, reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(restarted, at: completed.addingTimeInterval(3_600), expected: false)
+        await assertBegin(gate, at: completed.addingTimeInterval(60), expected: true)
+        await gate.finish(error: nil, at: completed.addingTimeInterval(65))
+        await assertBegin(gate, at: completed.addingTimeInterval(86_400), expected: false)
+        let reopened = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+            successInterval: 60, reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(reopened, at: completed.addingTimeInterval(86_400), expected: false)
+        let reservations = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            .filter { $0.hasSuffix(".reserved") }
+        XCTAssertEqual(reservations.count, 2)
+    }
+
     func testTwoAttemptGateStopsAfterEveryFailureClass() async {
         let failures: [Error] = [ClaudeUsageRunnerError.timeout,
                                  ClaudeUsageRunnerError.authenticationRequired,

@@ -7,6 +7,7 @@ actor ClaudeDirectRefreshGate {
     private static let maximumTransientFailures = 3
     private let maxAttempts: Int?
     private let stopOnFailure: Bool
+    private let successInterval: TimeInterval
     private let reservationDirectory: URL?
     private let checkpointURL: URL?
     private var state = ClaudeRefreshCheckpoint()
@@ -16,9 +17,11 @@ actor ClaudeDirectRefreshGate {
     var isInFlight: Bool { state.isInFlight }
 
     init(maxAttempts: Int? = nil, stopOnFailure: Bool = false,
+         successInterval: TimeInterval = 300,
          reservationDirectory: URL? = nil, checkpointURL: URL? = nil) {
         self.maxAttempts = maxAttempts
         self.stopOnFailure = stopOnFailure
+        self.successInterval = max(60, successInterval)
         self.reservationDirectory = reservationDirectory
         self.checkpointURL = checkpointURL
     }
@@ -102,7 +105,7 @@ actor ClaudeDirectRefreshGate {
         guard let error else {
             value.transientFailures = 0
             value.lastSuccessAt = now
-            value.nextEligibleAt = now.addingTimeInterval(300)
+            value.nextEligibleAt = now.addingTimeInterval(successInterval)
             return
         }
         if error is CancellationError {
