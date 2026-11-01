@@ -27,6 +27,10 @@ actor ClaudeDirectRefreshGate {
         if let checkpointURL {
             do {
                 let (updated, accepted) = try ClaudeRefreshCheckpointFile.transact(at: checkpointURL) { stored in
+                    // Limited account trials must not resume a partly consumed budget in a new app process.
+                    if reservationDirectory != nil && state.attempts == 0 && stored.attempts > 0 {
+                        return false
+                    }
                     guard eligible(stored, at: now), reserveAttempt(number: stored.attempts + 1) else {
                         return false
                     }

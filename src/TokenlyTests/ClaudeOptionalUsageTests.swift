@@ -451,6 +451,33 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertTrue(nextPaused)
     }
 
+    func testTwoAttemptCheckpointAndReservationsSurviveRestartWithoutThirdSlot() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-limited-restart-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("refresh.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let gate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+            reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(gate, at: start, expected: true)
+        await gate.finish(error: nil, at: start.addingTimeInterval(2))
+        let restarted = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+            reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(restarted, at: start.addingTimeInterval(602), expected: false)
+        await assertBegin(gate, at: start.addingTimeInterval(301), expected: false)
+        let secondAt = start.addingTimeInterval(302)
+        await assertBegin(gate, at: secondAt, expected: true)
+        await gate.finish(error: nil, at: secondAt)
+        await assertBegin(gate, at: secondAt.addingTimeInterval(86_400), expected: false)
+        let anotherRestart = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+            reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(anotherRestart, at: secondAt.addingTimeInterval(86_400), expected: false)
+        let reservations = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            .filter { $0.hasSuffix(".reserved") }
+        XCTAssertEqual(reservations.count, 2)
+    }
+
     func testRestartedProviderUsesStatusLineUntilCheckpointIsDue() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("tokenly-claude-provider-restart-\(UUID().uuidString)")

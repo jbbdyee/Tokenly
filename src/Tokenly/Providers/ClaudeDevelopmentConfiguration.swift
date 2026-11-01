@@ -19,7 +19,7 @@ enum ClaudeDevelopmentConfiguration {
 
     static var isRealTwo: Bool {
         ProcessInfo.processInfo.environment["TOKENLY_CLAUDE_DEV_REAL_TWO"] == "1"
-            && Bundle.main.bundleIdentifier == "io.github.jbbdyee.tokenly.claudereal2.20261031"
+            && Bundle.main.bundleIdentifier == "io.github.jbbdyee.tokenly.claudereal2.20261101"
     }
 
     static func recordAttempt(result: ClaudeDirectResult?, error: Error?, elapsed: TimeInterval) {
@@ -61,7 +61,7 @@ enum ClaudeDevelopmentConfiguration {
     }
 
     private static func write(_ value: String, filename: String) {
-        let root = isRealTwo ? "/private/tmp/tokenly-claude-real-two-20261031"
+        let root = isRealTwo ? "/private/tmp/tokenly-claude-real-two-20261101"
                              : "/private/tmp/tokenly-claude-real-once-20261101"
         let url = URL(fileURLWithPath: "\(root)/\(filename)")
         guard let handle = try? FileHandle(forWritingTo: url) else { return }
@@ -107,7 +107,7 @@ enum ClaudeDevelopmentConfiguration {
         let reservationDirectory: URL? = isRealOnce
             ? URL(fileURLWithPath: "/private/tmp/tokenly-claude-real-once-20261101")
             : isRealTwo
-                ? URL(fileURLWithPath: "/private/tmp/tokenly-claude-real-two-20261031")
+                ? URL(fileURLWithPath: "/private/tmp/tokenly-claude-real-two-20261101")
                 : nil
         let checkpointURL: URL?
         if reservationDirectory != nil {

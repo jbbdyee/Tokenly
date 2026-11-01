@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Static preflight only: no app, SDK helper, CLI usage command, or account request is run.
 repo_root="${0:A:h:h}"
-root='/private/tmp/tokenly-claude-real-two-20261031'
+root='/private/tmp/tokenly-claude-real-two-20261101'
 runtime="$root/runtime"
 sdk_root='/private/tmp/tokenly-claude-usage-preflight-20261031/node_modules'
 node='/opt/homebrew/opt/node@24/bin/node'
