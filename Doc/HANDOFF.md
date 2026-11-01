@@ -1,3 +1,7 @@
+## Claude helper 배포 준비 (2026-11-01)
+
+시작 브랜치 `experiment/claude-usage-refresh`, HEAD `272716c`, 기존 변경은 미추적 GPU 로그 2개뿐이었다. SDK 0.3.169 lockfile을 생성하고 개발용 helper payload 제작 스크립트를 추가했다. `/private/tmp/tokenly-claude-helper-package-272716c`에 SDK 의존성 105개, helper, 잠금 파일과 SHA-256 목록을 생성했다. 이 산출물은 Node/Claude CLI 미포함이며 정식 앱 Resources에도 연결되지 않아 다른 Mac 실행은 미검증이다. Homebrew Node는 다수의 Homebrew dylib를 참조해 단독 복사 대상이 아니다. Swift 실행 전 권한 검사를 보강하고 Mock으로 누락/권한 오류를 검증한다. 실계정 조회, 모델 요청, 자동 폴링, 설치본 변경은 없었다. 5분은 SDK 네트워크 조회 후보 간격이며 화면 표시 갱신과 구분한다. 1분 네트워크 조회는 보류한다. 다음 단계는 공식 Node 배포물·다중 아키텍처·서명/notarization·클린 Mac·CLI 호환성 확인이다. 📸 캡처 추천: 없음. 이번 단계는 화면을 실행하지 않았다.
+
 # Tokenly 작업 인수인계
 
 ## Claude 제한적 실계정 자동 갱신 2회 (2026-11-01)
@@ -26,6 +30,9 @@
 - 검증: 개발 플래그 XCTest 440개, 일반 XCTest 438개, Node 정책 9개, 분리 Debug·일반 Release 빌드, `git diff --check` 통과. 초기화 시각 null/오형식의 잔여율 유지와 statusLine 대체는 Mock 근거다. 실제 SDK 오류 형식, 화면 확인, 타 Mac 배포 및 장시간 안정성은 미검증이다. GPU 로그 2개 보존.
 
 ## Claude SDK Adapter 배포 경계 점검 (2026-11-01)
+
+
+검증: Node 정책/사전검사 11개 통과, 전체 XCTest 446개 통과, Debug·Release 빌드 성공, `git diff --check` 통과. 빌드의 CoreSimulator 버전 경고는 macOS 타깃 빌드 성공에 영향을 주지 않았다. 개발용 payload 크기는 약 280 MB로 측정됐으며 런타임 포함 전 수치다.
 
 - `experiment/claude-usage-refresh`의 기존 Swift Provider → 자식 프로세스 Adapter → Node helper → 공식 SDK 실험 usage 메서드 → Swift 파서를 정적 검토했다. 일반 앱의 Claude statusLine 경로는 그대로다. 실제 SDK/계정 요청과 자동 폴링은 하지 않았다.
 - 개발 환경은 SDK 0.3.169를 선언하지만 lockfile이 없고 임시 `node_modules` 링크 및 이 Mac의 Node/Claude CLI 절대 경로를 쓴다. `release.sh`에는 helper/Node/SDK 묶음이 없다. 다른 Mac 배포는 미준비다. Node·helper 누락 시 시작 전 실패, SDK 누락 시 종료 코드 20으로 분류한다. 인증·원본 응답은 출력하지 않고 두 자식 환경에서 비필수 트래픽 차단 변수를 제거한다. 자세한 배포안과 승인 경계는 `CLAUDE-USAGE-EXPERIMENT.md` 상단을 참고한다.

@@ -1,3 +1,10 @@
+## Claude SDK 배포 후속 (2026-11-01)
+
+- [x] SDK 0.3.169 lockfile 및 개발용 helper payload 생성 경로 마련; 계정 조회 없이 확인.
+- [ ] 독립 실행 가능한 공식 Node 배포 바이너리의 arm64/x86_64 및 최소 macOS 호환성 확보, 중첩 코드 서명과 notarization 검증.
+- [ ] 앱 번들 Resources 경로 연결, 설치된 Claude CLI 탐색/버전 호환성 및 클린 Mac·오프라인 검증.
+- [ ] 5분 후보 간격의 실제 SDK 조회와 UI 표시 갱신을 별도 정책으로 유지. 1분 실제 조회는 보류.
+
 # Tokenly 개발 TODO (가칭)
 
 ## Claude 제한 실계정 자동 갱신 검증 (2026-11-01)

@@ -83,6 +83,16 @@ final class ClaudeSDKProcessRunnerTests: XCTestCase {
             cliURL: URL(fileURLWithPath: "/usr/bin/true"))
         do { _ = try await missingRuntime.execute(); XCTFail("missing runtime must fail") }
         catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .unavailable) }
+        let missingCLI = ClaudeSubprocessExecutor(runtimeURL: URL(fileURLWithPath: "/bin/sh"),
+            helperURL: script, cliURL: missing)
+        do { _ = try await missingCLI.execute(); XCTFail("missing CLI must fail") }
+        catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .unavailable) }
+        let blockedRuntime = folder.appendingPathComponent("blocked-runtime")
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: blockedRuntime)
+        let noExecute = ClaudeSubprocessExecutor(runtimeURL: blockedRuntime,
+            helperURL: script, cliURL: URL(fileURLWithPath: "/usr/bin/true"))
+        do { _ = try await noExecute.execute(); XCTFail("non-executable runtime must fail") }
+        catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .unavailable) }
         let missingHelper = ClaudeSubprocessExecutor(runtimeURL: URL(fileURLWithPath: "/bin/sh"),
             helperURL: missing, cliURL: URL(fileURLWithPath: "/usr/bin/true"))
         do { _ = try await missingHelper.execute(); XCTFail("missing helper must fail") }

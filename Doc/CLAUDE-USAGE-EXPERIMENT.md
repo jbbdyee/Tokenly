@@ -1,3 +1,12 @@
+## 배포 준비 실험 (2026-11-01)
+
+
+검증: Node 11개, 전체 XCTest 446개 통과, Debug·Release 빌드와 `git diff --check` 성공. helper의 SDK 누락·버전 불일치가 계정 요청 전에 각각 종료 코드 20·23으로 종료되는 Mock을 확인했다. 개발용 payload는 약 280 MB이며 Node 런타임은 빠져 있다.
+
+**확인:** `package.json`의 SDK 0.3.169만으로는 전이 의존성과 파일 무결성이 고정되지 않았다. 새 npm lockfile은 integrity를 기록하며 `npm ci --omit=dev --ignore-scripts`로 개발용 payload를 임시 경로에 생성했다. helper를 실행하거나 실계정/모델 요청을 하지 않았다. Homebrew Node 실행 파일은 Homebrew dylib에 연결되어 파일 단독 복사는 이식 가능한 런타임이 아니다. Swift Adapter는 Node·CLI 실행 권한, helper 읽기 권한이 없으면 조회 전 실패한다.
+
+**미검증:** 공식 Node 배포 바이너리의 두 아키텍처, 앱 내부 리소스 등록, 코드 서명·notarization·Gatekeeper, 다른 Mac의 Claude CLI 설치/로그인/SDK 호환성, 오프라인 실행. 현재 payload는 완성된 앱 번들이 아니다. 외부 Node 요구는 설치 부담과 버전 차이가 크므로 번들 Node가 우선 후보지만 서명·아키텍처 검증 전에는 채택하지 않는다. 기존 Claude 로그인은 SDK/CLI 자체 경로로만 재사용하며 인증 자료는 package에 포함하지 않는다. 실제 네트워크 조회는 5분 후보 정책을 유지한다. 화면 표시 갱신은 SDK 조회를 뜻하지 않으며 1분 실제 조회는 보류한다.
+
 # Claude 개인 구독 사용량 독립 조회 실험 조사
 
 ## 개발 앱의 제한된 실계정 자동 갱신 2회 검증 (2026-11-01)

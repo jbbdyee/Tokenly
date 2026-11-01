@@ -56,8 +56,10 @@ struct ClaudeSubprocessExecutor: ClaudeProcessExecuting {
 
     private func run(_ control: ClaudeProcessControl) throws -> Data {
         guard timeout > 0, maxOutputBytes > 0,
-              [runtimeURL, helperURL, cliURL].allSatisfy({ $0.isFileURL && $0.path.hasPrefix("/") &&
-                  FileManager.default.fileExists(atPath: $0.path) }) else {
+              [runtimeURL, helperURL, cliURL].allSatisfy({ $0.isFileURL && $0.path.hasPrefix("/") }),
+              access(runtimeURL.path, X_OK) == 0,
+              access(helperURL.path, R_OK) == 0,
+              access(cliURL.path, X_OK) == 0 else {
             throw ClaudeUsageRunnerError.unavailable
         }
         if control.reason != nil { throw CancellationError() }

@@ -1,5 +1,6 @@
 // Development-only SDK bridge. Do not invoke without separate real-account authorization.
 // stdout is one minimal JSON object on success; never print SDK errors or raw responses.
+import { readFileSync } from 'node:fs';
 const EXIT = { unavailable: 20, unexpectedMessage: 21, failed: 22, incompatible: 23,
                authentication: 24, permission: 25, rateLimited: 26 };
 let session;
@@ -9,6 +10,9 @@ try {
   const cliPath = process.argv[2];
   if (!cliPath?.startsWith('/')) { process.exitCode = EXIT.unavailable; }
   else {
+    const sdkManifest = JSON.parse(readFileSync(
+      new URL('./node_modules/@anthropic-ai/claude-agent-sdk/package.json', import.meta.url), 'utf8'));
+    if (sdkManifest.version !== '0.3.169') throw new Error('incompatible_sdk');
     const { query } = await import('@anthropic-ai/claude-agent-sdk');
     if (typeof query !== 'function') throw new Error('incompatible_sdk');
     const childEnv = { ...process.env, CLAUDE_CODE_SAFE_MODE: '1', CLAUDE_CODE_MAX_RETRIES: '0' };
@@ -75,7 +79,7 @@ try {
   const status = [error?.status, error?.statusCode, error?.response?.status]
     .find((value) => typeof value === 'number');
   process.exitCode = error?.message === 'incompatible_sdk' ? EXIT.incompatible
-    : error?.code === 'ERR_MODULE_NOT_FOUND' ? EXIT.unavailable
+    : ['ERR_MODULE_NOT_FOUND', 'ENOENT'].includes(error?.code) ? EXIT.unavailable
     : status === 401 ? EXIT.authentication
     : status === 403 ? EXIT.permission
     : status === 429 ? EXIT.rateLimited : EXIT.failed;

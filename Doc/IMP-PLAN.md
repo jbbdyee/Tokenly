@@ -1,3 +1,7 @@
+## Claude SDK helper 배포 구조 검토 (2026-11-01)
+
+`experiments/claude-usage-refresh/package-lock.json`은 SDK 0.3.169과 전이 의존성을 integrity 해시로 고정한다. 이는 [npm ci 공식 문서](https://docs.npmjs.com/cli/commands/npm-ci/)의 잠금 파일 기반 설치를 따른다. `scripts/package-claude-helper-dev.sh`는 저장소 밖 임시 경로에 `npm ci --ignore-scripts`로 실제 SDK 파일·helper·lockfile을 복사하고 버전·문법을 확인한다. helper/CLI나 계정 조회는 실행하지 않는다. 현재 산출물은 Node와 Claude CLI를 포함하지 않으므로 제품 번들이 아니다. Homebrew Node 24 실행 파일은 `libnode`, libuv, ICU 등 Homebrew 동적 라이브러리를 참조해 파일 하나만 복사해도 이식되지 않는다. 다른 Mac용은 공식 Node 배포 바이너리를 아키텍처별로 검증해 포함하는 안이 외부 Node 설치 요구보다 재현성이 높다. CLI는 기존 로그인 재사용을 위해 공식 설치본을 찾되, 없는 경우 statusLine으로 안전하게 돌아가야 한다. 서명은 [Apple의 중첩 코드 배치 지침](https://developer.apple.com/documentation/bundleresources/placing-content-in-a-bundle)과 [배포 서명 지침](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac/)에 따라 중첩 실행 파일/라이브러리부터 앱 순으로 처리하고, notarization과 실행 권한, Resources 경로, Gatekeeper, 오프라인·클린 Mac 시험이 필요하다. 현행 Swift Adapter는 실행 파일/CLI 실행 권한 및 helper 읽기 권한을 검사해 누락 시 조회하지 않는다. 실제 SDK 네트워크 호출은 후보 5분, 화면 표시 주기와 별개다. 1분 호출은 보류한다.
+
 # Tokenly 구현 계획
 
 ## Claude 개발 앱 제한 자동 갱신 실측 (2026-11-01)
