@@ -323,3 +323,12 @@ Tokenly는 현재 Claude Code의 [statusLine JSON](https://code.claude.com/docs/
 4. 성공해도 최소 두 창의 실제 신선도, 서버 캐시, 모델 비용 0, 인증 부작용, 연속 호출 제한, SDK 버전 변화, 이용 조건은 별도 미검증으로 둔다. 제품 통합과 폴링은 해당 검증과 추가 승인이 끝난 뒤 판단한다.
 
 **현재 결론(세 번째 조회 반영):** 실험적 `get_usage`에서 모델 대화 없이 두 창의 범위 내 숫자는 확인했지만 5시간 초기화 시각은 `null`이고 7일 시각의 파싱 가능 여부는 미확인이다. 공식 안정 인터페이스나 Tokenly 제품 자동 폴링의 안전성은 입증되지 않았다. 추가 실제 조회·폴링은 별도 승인과 검증 계획 전까지 보류한다.
+## 이식형 개발 앱 배포 전 검증 (2026-11-01)
+
+**실제 확인:** 별도 앱 `/private/tmp/tokenly-claude-portable-app-final-20261101/DerivedData/Build/Products/Debug/Tokenly.app`의 ID는 `io.github.jbbdyee.tokenly.claudebundle.20261101`이다. `Contents/MacOS/TokenlyClaudeNode`는 실행 가능하고 arm64에서 Node 24.22.1을 출력했다. `lipo`는 arm64·x86_64를 표시하며 `otool -arch all -L`에는 시스템 라이브러리만 있어 Homebrew dylib/임시 경로 연결은 발견되지 않았다. helper는 저장소 원본과 SHA-256이 같고 SDK manifest는 0.3.169이다. 앱의 ad-hoc 서명은 `codesign --verify --strict`를 통과했다. 이 Mac의 x86_64 강제 실행은 `Bad CPU type in executable`이므로 Intel 구동은 미확인이다.
+
+**Mock 및 경계:** 실제 SDK 대신 가상 shell helper와 빈 statusLine feed로 같은 개발 앱을 한 번 실행해 최초 helper 호출 1회를 비민감 카운터로 확인했다. 실제 Claude 조회·모델 요청·자동 폴링은 0회다. UI 자동화의 네이티브 파이프가 시작되지 않아 Claude 5시간·7일, 대체 문구, 두 번의 마지막 성공 시각이 화면에서 바뀌는지는 이번에 직접 확인하지 못했다. Swift Store에서 같은 가상 응답의 첫 성공, 299초 조기 트리거 차단, 300초 후 둘째 성공 시각 갱신을 XCTest로 확인한다. 번들 Node/CLI/helper 누락, 권한 오류, 손상된 manifest와 SDK 버전 불일치는 계정 요청 전 statusLine 대체를 유지하는 테스트로 확인한다.
+
+**배포 전 남은 일:** 다른 Mac의 Claude CLI 설치·로그인 재사용과 실패 대체, Intel 실기기/최소 macOS, Developer ID의 중첩 서명·Hardened Runtime·notarization·Gatekeeper, 실제 팝오버와 접근성 화면을 검증해야 한다. ad-hoc 서명은 배포 서명이 아니다. 개발 옵션은 기본 비활성이고 실제 SDK 조회 후보는 300초이며 화면의 시각 표시는 네트워크 조회와 별개다. 60초 상시 조회는 활성화하지 않는다. 📸 캡처 추천: 가상 응답만 표시한 개발 앱 Claude 팝오버에서 첫 성공과 300초 뒤 두 번째 성공 시각, statusLine 대체 화면. 실제 계정 값이 있는 화면은 공개하지 않는다.
+
+**이번 자동 검증:** Node 정책 9개, 전체 XCTest 448개(추가한 manifest 손상·Store 시각 테스트 포함), Debug·Release 빌드, `git diff --check`가 통과했다. 테스트 및 빌드 로그는 저장소 밖 임시 경로에 있다.

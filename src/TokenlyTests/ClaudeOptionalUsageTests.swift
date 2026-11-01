@@ -70,6 +70,46 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertEqual(calls, 1)
     }
 
+    @MainActor
+    func testTwoMockSuccessesAdvanceStoreReceiptOnlyWhenDue() async throws {
+        let clock = Clock()
+        let runner = SequenceRunner([.success(directJSON), .success(directJSON)])
+        let provider = ClaudeOptionalUsageProvider(
+            statusLine: MockStatusLine(result: .failure(.setupRequired)),
+            route: .experimentalDirect(provider: ClaudeDirectUsageProvider(runner: runner,
+                now: { clock.date }), maxAge: 900), now: { clock.date })
+        let name = "tokenly.claude.receipt.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let store = ExternalProviderStore(displaySettings: ProviderDisplaySettings(defaults: defaults),
+                                          now: { clock.date }, providers: [.claude: provider])
+        let firstTask = try XCTUnwrap(store.refresh(.claude))
+        await firstTask.value
+        guard case .success(let first) = store.state(for: .claude) else {
+            return XCTFail("first direct snapshot missing")
+        }
+        XCTAssertEqual(first.sourceTimes[.directCLI], clock.date)
+        clock.date = clock.date.addingTimeInterval(299)
+        let earlyTask = try XCTUnwrap(store.refresh(.claude))
+        await earlyTask.value
+        guard case .success(let early) = store.state(for: .claude) else {
+            return XCTFail("cached direct snapshot missing")
+        }
+        XCTAssertEqual(early.sourceTimes[.directCLI], first.fetchedAt)
+        let earlyCalls = await runner.calls
+        XCTAssertEqual(earlyCalls, 1)
+        clock.date = clock.date.addingTimeInterval(1)
+        let secondTask = try XCTUnwrap(store.refresh(.claude))
+        await secondTask.value
+        guard case .success(let second) = store.state(for: .claude) else {
+            return XCTFail("second direct snapshot missing")
+        }
+        XCTAssertEqual(second.sourceTimes[.directCLI], clock.date)
+        XCTAssertGreaterThan(second.fetchedAt, first.fetchedAt)
+        let finalCalls = await runner.calls
+        XCTAssertEqual(finalCalls, 2)
+    }
+
     func testDirectFailureFallsBackToStatusLine() async throws {
         let clock = Clock()
         let runner = SequenceRunner([.failure(.transport)])

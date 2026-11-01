@@ -1456,3 +1456,11 @@ CPU·RAM·Battery의 계산 기준과 출처, Battery 실시간 상태, Store �
 - UI 연결 단계에서 위젯 표시 설정을 `SystemMonitorStore.setEnabled`에 연결한다. Store는 앱 수명 동안 하나만 둔다.
 - 새 Swift 파일마다 `project.pbxproj` 파일 참조·그룹·Sources 등록을 확인한다.
 - 3단계·3-1·3-2·4단계 변경과 기획 문서는 커밋·Push 하지 않았다. 다음 작업자는 Git 상태를 확인하고 미커밋 변경을 보존한다.
+
+## Claude 이식형 개발 앱 배포 전 검증 (2026-11-01)
+
+- 브랜치 `experiment/claude-usage-refresh`의 `bdc6046`에서 시작했고 미추적 GPU 로그 2개를 보존했다. 정식 v0.3.0, 사용자 설정·인증, 실제 Claude 계정에는 접근하지 않았다.
+- 개발 앱 `/private/tmp/tokenly-claude-portable-app-final-20261101/DerivedData/Build/Products/Debug/Tokenly.app`(ID `io.github.jbbdyee.tokenly.claudebundle.20261101`)은 번들 Node 24.22.1의 arm64 실행, x86_64 슬라이스, 시스템 라이브러리만 연결, SDK 0.3.169, helper 원본과 동일한 SHA-256, 실행 권한, ad-hoc 서명 검증을 통과했다. 이 Mac의 x86_64 실행은 `Bad CPU type in executable`이므로 Intel 실기기 검증이 아니다.
+- CLI 미설치/비실행, Node 누락/비실행, helper 누락, manifest 손상/SDK 버전 불일치는 SDK 경로를 열지 않고 statusLine으로 대체하도록 코드와 Mock으로 검증했다. 가상 helper를 사용해 개발 앱을 실행했고 최초 조회 경로 호출 1회를 기록했다. 네이티브 UI 자동화 파이프가 시작되지 않아 팝오버와 1·2차 성공 시각의 실제 화면 표시는 미검증이다. Swift Store의 Mock 연속 성공/300초 게이트는 XCTest로 확인했다.
+- 기본 개발 플래그 비활성, 실제 SDK 300초 후보, 60초 상시 조회 보류는 그대로다. Developer ID 서명, Hardened Runtime, notarization, Gatekeeper 및 클린 Mac/Intel/외부 Claude CLI 검증이 남았다. 실제 SDK 사용량 조회와 모델 요청은 이번 단계에서 0회다.
+- 검증: Node 정책 9개, 전체 XCTest 448개 통과, Debug·Release 빌드 및 `git diff --check` 통과. 추가 XCTest는 손상된 SDK manifest 차단과 Mock 연속 성공의 300초 시각 반영을 검사한다. 실제 개발 앱의 화면은 확인하지 못했다.

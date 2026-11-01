@@ -1641,3 +1641,7 @@ XCTest 107개 3회 통과 후 빌드 번호 3으로 개발 확인 빌드를 만�
 - **준비 결과:** Debug 빌드 성공. 경로 `/private/tmp/tokenly-real-codex-verify-20261030/Build/Products/Debug/Tokenly.app`, ID `io.github.jbbdyee.tokenly.realverify.20261030`. 미실행 런처 `launch-review.sh`는 PATH를 공식 `/opt/homebrew/bin/codex`가 우선되게 하고 [공식 `CODEX_SQLITE_HOME`](https://learn.chatgpt.com/docs/config-file/environment-variables)만 `/private/tmp`로 분리한다. 실제 HOME·CODEX_HOME은 변경하지 않는다.
 - **영향 범위:** 별도 bundle ID이므로 Tokenly `.standard` UserDefaults 도메인은 설치본과 분리된다. 새 도메인에서 Claude·AGY는 기본 OFF라 상태줄 수집이 시작되지 않는다. [Codex 인증 문서](https://learn.chatgpt.com/docs/auth)에 따르면 CLI 인증은 파일 또는 OS credential store에서 재사용되고 ChatGPT 로그인 토큰은 사용 중 자동 갱신될 수 있다. 기존 인증 캐시의 쓰기 가능성은 `CODEX_SQLITE_HOME`으로 제거되지 않는다. 새 개발 앱의 첫 Codex 조회를 승인 없이 실행하지 않는다. 설치 앱·연결 설정·Keychain은 조작하지 않았다.
 - **검증 상태:** 이번 세션에는 격리 Debug 빌드와 런처 구문만 확인했다. initialize, 최초 성공 조회, 60초 자동 재조회, 마지막 성공 시각, 팝오버·수동·중복·절전 복귀, CLI 횟수·시간·자원 비용은 전부 미검증이다. 이전 XCTest 393개와 실패 전용 CLI 300초 관찰은 별도 결과다. 제품 코드 변경 없음.
+
+## Claude 이식형 개발 앱 배포 전 검증 (2026-11-01)
+
+별도 ID 개발 앱의 범용 Node와 SDK 0.3.169 번들, helper 무결성 및 arm64 실행을 확인했다. Mock 앱 최초 호출 경로와 Swift Store의 연속 성공 시각은 자동 검증으로 분리했다. 화면 자동화 연결에 실패하여 실제 팝오버의 두 성공 시각 및 statusLine 대체 표시는 아직 수동 검증이 필요하다. x86_64 슬라이스는 확인했지만 이 Mac의 Rosetta 실행이 불가하여 Intel Mac 결과는 없다. 실제 배포 순서는 클린 Mac/Intel 실행과 외부 Claude CLI 실패 대체 확인 → Developer ID로 중첩 실행 코드 서명·Hardened Runtime·공증 → Gatekeeper 설치·UI 검증이다. 기본 비활성 및 300초 SDK 조회 후보는 유지하고 60초 상시 조회는 보류한다.
