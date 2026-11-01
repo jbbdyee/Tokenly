@@ -250,21 +250,43 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let start = Date(timeIntervalSince1970: 1_800_000_000)
-        for _ in 1...2 {
-            let gate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
-                                               reservationDirectory: directory)
-            let allowed = await gate.begin(at: start)
-            XCTAssertTrue(allowed)
-        }
-        let thirdGate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
-                                               reservationDirectory: directory)
-        let denied = await thirdGate.begin(at: start)
-        XCTAssertFalse(denied)
+        let gate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+                                           reservationDirectory: directory)
+        let first = await gate.begin(at: start)
+        XCTAssertTrue(first)
+        await gate.finish(error: nil, at: start)
+        let restartedGate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+                                                    reservationDirectory: directory)
+        let restartDenied = await restartedGate.begin(at: start.addingTimeInterval(300))
+        XCTAssertFalse(restartDenied)
+        let second = await gate.begin(at: start.addingTimeInterval(300))
+        XCTAssertTrue(second)
+        await gate.finish(error: nil, at: start.addingTimeInterval(300))
+        let third = await gate.begin(at: start.addingTimeInterval(86_400))
+        XCTAssertFalse(third)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 2)
         let missing = ClaudeDirectRefreshGate(maxAttempts: 2, reservationDirectory:
             directory.appendingPathComponent("missing"))
         let missingDenied = await missing.begin(at: start)
         XCTAssertFalse(missingDenied)
+    }
+
+    func testRestartAfterFailedFirstAttemptCannotUseSecondSlot() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-failed-reservation-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let firstGate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+                                                reservationDirectory: directory)
+        let started = await firstGate.begin(at: start)
+        XCTAssertTrue(started)
+        await firstGate.finish(error: ClaudeUsageRunnerError.timeout, at: start)
+        let restartedGate = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+                                                    reservationDirectory: directory)
+        let retry = await restartedGate.begin(at: start.addingTimeInterval(86_400))
+        XCTAssertFalse(retry)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 1)
     }
 
     func testTwoAttemptProviderPreservesStatusLineAfterFirstFailure() async throws {

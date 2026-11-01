@@ -32,17 +32,16 @@ actor ClaudeDirectRefreshGate {
         return true
     }
 
-    /// O_EXCL reserves an attempt across app restarts and concurrent copies of the validation app.
-    /// Missing/unwritable preparation directories fail closed. A reservation counts even if spawn fails.
+    /// O_EXCL reserves this gate's next attempt. A restarted app always begins with slot 1;
+    /// an existing slot therefore fails closed instead of continuing an uncertain earlier run.
+    /// A reservation counts even if process spawn fails.
     private func reserveAttempt(in directory: URL) -> Bool {
-        guard let maxAttempts, maxAttempts > 0 else { return false }
-        for index in 1...maxAttempts {
-            let path = directory.appendingPathComponent("attempt-\(index).reserved").path
-            let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
-            if descriptor >= 0 { close(descriptor); return true }
-            if errno != EEXIST { return false }
-        }
-        return false
+        guard let maxAttempts, attempts < maxAttempts else { return false }
+        let path = directory.appendingPathComponent("attempt-\(attempts + 1).reserved").path
+        let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        guard descriptor >= 0 else { return false }
+        close(descriptor)
+        return true
     }
 
     func finish(error: Error?, at now: Date) {

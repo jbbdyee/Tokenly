@@ -1,5 +1,11 @@
 # Tokenly 구현 계획
 
+## Claude SDK 실험 최신 검증 상태 (2026-11-01)
+
+- Swift 자식 프로세스 Adapter는 `1f0783a`에 구현됐으며 정식 앱에서는 비활성이다. 별도 개발 앱에서 공식 SDK 단발 조회와 제한된 자동 조회 2회가 성공했다. 첫 성공 완료 뒤 두 번째 시작까지 단조 시계 기준 300.014초였고 두 창과 Store 반영을 확인했다. 실제 UI 갱신은 사용자 확인 대기다.
+- 2회 시험의 예약 Gate를 재실행 시 실패로 닫도록 보강하고 Mock으로 검증했다. 이번 재검증에서는 실제 SDK helper를 실행하지 않고 Node 테스트 9개, 전체 XCTest 436개, 일반 Debug/Release 빌드가 통과했다. 출시 판단에는 실제 오류 형태, 다른 Mac 배포, 장시간 안정성, 비용·신선도 확인이 남았다. 상세 기록은 `CLAUDE-USAGE-EXPERIMENT.md`와 `HANDOFF.md`를 참조한다.
+
+
 ## 89. Claude 개발 빌드 연결 구현 (2026-10-31)
 
 - `TOKENLY_CLAUDE_DEV` 컴파일 조건에서만 앱 진입점이 `ClaudeDevelopmentConfiguration`을 사용한다. 별도 빌드 스크립트가 번들 ID와 출력 경로를 분리하며, 런타임 `TOKENLY_CLAUDE_DEV_ENABLE=1` 및 절대 Node/helper/CLI 경로가 없으면 statusLine 전용이다. 정식 앱 빌드에는 SDK 생성 경로가 없다.
