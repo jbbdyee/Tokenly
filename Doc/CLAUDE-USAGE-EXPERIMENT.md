@@ -1,5 +1,14 @@
 # Claude 개인 구독 사용량 독립 조회 실험 조사
 
+## 실행 경로·배포 준비 재검증 (2026-11-01)
+
+- 이번 단계에는 실제 계정 조회, SDK helper 실행, 모델 요청, 자동 폴링을 하지 않았다. 정적 호출 경로는 개발 앱의 명시적 활성화 조건 → `ClaudeOptionalUsageProvider` → `ClaudeDirectUsageProvider` → `ClaudeSDKProcessRunner`/`ClaudeSubprocessExecutor` → Node helper의 `query()`/`initializationResult()` → 공식 SDK 0.3.169의 `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()` → 최소 JSON → Swift 파서다. 일반 설치 앱은 기존 statusLine Provider를 계속 쓴다.
+- helper는 사용자 프롬프트를 보내지 않고 `tools: []`, `persistSession: false`, `settingSources: []` 등으로 대화 경로를 제한한다. 관찰 가능한 사용자/assistant 메시지 또는 양의 세션 비용이 있으면 종료 코드 21로 거부한다. 숨은 서버 작업이나 비용이 전혀 없다는 보증은 아니다. Swift 실행기는 stdin/stderr를 `/dev/null`로 보내고 stdout을 메모리에서 16 KiB로 제한한다. 원본 오류·응답·인증 정보는 로그에 쓰지 않는다. Swift 자식 환경과 helper의 Claude Code 자식 환경에서 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`을 제거하며 부모 환경은 변경하지 않는다.
+- Node 실행 파일·helper·Claude CLI의 누락은 프로세스 시작 전 `.unavailable`로 실패한다. SDK 패키지 누락은 helper의 모듈 로드 실패(종료 코드 20)로 분류한다. SDK를 호출하지 않는 빈 임시 폴더의 모듈 해석은 `ERR_MODULE_NOT_FOUND`였다. Mock 실행기는 정상·부분·null·비정상 종료·JSON 오류·타임아웃·취소·중복 요청을 시험한다. 실제 401/403/429 SDK 오류 형태는 확인되지 않았다.
+- **배포 경계:** `package.json`은 SDK `0.3.169`를 정확히 지정하지만 잠금 파일이 없고, 개발 스크립트는 임시 `node_modules` 심볼릭 링크와 이 Mac의 Node/Claude CLI 절대 경로를 사용한다. 기존 `release.sh`는 Node, SDK, helper를 묶지 않는다. 따라서 현재 개발 앱의 성공을 다른 Mac의 실행 가능성으로 확대할 수 없다. 후속 배포안은 잠금 파일로 의존성 트리를 고정해 검증된 arm64/x86_64 Node 런타임·helper·SDK/필수 패키지를 앱 리소스에 넣고 서명·무결성·Gatekeeper·오프라인 누락 실패를 확인하는 것이다. 인증 재사용은 우선 사용자 설치 Claude CLI로 유지하고 경로/지원 버전을 검사한다. 번들된 CLI의 로그인 재사용은 별도 검증 전 채택하지 않는다. SDK가 실험 API인 만큼 버전 변경 시 Mock 계약과 단발성 실제 검증을 다시 수행한다. 이 배포안은 **설계이며 미구현**이다. [공식 SDK 실행 옵션](https://code.claude.com/docs/en/agent-sdk/typescript), [npm ci 잠금 파일 요구](https://docs.npmjs.com/cli/v11/commands/npm-ci/).
+- 다음 개발 앱 실계정 단발 검증에는 별도 사용자 승인으로 정확한 앱 번들 ID, 최초 조회 최대 1회, 기존 로그인 재사용과 정상 인증 캐시 갱신 가능성, 오류 시 무재시도, 모델 메시지 금지, 민감 값 비기록을 명시해야 한다. 이번 검증은 그 승인이나 실행에 해당하지 않는다. 📸 캡처 추천: 비민감 Mock XCTest 결과와 앱 리소스 구성 표만 사용한다. 실계정 화면·원본 응답은 캡처하지 않는다.
+- **이번 재검증:** Node 정책 테스트 9개, helper 문법 검사, 전체 macOS XCTest 438개, 일반 Debug·Release 빌드, `git diff --check` 통과. XCTest의 누락 Node/helper 시험도 통과했다. Xcode는 iOS CoreSimulator 버전 불일치 경고를 냈지만 macOS 작업 종료 코드는 0이었다. 이 결과는 다른 Mac의 실행과 실계정 SDK 오류 처리를 증명하지 않는다.
+
 ## 공식 SDK의 제한된 2회 자동 갱신 실계정 검증 (2026-11-01)
 
 - 별도 Debug 앱 `Tokenly Claude 2회 검증`, 번들 ID `io.github.jbbdyee.tokenly.claudereal2.20261031`을 기존 설치 v0.3.0·Mock 앱·단발 앱과 분리해 실행했다. 실행 전 Node 24.22.1, Claude CLI 2.1.292, SDK 0.3.169, helper 해시/경로, 빈 예약·진단 파일을 확인했다. 첫 자동 승인 검토는 크레딧 부족 응답으로 거절됐고 앱은 실행되지 않았다. 사용자의 확인 뒤 같은 승격 경로가 허용됐으며 시스템 보호 설정을 바꾸거나 우회하지 않았다.

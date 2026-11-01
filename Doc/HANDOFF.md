@@ -1,5 +1,12 @@
 # Tokenly 작업 인수인계
 
+## Claude SDK Adapter 배포 경계 점검 (2026-11-01)
+
+- `experiment/claude-usage-refresh`의 기존 Swift Provider → 자식 프로세스 Adapter → Node helper → 공식 SDK 실험 usage 메서드 → Swift 파서를 정적 검토했다. 일반 앱의 Claude statusLine 경로는 그대로다. 실제 SDK/계정 요청과 자동 폴링은 하지 않았다.
+- 개발 환경은 SDK 0.3.169를 선언하지만 lockfile이 없고 임시 `node_modules` 링크 및 이 Mac의 Node/Claude CLI 절대 경로를 쓴다. `release.sh`에는 helper/Node/SDK 묶음이 없다. 다른 Mac 배포는 미준비다. Node·helper 누락 시 시작 전 실패, SDK 누락 시 종료 코드 20으로 분류한다. 인증·원본 응답은 출력하지 않고 두 자식 환경에서 비필수 트래픽 차단 변수를 제거한다. 자세한 배포안과 승인 경계는 `CLAUDE-USAGE-EXPERIMENT.md` 상단을 참고한다.
+- 후속: 잠금 파일과 지원 아키텍처별 런타임/SDK/helper 번들링, 서명·Gatekeeper·클린 Mac 호환성, 사용자 설치 CLI 인증 재사용, 실제 SDK 오류 형식·비용 징후를 별도 승인 범위에서 확인한다. 정식 v0.3.0, GPU 로그 2개, 설치 앱 설정은 그대로 둔다.
+- 검증: Node 정책 9개, helper 문법, 전체 macOS XCTest 438개(누락 경로 테스트 포함), 일반 Debug·Release, `git diff --check` 통과. iOS CoreSimulator 버전 경고는 macOS 검증 성공에 영향을 주지 않았다.
+
 ## Claude Adapter 재확인과 실험 브랜치 정리 (2026-11-01)
 
 - 사용자가 제시한 `1ed6b0c`는 과거 Adapter 커밋이다. 현재 브랜치의 시작 HEAD는 `1b3daea`였고, SDK 자식 프로세스 Adapter·최소 JSON helper·환경 변수 제거·타임아웃/중복/취소·오류 코드와 Mock 테스트는 이미 구현돼 있었다. 따라서 Adapter를 다시 만들거나 실계정 조회를 추가하지 않았다.

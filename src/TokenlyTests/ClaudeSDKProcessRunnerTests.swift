@@ -75,6 +75,20 @@ final class ClaudeSDKProcessRunnerTests: XCTestCase {
         }
     }
 
+    func testMissingRuntimeOrHelperFailsWithoutSpawning() async throws {
+        let (folder, script) = try fakeScript("exit 0")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let missing = folder.appendingPathComponent("missing")
+        let missingRuntime = ClaudeSubprocessExecutor(runtimeURL: missing, helperURL: script,
+            cliURL: URL(fileURLWithPath: "/usr/bin/true"))
+        do { _ = try await missingRuntime.execute(); XCTFail("missing runtime must fail") }
+        catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .unavailable) }
+        let missingHelper = ClaudeSubprocessExecutor(runtimeURL: URL(fileURLWithPath: "/bin/sh"),
+            helperURL: missing, cliURL: URL(fileURLWithPath: "/usr/bin/true"))
+        do { _ = try await missingHelper.execute(); XCTFail("missing helper must fail") }
+        catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .unavailable) }
+    }
+
     func testTimeoutAndOutputLimit() async throws {
         let (folder, script) = try fakeScript("sleep 3")
         defer { try? FileManager.default.removeItem(at: folder) }

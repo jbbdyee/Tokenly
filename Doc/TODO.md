@@ -1,5 +1,12 @@
 # Tokenly 개발 TODO (가칭)
 
+## Claude SDK 배포 경계 (2026-11-01)
+
+- [x] 개발 앱에서 Provider → Adapter → helper → SDK → 파서 호출 경로를 정적으로 점검하고 Node/helper 누락 Mock 검증 추가
+- [x] 현재 개발용 임시 `node_modules`와 이 Mac의 절대 경로 의존성 확인; 정식 릴리스 스크립트에는 묶음 없음
+- [ ] SDK 의존성 잠금 파일, 지원 아키텍처별 Node/SDK/helper 번들 및 서명·클린 Mac 검증
+- [ ] 별도 승인 후 개발 앱 단발 실계정 검증; 실제 오류 형식과 비용 징후 검토
+
 ## Claude SDK 최신 검증 상태 (2026-11-01)
 
 - [x] 실험 브랜치의 Swift Adapter·helper와 Mock 경로 구현, Node 정책 테스트 9개·전체 XCTest 436개·일반 Debug/Release 빌드 재확인

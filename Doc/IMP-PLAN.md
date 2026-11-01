@@ -1,5 +1,11 @@
 # Tokenly 구현 계획
 
+## Claude SDK 배포 점검 (2026-11-01)
+
+- 기존 Provider → 실행 Adapter → Node helper → 공식 SDK 실험 usage 메서드 → Swift 파서 경로를 재확인했다. SDK/실계정 조회는 실행하지 않았다. 일반 설치 앱의 statusLine 경로는 유지된다.
+- 현재 개발 스크립트의 임시 `node_modules` 링크, 로컬 Node·Claude CLI 절대 경로, lockfile 부재와 `release.sh`의 번들링 부재를 확인했다. 앱 리소스에 고정 버전 Node/SDK/helper를 묶고 코드 서명·무결성·Gatekeeper·클린 Mac/아키텍처 검증을 거친 뒤에만 다른 Mac 배포를 판단한다. 설치 CLI 인증 재사용은 별도 검증한다. 이는 설계이지 완료 기능이 아니다.
+- 누락 런타임/helper/SDK 및 Mock 실패 분기는 `CLAUDE-USAGE-EXPERIMENT.md`에 기록한다. 실제 오류 계약과 비용 부재는 확정하지 않는다.
+
 ## Claude SDK 실험 최신 검증 상태 (2026-11-01)
 
 - Swift 자식 프로세스 Adapter는 `1f0783a`에 구현됐으며 정식 앱에서는 비활성이다. 별도 개발 앱에서 공식 SDK 단발 조회와 제한된 자동 조회 2회가 성공했다. 첫 성공 완료 뒤 두 번째 시작까지 단조 시계 기준 300.014초였고 두 창과 Store 반영을 확인했다. 실제 UI 갱신은 사용자 확인 대기다.
