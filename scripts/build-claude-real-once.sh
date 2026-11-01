@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Builds a separate one-shot validation app. Does not launch it or access an account.
 repo_root="${0:A:h:h}"
-build_root='/private/tmp/tokenly-claude-real-once-20261031'
-bundle_id='io.github.jbbdyee.tokenly.clauderealone.20261031'
+build_root='/private/tmp/tokenly-claude-real-once-20261101'
+bundle_id='io.github.jbbdyee.tokenly.clauderealone.20261101'
 xcodebuild -project "$repo_root/src/Tokenly.xcodeproj" -scheme Tokenly \
   -configuration Debug -destination 'generic/platform=macOS' \
   -derivedDataPath "$build_root/DerivedData" \

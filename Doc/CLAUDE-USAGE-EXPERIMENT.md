@@ -1,5 +1,12 @@
 # Claude 개인 구독 사용량 독립 조회 실험 조사
 
+## 별도 개발 앱의 승인된 단발 실계정 검증 (2026-11-01)
+
+- 시작 브랜치 `experiment/claude-usage-refresh` / `caa89d4`에서 GPU 로그 2개 외 변경은 없었다. 앞선 단발 앱이 여전히 실행 중이어서 같은 ID를 재사용하지 않고 `/private/tmp/tokenly-claude-real-once-20261101/DerivedData/Build/Products/Debug/Tokenly.app`을 별도 ID `io.github.jbbdyee.tokenly.clauderealone.20261101`로 빌드했다. 새 UserDefaults 도메인을 쓰고 정식 설치 v0.3.0 및 이전 개발 앱은 변경하지 않았다. `TOKENLY_CLAUDE_DEV_REAL_ONCE`와 정확한 ID/실행 경로를 요구하고, 이 앱은 반복 타이머·절전 조회를 등록하지 않는다. `O_EXCL` 예약 파일로 앱 재시작을 포함한 두 번째 시도를 막는다.
+- **실행 전:** 기존 사용자 Mock 캡처의 메뉴 막대·팝오버 연결 결과를 확인하고 이번 개발 플래그 XCTest 440개, 일반 XCTest 438개, Node 정책 9개, 분리 Debug 앱과 일반 Release 빌드가 통과했다. Node/helper/SDK/Claude CLI 경로, helper 해시·문법, 빈 진단·예약 파일을 확인했다. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`은 실행 명령에서 제거하고 Swift 자식 및 helper의 Claude Code 자식 환경에서도 삭제한다. 화면 자동화 파이프는 연결되지 않았다.
+- **실제 관찰:** 공식 SDK 조회 예약 **1개**, 비민감 시도 기록 **1건**에서 성공, 5시간·7일 창 유효, 오류 없음, 소요 **2.275초**. Store 기록 **1건**은 직접 조회 출처, 두 창 존재, 직접 성공 시각 존재를 확인했다. helper 프로세스는 조회 뒤 남지 않았다. 실제 사용률·초기화 시각·계정·원본 응답·인증 정보는 출력하거나 저장하지 않았다. `resets_at=null`/형식 오류에서도 사용률 보존은 Swift Mock 테스트 근거이며 이번 실계정 응답의 초기화 시각 형태는 기록하지 않았다. **실제 화면 반영은 사용자 확인 대기**이며 Store 도달을 UI 표시와 동일시하지 않는다.
+- helper의 관찰 가능한 사용자/assistant 메시지 또는 양의 세션 비용 징후는 종료 코드 21로 감지하도록 되어 있고 이번 조회는 그 코드 없이 성공했다. 숨은 네트워크 요청이나 실제 과금 0은 입증하지 못한다. 실제 인증 오류 형식·서버 신선도·다른 Mac 배포·장시간 자동 갱신은 미검증이다. 정식 앱은 계속 Claude statusLine만 쓴다. 📸 캡처 추천: 사용자가 별도 앱의 Claude 영역에서 두 창과 `SDK 조회 마지막 성공` 문구만 확인하되 퍼센트·초기화 시각·계정 정보는 가린다.
+
 ## 실행 경로·배포 준비 재검증 (2026-11-01)
 
 - 이번 단계에는 실제 계정 조회, SDK helper 실행, 모델 요청, 자동 폴링을 하지 않았다. 정적 호출 경로는 개발 앱의 명시적 활성화 조건 → `ClaudeOptionalUsageProvider` → `ClaudeDirectUsageProvider` → `ClaudeSDKProcessRunner`/`ClaudeSubprocessExecutor` → Node helper의 `query()`/`initializationResult()` → 공식 SDK 0.3.169의 `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()` → 최소 JSON → Swift 파서다. 일반 설치 앱은 기존 statusLine Provider를 계속 쓴다.

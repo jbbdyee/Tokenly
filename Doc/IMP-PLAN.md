@@ -1,5 +1,11 @@
 # Tokenly 구현 계획
 
+## Claude 개발 앱 단발 실계정 검증 (2026-11-01)
+
+- 기존 단발 앱이 실행 중이어서 새 임시 Debug 앱/번들 ID `io.github.jbbdyee.tokenly.clauderealone.20261101`를 사용했다. 개발 플래그·명시적 환경·정확한 ID가 맞아야 SDK 경로를 연결하고, `O_EXCL` 예약 파일로 재실행을 포함한 두 번째 시도를 거부한다. 반복 타이머와 절전 트리거는 등록하지 않는다.
+- 승인된 공식 SDK 조회 1회 성공, 두 창 유효, Swift Store 직접 출처·성공 시각 존재, 2.275초, 오류 없음. 화면은 사용자 확인 대기이며 실제 사용량·시각·원본 응답은 기록하지 않았다. 초기화 시각 null/오형식의 사용률 유지와 statusLine 대체는 Mock만 검증했다.
+- 개발 플래그 XCTest 440개, 일반 XCTest 438개, Node 정책 9개, 분리 Debug·일반 Release 빌드 통과. 모델 활동 감지 오류는 없었지만 숨은 과금 부재는 입증하지 못한다. 정식 앱·설정·기존 개발 앱은 변경하지 않았다.
+
 ## Claude SDK 배포 점검 (2026-11-01)
 
 - 기존 Provider → 실행 Adapter → Node helper → 공식 SDK 실험 usage 메서드 → Swift 파서 경로를 재확인했다. SDK/실계정 조회는 실행하지 않았다. 일반 설치 앱의 statusLine 경로는 유지된다.

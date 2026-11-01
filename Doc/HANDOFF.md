@@ -1,5 +1,11 @@
 # Tokenly 작업 인수인계
 
+## Claude 별도 개발 앱 단발 SDK 조회 (2026-11-01)
+
+- 시작 HEAD `caa89d4`. 기존 단발 개발 앱이 실행 중이어서 새 ID `io.github.jbbdyee.tokenly.clauderealone.20261101`와 임시 경로를 사용했다. 앱 재시작에도 `O_EXCL` 예약 파일 1개가 재조회 시도를 막고, 반복 타이머·절전 조회는 없다. 정식 설치 앱과 기존 개발 앱은 그대로다.
+- 승인된 공식 SDK 조회가 **1회** 성공했다. 비민감 기록에서 5시간·7일 유효, Store 직접 출처·두 창·성공 시각 존재, 오류 없음, 소요 2.275초를 확인했다. 모델 메시지/양의 세션 비용 감지 종료 코드 21은 없었으나 비용 부재를 확정하지 않는다. 실제 팝오버 화면은 사용자 확인 대기다. 실사용 수치·초기화 시각·원본 응답·인증값은 기록하지 않았다.
+- 검증: 개발 플래그 XCTest 440개, 일반 XCTest 438개, Node 정책 9개, 분리 Debug·일반 Release 빌드, `git diff --check` 통과. 초기화 시각 null/오형식의 잔여율 유지와 statusLine 대체는 Mock 근거다. 실제 SDK 오류 형식, 화면 확인, 타 Mac 배포 및 장시간 안정성은 미검증이다. GPU 로그 2개 보존.
+
 ## Claude SDK Adapter 배포 경계 점검 (2026-11-01)
 
 - `experiment/claude-usage-refresh`의 기존 Swift Provider → 자식 프로세스 Adapter → Node helper → 공식 SDK 실험 usage 메서드 → Swift 파서를 정적 검토했다. 일반 앱의 Claude statusLine 경로는 그대로다. 실제 SDK/계정 요청과 자동 폴링은 하지 않았다.
