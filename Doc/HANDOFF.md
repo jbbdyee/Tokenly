@@ -1464,3 +1464,16 @@ CPU·RAM·Battery의 계산 기준과 출처, Battery 실시간 상태, Store �
 - CLI 미설치/비실행, Node 누락/비실행, helper 누락, manifest 손상/SDK 버전 불일치는 SDK 경로를 열지 않고 statusLine으로 대체하도록 코드와 Mock으로 검증했다. 가상 helper를 사용해 개발 앱을 실행했고 최초 조회 경로 호출 1회를 기록했다. 네이티브 UI 자동화 파이프가 시작되지 않아 팝오버와 1·2차 성공 시각의 실제 화면 표시는 미검증이다. Swift Store의 Mock 연속 성공/300초 게이트는 XCTest로 확인했다.
 - 기본 개발 플래그 비활성, 실제 SDK 300초 후보, 60초 상시 조회 보류는 그대로다. Developer ID 서명, Hardened Runtime, notarization, Gatekeeper 및 클린 Mac/Intel/외부 Claude CLI 검증이 남았다. 실제 SDK 사용량 조회와 모델 요청은 이번 단계에서 0회다.
 - 검증: Node 정책 9개, 전체 XCTest 448개 통과, Debug·Release 빌드 및 `git diff --check` 통과. 추가 XCTest는 손상된 SDK manifest 차단과 Mock 연속 성공의 300초 시각 반영을 검사한다. 실제 개발 앱의 화면은 확인하지 못했다.
+
+## Claude Mock UI 검증 시도 (2026-11-01)
+
+- 시작 `experiment/claude-usage-refresh` / `af6c2a1`, GPU 로그 2개만 미추적. 별도 이식형 앱 ID `io.github.jbbdyee.tokenly.claudebundle.20261101`을 격리 HOME·가상 shell helper·가짜 statusLine 파일로 실행했다. 공식 SDK, Claude CLI, 실계정·모델 요청은 호출하지 않았고 개발 앱은 300초 반복 타이머 전에 종료했다.
+- macOS 접근성은 앱 PID와 상태 항목을 식별했지만 `click`/`AXPress` 후 창 수가 0이었다. 네이티브 CUA 파이프도 시작되지 않았다. 제한 화면 캡처에는 팝오버가 없어 실제 UI 결과로 채택하지 않았다. 성공 시각 두 번의 Store 반영은 기존 Mock Clock XCTest 근거이며 화면 변화는 미검증이다. statusLine 대체 화면도 미검증이다.
+- 수동 확인용 임시 스크립트 `/private/tmp/tokenly-claude-ui-mock-20261101/run-mock-ui.sh`는 `success|fallback`만 받으며 Mock 앱을 4분 안에 종료한다. 첫 성공·별도 재실행의 새 시각·fallback을 각각 캡처할 수 있다. 재실행은 동일 실행 내 두 번째 성공을 입증하지 않는다. 📸 캡처 추천: `success` 팝오버의 가상 5시간·7일과 성공 시각, 재실행 후 성공 시각, `fallback`의 `마지막 수신` 문구.
+- 이번 전체 XCTest 449개 통과, Debug·Release 빌드와 `git diff --check` 통과. 제품 코드 변경은 없다. 다른 Mac, 실제 팝오버, 서명·공증 등 이전 배포 게이트는 그대로 남았다.
+
+## Claude Mock UI fixture 오류 수정 (2026-11-01)
+
+- 사용자는 이전 Mock 개발 앱에서 `조회 실패`, Claude `데이터 없음`, `사용량 응답을 해석하지 못했습니다`를 확인했다. 원인은 임시 스크립트의 helper 경로가 `ClaudeDevelopmentConfiguration.makeProvider`의 허용 접두사와 달라 `.statusLineOnly`로 안전하게 후퇴한 것이다. fallback feed `{}`는 `ClaudeQuotaParser`에서 invalidResponse였다. 기존 직접 응답의 필드명·자료형은 SDK helper와 Swift 파서 계약에 맞았으며 제품 파서는 수정하지 않았다.
+- 버전 관리용 `experiments/claude-usage-refresh/run-mock-ui.sh`와 가상 JSON fixture를 추가하고 임시 스크립트는 새 파일 링크로 교체했다. 새 스크립트는 허용 경로, 유효한 가상 상태줄 feed, 4분 watchdog을 사용한다. 성공·fallback의 가상 비율을 달리해 UI 출처를 구별한다.
+- 수정 후 별도 개발 앱에서 가상 helper 호출 1회, 메뉴 막대 `Claude 5시간 80%, 7일 65%` 표시를 접근성으로 확인했다. 실제 SDK/Claude CLI/모델 요청·반복 조회는 0회다. fallback을 별도 실행해 가상 helper 1회 및 메뉴 막대 5시간 73%·7일 58% 표시도 확인했다. 팝오버의 두 값·마지막 성공 시각·fallback 출처 문구는 사용자 캡처 대기이며 같은 프로세스 두 번째 시각은 Mock Store 테스트만 확인했다. 전체 개발 플래그 XCTest 453개, Node 정책 테스트 11개, Debug·Release 빌드 및 `git diff --check` 통과. 📸 캡처 추천: 새 스크립트 `success`에서 가상 두 값과 성공 시각, `fallback`에서 `마지막 수신`.

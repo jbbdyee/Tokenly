@@ -675,6 +675,58 @@ final class ClaudeOptionalUsageTests: XCTestCase {
             "TOKENLY_CLAUDE_DEV_STATUSLINE": "/private/tmp/tokenly-claude-dev-mock-1/feed.json",
         ])
         if case .experimentalDirect = safe.route {} else { XCTFail("safe mock route should connect") }
+        let wrongFixtureRoot = ClaudeDevelopmentConfiguration.makeProvider(environment: [
+            "TOKENLY_CLAUDE_DEV_ENABLE": "1", "TOKENLY_CLAUDE_DEV_MOCK": "1",
+            "TOKENLY_CLAUDE_DEV_NODE": "/bin/sh",
+            "TOKENLY_CLAUDE_DEV_HELPER": "/private/tmp/tokenly-claude-ui-mock-1/helper.sh",
+            "TOKENLY_CLAUDE_DEV_CLI": "/usr/bin/true",
+            "TOKENLY_CLAUDE_DEV_STATUSLINE": "/private/tmp/tokenly-claude-ui-mock-1/feed.json",
+        ])
+        if case .statusLineOnly = wrongFixtureRoot.route {} else {
+            XCTFail("mock helper outside the approved prefix must not run")
+        }
+    }
+
+    func testMockUIFixtureMatchesSDKContractAndStatusLineFallback() async throws {
+        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("experiments/claude-usage-refresh/fixtures/mock-ui-success.json")
+        let data = try Data(contentsOf: fixture)
+        let parsed = try ClaudeDirectUsageParser.parse(data, receivedAt: Date())
+        XCTAssertEqual(parsed.windows[.fiveHour]?.quota.remainingPercent, 80)
+        XCTAssertEqual(parsed.windows[.sevenDay]?.quota.remainingPercent, 65)
+
+        let root = URL(fileURLWithPath: "/private/tmp/tokenly-claude-dev-mock-contract-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let response = root.appendingPathComponent("response.json")
+        try data.write(to: response)
+        let helper = root.appendingPathComponent("helper.sh")
+        let feed = root.appendingPathComponent("feed.json")
+        let captured = ISO8601DateFormatter().string(from: Date())
+        try Data(#"{"captured_at":"\#(captured)","rate_limits":{"five_hour":{"used_percentage":27},"seven_day":{"used_percentage":42}}}"#.utf8)
+            .write(to: feed)
+        func provider() -> ClaudeOptionalUsageProvider {
+            ClaudeDevelopmentConfiguration.makeProvider(environment: [
+                "TOKENLY_CLAUDE_DEV_ENABLE": "1", "TOKENLY_CLAUDE_DEV_MOCK": "1",
+                "TOKENLY_CLAUDE_DEV_NODE": "/bin/sh", "TOKENLY_CLAUDE_DEV_HELPER": helper.path,
+                "TOKENLY_CLAUDE_DEV_CLI": "/usr/bin/true", "TOKENLY_CLAUDE_DEV_STATUSLINE": feed.path,
+            ])
+        }
+        try Data("#!/bin/sh\ncat \(response.path)\n".utf8).write(to: helper)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
+        let direct = try await provider().fetch()
+        XCTAssertEqual(direct.source, .directCLI)
+        XCTAssertNotNil(direct.sourceTimes[.directCLI])
+        guard case .quotas(let directQuotas) = direct.metrics else { return XCTFail("missing direct quotas") }
+        XCTAssertEqual(directQuotas.map(\.remainingPercent), [80, 65])
+
+        try Data("#!/bin/sh\nexit 22\n".utf8).write(to: helper)
+        let fallback = try await provider().fetch()
+        XCTAssertEqual(fallback.source, .statusLine)
+        XCTAssertNil(fallback.sourceTimes[.directCLI])
+        guard case .quotas(let fallbackQuotas) = fallback.metrics else { return XCTFail("missing fallback quotas") }
+        XCTAssertEqual(fallbackQuotas.map(\.remainingPercent), [73, 58])
     }
 #endif
 }

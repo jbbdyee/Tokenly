@@ -332,3 +332,17 @@ Tokenly는 현재 Claude Code의 [statusLine JSON](https://code.claude.com/docs/
 **배포 전 남은 일:** 다른 Mac의 Claude CLI 설치·로그인 재사용과 실패 대체, Intel 실기기/최소 macOS, Developer ID의 중첩 서명·Hardened Runtime·notarization·Gatekeeper, 실제 팝오버와 접근성 화면을 검증해야 한다. ad-hoc 서명은 배포 서명이 아니다. 개발 옵션은 기본 비활성이고 실제 SDK 조회 후보는 300초이며 화면의 시각 표시는 네트워크 조회와 별개다. 60초 상시 조회는 활성화하지 않는다. 📸 캡처 추천: 가상 응답만 표시한 개발 앱 Claude 팝오버에서 첫 성공과 300초 뒤 두 번째 성공 시각, statusLine 대체 화면. 실제 계정 값이 있는 화면은 공개하지 않는다.
 
 **이번 자동 검증:** Node 정책 9개, 전체 XCTest 448개(추가한 manifest 손상·Store 시각 테스트 포함), Debug·Release 빌드, `git diff --check`가 통과했다. 테스트 및 빌드 로그는 저장소 밖 임시 경로에 있다.
+
+## Mock 개발 앱 실제 UI 검증 시도 (2026-11-01)
+
+정식 설치 앱과 별도인 `io.github.jbbdyee.tokenly.claudebundle.20261101` 개발 앱을 격리 HOME에서 `/bin/sh` 가상 helper와 `/usr/bin/true` CLI 자리표시자만 주입해 실행했다. SDK 번들 경로 활성화 변수를 제거해 공식 SDK/Claude CLI가 호출되지 않도록 했다. 이번 실행은 300초 반복 타이머 전에 종료했고 실계정 조회·모델 요청·자동 폴링은 0회다. 화면 자동화의 네이티브 파이프는 시작되지 않았고 macOS 접근성은 개발 앱 상태 항목만 식별했다. 클릭과 AXPress 뒤 창 수가 0이었으며 제한 캡처에도 팝오버가 없었다. 따라서 실제 5시간·7일 UI, 첫째·둘째 성공 시각 변화, statusLine 대체 화면은 **미검증**이다. 캡처 실패를 UI 성공이나 결함으로 확정하지 않는다.
+
+가상 시각 진행은 Mock Clock/Swift Store XCTest에서 첫 성공, +299초 재조회 차단, +300초 뒤 두 번째 성공 시각 반영으로 검증돼 있다. 이는 실제 SwiftUI 렌더링 증거가 아니다. 화면 확인용 임시 스크립트 `/private/tmp/tokenly-claude-ui-mock-20261101/run-mock-ui.sh success|fallback`은 4분 watchdog으로 반복 조회 전에 종료한다. 사용자 수동 확인 시 `success` 첫 캡처와 별도 재실행의 새 성공 시각, `fallback`의 상태줄 대체 시각을 비교한다. 재실행은 같은 프로세스 안의 두 번째 조회가 아니다. 📸 캡처 추천: 가상 데이터 안내, 두 한도, `가상 SDK 조회 마지막 성공`, 대체 상태의 `마지막 수신` 문구가 함께 보이는 팝오버. 실제 계정 값은 포함하지 않는다.
+
+이번 전체 XCTest **449개**, Debug·Release 빌드, `git diff --check`가 통과했다. 제품 코드와 300초 후보 정책은 변경하지 않았고 60초 상시 조회는 비활성이다.
+
+## Mock UI 가상 조회 오류 원인과 수정 (2026-11-01)
+
+사용자 화면의 `조회 실패`/`데이터 없음`/`사용량 응답을 해석하지 못했습니다`는 실계정 오류가 아니다. 이전 `run-mock-ui.sh success`의 helper는 `/private/tmp/tokenly-claude-ui-mock-...`에 있었지만 `ClaudeDevelopmentConfiguration`은 `/private/tmp/tokenly-claude-dev-mock-...`만 허용해 직접 Mock 실행을 열지 않았다. 이어서 `{}` statusLine 파일이 `ClaudeQuotaParser`의 필수 `captured_at`/`rate_limits` 계약을 만족하지 않아 invalidResponse가 표시됐다. 직접 JSON 자체는 `rate_limits_available`, `rate_limits.five_hour/seven_day.utilization/resets_at` 형식으로 SDK 최소 helper 출력과 일치한다. 제품 파서는 수정하지 않는다.
+
+수정한 버전 관리 스크립트와 fixture는 허용된 별도 임시 경로와 유효한 가상 statusLine을 사용한다. 성공 가상 값은 5시간 80%·7일 65%, 대체값은 73%·58%로 출처를 구별한다. 수정 앱의 성공·fallback 별도 실행에서 각각 helper 호출 1회와 메뉴 막대 직접 값 80%·65%, 대체값 73%·58%를 확인했다. 이 숫자는 가상 데이터이며 계정·서버 응답이 아니다. Mock 경로 거부·정상 JSON 직접 파싱·helper 실패 뒤 statusLine 대체는 Swift XCTest로 검증한다. 팝오버 본문의 성공 시각과 fallback 출처 문구는 사용자 캡처 전까지 미검증이다. 300초 전 종료 안전장치를 유지하며 실제 SDK 조회·모델 요청·자동 폴링은 수행하지 않았다. 전체 개발 플래그 XCTest 453개, Node 정책 테스트 11개, Debug·Release 빌드, `git diff --check` 통과. 📸 캡처 추천: `success` 팝오버의 두 한도와 `가상 SDK 조회 마지막 성공`, `fallback`의 `마지막 수신` 문구.

@@ -1645,3 +1645,11 @@ XCTest 107개 3회 통과 후 빌드 번호 3으로 개발 확인 빌드를 만�
 ## Claude 이식형 개발 앱 배포 전 검증 (2026-11-01)
 
 별도 ID 개발 앱의 범용 Node와 SDK 0.3.169 번들, helper 무결성 및 arm64 실행을 확인했다. Mock 앱 최초 호출 경로와 Swift Store의 연속 성공 시각은 자동 검증으로 분리했다. 화면 자동화 연결에 실패하여 실제 팝오버의 두 성공 시각 및 statusLine 대체 표시는 아직 수동 검증이 필요하다. x86_64 슬라이스는 확인했지만 이 Mac의 Rosetta 실행이 불가하여 Intel Mac 결과는 없다. 실제 배포 순서는 클린 Mac/Intel 실행과 외부 Claude CLI 실패 대체 확인 → Developer ID로 중첩 실행 코드 서명·Hardened Runtime·공증 → Gatekeeper 설치·UI 검증이다. 기본 비활성 및 300초 SDK 조회 후보는 유지하고 60초 상시 조회는 보류한다.
+
+## Claude Mock UI 검증 인계 (2026-11-01)
+
+Mock 앱은 격리 HOME, `/bin/sh` 가상 helper, `/usr/bin/true` CLI 경로와 임시 statusLine 파일만 사용한다. 4분 watchdog을 둔 `/private/tmp/tokenly-claude-ui-mock-20261101/run-mock-ui.sh`로 `success` 또는 `fallback` 상태를 수동으로 확인할 수 있다. 동일 프로세스의 두 성공 시각은 Mock Clock XCTest로 검증했고, 실제 팝오버는 접근성 클릭 후 창이 나타나지 않아 미확인이다. 캡처로 첫 성공, 별도 재실행 성공, statusLine 대체 화면을 확인하되, 앱 재실행을 300초 자동 재조회 검증으로 해석하지 않는다. 개발 앱의 실제 SDK 경로와 정식 v0.3.0에는 영향이 없다.
+
+## Claude Mock UI fixture 수정과 검증 경계 (2026-11-01)
+
+실패 원인은 `/private/tmp/tokenly-claude-ui-mock-...` helper가 개발 앱의 `/private/tmp/tokenly-claude-dev-mock-...` 허용 경로와 달라 statusLine 전용 경로가 선택된 것이다. 이전 `{}` feed는 의도한 폴백 진단에도 부적합했다. 버전 관리되는 `experiments/claude-usage-refresh/run-mock-ui.sh`와 최소 SDK 형식의 `fixtures/mock-ui-success.json`을 사용하며, 직접 조회와 statusLine을 서로 다른 가상 값으로 구분한다. Mock 앱의 성공·fallback 각각에서 helper 1회와 메뉴 막대 값(80%·65% / 73%·58%)을 확인했다. 팝오버 본문·시각은 사용자 확인이 남아 있고, 실제 계정/자동 조회는 실행하지 않는다.
