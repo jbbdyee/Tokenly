@@ -104,15 +104,32 @@ enum ClaudeDevelopmentConfiguration {
                                                helperURL: URL(fileURLWithPath: helper),
                                                cliURL: URL(fileURLWithPath: cli))
         let direct = ClaudeDirectUsageProvider(runner: ClaudeSDKProcessRunner(executor: executor))
+        let reservationDirectory: URL? = isRealOnce
+            ? URL(fileURLWithPath: "/private/tmp/tokenly-claude-real-once-20261101")
+            : isRealTwo
+                ? URL(fileURLWithPath: "/private/tmp/tokenly-claude-real-two-20261031")
+                : nil
+        let checkpointURL: URL?
+        if reservationDirectory != nil {
+            guard let bundleID = Bundle.main.bundleIdentifier,
+                  let support = FileManager.default.urls(for: .applicationSupportDirectory,
+                                                         in: .userDomainMask).first else {
+                return ClaudeOptionalUsageProvider(statusLine: statusLine)
+            }
+            let directory = support.appendingPathComponent("Tokenly Claude Experiment", isDirectory: true)
+                .appendingPathComponent(bundleID, isDirectory: true)
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                     attributes: [.posixPermissions: 0o700])
+            checkpointURL = directory.appendingPathComponent("refresh-checkpoint.json")
+        } else {
+            checkpointURL = nil
+        }
         return ClaudeOptionalUsageProvider(statusLine: statusLine,
             route: .experimentalDirect(provider: direct, maxAge: 900),
             gate: ClaudeDirectRefreshGate(maxAttempts: isRealOnce ? 1 : isRealTwo ? 2 : nil,
                                           stopOnFailure: isRealTwo,
-                                          reservationDirectory: isRealOnce
-                                              ? URL(fileURLWithPath: "/private/tmp/tokenly-claude-real-once-20261101")
-                                              : isRealTwo
-                                                  ? URL(fileURLWithPath: "/private/tmp/tokenly-claude-real-two-20261031")
-                                                  : nil))
+                                          reservationDirectory: reservationDirectory,
+                                          checkpointURL: checkpointURL))
     }
 #else
     static let isEnabled = false

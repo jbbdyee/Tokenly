@@ -24,6 +24,11 @@ final class ClaudeOptionalUsageTests: XCTestCase {
     }
 
     private final class Clock { var date = Date(timeIntervalSince1970: 1_800_000_000) }
+    private func assertBegin(_ gate: ClaudeDirectRefreshGate, at date: Date,
+                             expected: Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        let actual = await gate.begin(at: date)
+        XCTAssertEqual(actual, expected, file: file, line: line)
+    }
     private let directJSON = Data(#"{"rate_limits_available":true,"rate_limits":{"five_hour":{"utilization":20,"resets_at":null},"seven_day":{"utilization":40,"resets_at":null}}}"#.utf8)
     private let partialJSON = Data(#"{"rate_limits_available":true,"rate_limits":{"five_hour":{"utilization":25,"resets_at":null}}}"#.utf8)
 
@@ -327,6 +332,153 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         let retry = await restartedGate.begin(at: start.addingTimeInterval(86_400))
         XCTAssertFalse(retry)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 1)
+    }
+
+    func testCheckpointKeepsSuccessDeadlineAcrossRestartAndWakeBurst() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-checkpoint-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("refresh.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(first, at: start, expected: true)
+        await first.finish(error: nil, at: start.addingTimeInterval(2))
+
+        let restarted = ClaudeDirectRefreshGate(checkpointURL: file)
+        for offset in [3.0, 60, 299, 301] {
+            await assertBegin(restarted, at: start.addingTimeInterval(offset), expected: false)
+        }
+        let due = start.addingTimeInterval(302)
+        await assertBegin(restarted, at: due, expected: true)
+        let concurrent = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(concurrent, at: due, expected: false)
+        await restarted.finish(error: nil, at: due)
+        await assertBegin(concurrent, at: due, expected: false)
+        let wakeAt = due.addingTimeInterval(7_200)
+        let afterWake = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(afterWake, at: wakeAt, expected: true)
+        for _ in 0..<3 {
+            let duplicate = ClaudeDirectRefreshGate(checkpointURL: file)
+            await assertBegin(duplicate, at: wakeAt, expected: false)
+        }
+        await afterWake.finish(error: nil, at: wakeAt)
+        let data = try Data(contentsOf: file)
+        let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(fields["attempts"] as? Int, 3)
+        XCTAssertNotNil(fields["lastAttemptAt"])
+        XCTAssertNotNil(fields["lastSuccessAt"])
+        XCTAssertNotNil(fields["nextEligibleAt"])
+        XCTAssertNil(fields["rate_limits"])
+    }
+
+    func testCheckpointPersistsFiniteFailuresAndSuccessReset() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-failure-checkpoint-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("refresh.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(first, at: start, expected: true)
+        await first.finish(error: ClaudeUsageRunnerError.timeout, at: start)
+        let second = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(second, at: start.addingTimeInterval(299), expected: false)
+        let secondAt = start.addingTimeInterval(300)
+        await assertBegin(second, at: secondAt, expected: true)
+        await second.finish(error: ClaudeUsageRunnerError.transport, at: secondAt)
+        let third = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(third, at: secondAt.addingTimeInterval(599), expected: false)
+        let thirdAt = secondAt.addingTimeInterval(600)
+        await assertBegin(third, at: thirdAt, expected: true)
+        await third.finish(error: ExternalProviderError.noData, at: thirdAt)
+        let restarted = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(restarted, at: thirdAt.addingTimeInterval(86_400), expected: false)
+        let restartPaused = await restarted.isPaused
+        XCTAssertTrue(restartPaused)
+
+        let resetFile = directory.appendingPathComponent("reset.json")
+        let reset = ClaudeDirectRefreshGate(checkpointURL: resetFile)
+        await assertBegin(reset, at: start, expected: true)
+        await reset.finish(error: ClaudeUsageRunnerError.timeout, at: start)
+        let recovered = ClaudeDirectRefreshGate(checkpointURL: resetFile)
+        await assertBegin(recovered, at: secondAt, expected: true)
+        await recovered.finish(error: nil, at: secondAt)
+        let next = ClaudeDirectRefreshGate(checkpointURL: resetFile)
+        let nextAt = secondAt.addingTimeInterval(300)
+        await assertBegin(next, at: nextAt, expected: true)
+        await next.finish(error: ClaudeUsageRunnerError.timeout, at: nextAt)
+        let nextEligible = await next.nextEligibleAt
+        XCTAssertEqual(nextEligible, nextAt.addingTimeInterval(300))
+    }
+
+    func testCheckpointFailsClosedAfterInterruptedOrCorruptAttempt() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-uncertain-checkpoint-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("refresh.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let interrupted = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(interrupted, at: start, expected: true)
+        let restarted = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(restarted, at: start.addingTimeInterval(86_400), expected: false)
+        try Data("invalid".utf8).write(to: file, options: .atomic)
+        let corrupt = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(corrupt, at: start.addingTimeInterval(86_400), expected: false)
+        let missing = ClaudeDirectRefreshGate(checkpointURL: directory.appendingPathComponent("absent/refresh.json"))
+        await assertBegin(missing, at: start, expected: false)
+    }
+
+    func testCheckpointCancellationAndUnclassifiedSDKErrorRemainConservative() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-cancel-checkpoint-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("refresh.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let gate = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(gate, at: start, expected: true)
+        await gate.finish(error: CancellationError(), at: start)
+        let restarted = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(restarted, at: start.addingTimeInterval(299), expected: false)
+        let due = start.addingTimeInterval(300)
+        await assertBegin(restarted, at: due, expected: true)
+        await restarted.finish(error: ClaudeUsageRunnerError.sdkFailure, at: due)
+        let next = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(next, at: due.addingTimeInterval(86_400), expected: false)
+        let nextPaused = await next.isPaused
+        XCTAssertTrue(nextPaused)
+    }
+
+    func testRestartedProviderUsesStatusLineUntilCheckpointIsDue() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-provider-restart-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("refresh.json")
+        let clock = Clock()
+        let runner = SequenceRunner([.success(directJSON), .success(partialJSON)])
+        func makeProvider() -> ClaudeOptionalUsageProvider {
+            ClaudeOptionalUsageProvider(
+                statusLine: MockStatusLine(result: .success(status(clock.date))),
+                route: .experimentalDirect(provider: ClaudeDirectUsageProvider(runner: runner,
+                                                                               now: { clock.date }),
+                                           maxAge: 900),
+                now: { clock.date }, gate: ClaudeDirectRefreshGate(checkpointURL: file))
+        }
+        let first = try await makeProvider().fetch()
+        XCTAssertEqual(first.source, .directCLI)
+        clock.date = clock.date.addingTimeInterval(120)
+        let reopened = try await makeProvider().fetch()
+        XCTAssertEqual(reopened.source, .statusLine)
+        let callsBeforeDue = await runner.calls
+        XCTAssertEqual(callsBeforeDue, 1)
+        clock.date = clock.date.addingTimeInterval(180)
+        let due = try await makeProvider().fetch()
+        XCTAssertNotNil(due.sourceTimes[.directCLI])
+        let callsAfterDue = await runner.calls
+        XCTAssertEqual(callsAfterDue, 2)
     }
 
     func testTwoAttemptProviderPreservesStatusLineAfterFirstFailure() async throws {
