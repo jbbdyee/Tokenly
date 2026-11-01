@@ -15,7 +15,11 @@ node="${TOKENLY_CLAUDE_PACKAGE_NODE:-$(command -v node || true)}"
 
 mkdir -p "$output"
 cp "$source_dir/package.json" "$source_dir/package-lock.json" "$source_dir/claude-usage-helper.mjs" "$output/"
-npm ci --prefix "$output" --omit=dev --ignore-scripts --no-audit --no-fund
+if [[ "${TOKENLY_CLAUDE_OMIT_OPTIONAL:-0}" == 1 ]]; then
+  npm ci --prefix "$output" --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund
+else
+  npm ci --prefix "$output" --omit=dev --ignore-scripts --no-audit --no-fund
+fi
 "$node" --check "$output/claude-usage-helper.mjs" >/dev/null
 "$node" -e 'const p=require(process.argv[1]); if(p.version!=="0.3.169") process.exit(23)' \
   "$output/node_modules/@anthropic-ai/claude-agent-sdk/package.json"

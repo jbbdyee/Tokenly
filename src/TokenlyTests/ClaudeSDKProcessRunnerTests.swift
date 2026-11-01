@@ -99,6 +99,41 @@ final class ClaudeSDKProcessRunnerTests: XCTestCase {
         catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .unavailable) }
     }
 
+    func testBundledRuntimeUsesRelativePathsAndFailsClosed() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-bundle-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let bundle = folder.appendingPathComponent("Tokenly.app")
+        let macOS = bundle.appendingPathComponent("Contents/MacOS")
+        let resources = bundle.appendingPathComponent("Contents/Resources/ClaudeUsageSDK")
+        let sdk = resources.appendingPathComponent("node_modules/@anthropic-ai/claude-agent-sdk")
+        try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sdk, withIntermediateDirectories: true)
+        let runtime = macOS.appendingPathComponent("TokenlyClaudeNode")
+        try Data("#!/bin/sh\nexec /bin/sh \"$@\"\n".utf8).write(to: runtime)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: runtime.path)
+        let helper = resources.appendingPathComponent("claude-usage-helper.mjs")
+        try Data("printf '{\"rate_limits_available\":true,\"rate_limits\":{\"five_hour\":{\"utilization\":20}}}\\n'\n".utf8)
+            .write(to: helper)
+        let manifest = sdk.appendingPathComponent("package.json")
+        try Data("{\"version\":\"0.3.169\"}".utf8).write(to: manifest)
+        let cli = URL(fileURLWithPath: "/usr/bin/true")
+        let resolved = ClaudeBundledRuntime.executor(bundleURL: bundle, cliURL: cli)
+        XCTAssertNotNil(resolved)
+        let output = try await XCTUnwrap(resolved).execute()
+        let parsed = try ClaudeDirectUsageParser.parse(output, receivedAt: Date())
+        XCTAssertEqual(parsed.windows[.fiveHour]?.quota.remainingPercent, 80)
+        XCTAssertNil(ClaudeBundledRuntime.executor(bundleURL: bundle,
+            cliURL: folder.appendingPathComponent("missing-cli")))
+        try Data("{\"version\":\"0.0.0\"}".utf8).write(to: manifest)
+        XCTAssertNil(ClaudeBundledRuntime.executor(bundleURL: bundle, cliURL: cli))
+        try Data("{\"version\":\"0.3.169\"}".utf8).write(to: manifest)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: runtime.path)
+        XCTAssertNil(ClaudeBundledRuntime.executor(bundleURL: bundle, cliURL: cli))
+        try FileManager.default.removeItem(at: runtime)
+        XCTAssertNil(ClaudeBundledRuntime.executor(bundleURL: bundle, cliURL: cli))
+    }
+
     func testTimeoutAndOutputLimit() async throws {
         let (folder, script) = try fakeScript("sleep 3")
         defer { try? FileManager.default.removeItem(at: folder) }

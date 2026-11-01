@@ -1,3 +1,9 @@
+## 이식형 Node·SDK 개발 번들 (2026-11-01)
+
+**확인:** 공식 Node 24.22.1 arm64/x64 배포물의 공개 SHA-256이 각각 일치했다. 범용 실행 파일의 두 아키텍처와 macOS 시스템 라이브러리 링크를 확인했다. Homebrew dylib/로컬 절대경로 링크는 없다. SDK 0.3.169 lockfile로 `npm ci --omit=optional --ignore-scripts` 설치 후 SDK 모듈 import만 검증했다. 선택적 SDK 내장 CLI를 제외해 payload를 줄였고 외부 공식 Claude CLI가 없으면 개발 SDK route를 만들지 않는다. 별도 개발 앱 내부에 Node·helper·SDK를 포함하고 ad-hoc 서명/검증했다. 범용 Node의 가상 JSON 실행과 Swift 번들 경로 Mock을 확인했다. 앱 실행, 실제 SDK helper/계정 요청, 모델 요청, 자동 폴링은 없었다. Node 정책 테스트 11개·관련 XCTest 7개·전체 XCTest 447개·Debug/Release 빌드가 통과했다. 최초 Mock XCTest는 임시 위치로 복사한 `/bin/sh`가 macOS에서 종료돼 실패했으며, 가상 shell 스크립트로 교체 후 재검증했다.
+
+**제약:** 개발 앱 약 310 MB. 실제 외부 CLI와 함께 bundled SDK 사용량 조회가 가능한지는 별도 승인 실험 전까지 미검증이다. 다른 Mac, Intel 실행, 최소 macOS, Developer ID 서명/Hardened Runtime/notarization/Gatekeeper도 미검증이다. 외부 Node 설치 요구보다 자체 Node 번들이 안정적이나 CLI 설치·로그인은 여전히 사용자 환경 의존성이다. 300초 조회 후보를 유지하고 60초 2회 성공은 기록만 한다. 화면 표시 갱신과 네트워크 조회는 다르다. 블로그 소재는 Homebrew Node 의존성 발견 → 공식 Node 체크섬 검증·범용 번들·SDK 선택 의존성 축소 과정이며 본문은 작성하지 않았다.
+
 ## 60초 간격 제한 실계정 시험 (2026-11-01)
 
 **실제 확인:** 정식 앱 및 기존 300초 실험과 격리된 개발 앱의 공식 SDK usage 경로를 최대 2회로 예약했다. 첫 성공 완료 후 두 번째 시작까지 단조 증가 uptime으로 60.014초였다. 두 조회는 모두 성공했고 5시간·7일 필드가 유효했으며 Swift Store의 직접 조회 출처와 마지막 성공 시각 존재가 두 번 기록됐다. 각 조회 시간은 2.309초와 1.761초다. 앱/helper는 두 번째 Store 반영 뒤 종료했다. 예약 파일 2개와 체크포인트를 보존해 재실행이 조회 제한을 초기화하지 않게 했다. 모델 메시지·양의 세션 비용 감지 안전장치는 발동하지 않았다.

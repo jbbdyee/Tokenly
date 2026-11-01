@@ -1,3 +1,9 @@
+## Claude SDK 이식형 개발 앱 준비 (2026-11-01)
+
+시작 `experiment/claude-usage-refresh` HEAD `e1a04c4`, 미추적 GPU 로그 2개 외 깨끗했다. 공식 Node 24.22.1 arm64/x64 tarball을 공개 SHA-256으로 확인했다. 공식 Node는 macOS 시스템 라이브러리만 참조했고 Homebrew Node의 동적 라이브러리 의존성을 제거했다. `lipo` 범용 Node, SDK 0.3.169 lockfile 기반 패키지와 helper를 별도 개발 앱에 포함했다. SDK 내장 선택적 CLI는 제외하고 SDK import만 확인했으며 실제 사용량/모델 요청은 없었다. 번들 ID `io.github.jbbdyee.tokenly.claudebundle.20261101`, 앱 경로 `/private/tmp/tokenly-claude-portable-app-final-20261101/DerivedData/Build/Products/Debug/Tokenly.app`, 크기 약 310 MB. 앱은 실행하지 않았다.
+
+개발 옵션은 기본 비활성이며 해당 ID·명시적 활성화 변수·외부 Claude CLI 경로가 모두 있어야 번들 resolver가 동작한다. 파일/권한/SDK 버전/CLI 누락은 기존 statusLine으로 안전하게 돌아간다. 가상 shell/Node 응답으로 경로와 번들 Node 실행을 시험했으며 SDK helper 자체는 실행하지 않았다. ad-hoc 코드 서명과 `codesign --verify --strict`만 확인했다. Developer ID, Hardened Runtime, notarization, Gatekeeper, 최소 macOS 및 다른 Mac의 arm64/x64 실행은 미검증이다. 기존 300초 정책 유지, 60초 상시 조회 미활성. 화면 표시 갱신과 SDK 네트워크 조회를 분리한다. 검증: Node 정책 테스트 11개, Claude 관련 XCTest 7개, 전체 XCTest 447개, Debug·Release 및 분리 개발 앱 빌드 성공, `git diff --check` 통과. 첫 Mock XCTest는 복사한 `/bin/sh` 바이너리가 macOS에서 종료돼 실패했으며 서명 대상이 아닌 가상 shell 스크립트로 수정해 관련/전체 XCTest를 재실행해 통과했다. 코드 서명 검증은 ad-hoc 범위다. 📸 캡처 추천: 번들 내부 Node·SDK 경로와 `codesign --verify` 결과(사용자 경로를 가린 뒤); 계정 화면 캡처는 필요 없다.
+
 ## Claude 60초 제한 실계정 실험 (2026-11-01)
 
 시작 `experiment/claude-usage-refresh` HEAD `da7f7e2`, 미추적 GPU 로그 2개 외 변경 없음. 기존 300초 예약/체크포인트는 건드리지 않았다. 기존 단발성 개발 앱 1개가 실행 중이었고, 새 앱은 별도 번들 ID `io.github.jbbdyee.tokenly.claudereal60.20261101`, 별도 설정 도메인과 `/private/tmp/tokenly-claude-real-sixty-20261101` 예약 폴더를 사용했다. Mock은 60초 전 거부, 재시작/절전·재열기 대응, 최대 2회, 세 번째 거부를 확인했다. Node 11개, 전체 XCTest 446개, Debug·Release 및 별도 개발 앱 빌드, `git diff --check` 통과.

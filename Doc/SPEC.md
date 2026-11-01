@@ -1,3 +1,7 @@
+## Claude SDK 이식형 개발 앱 (2026-11-01)
+
+정식 v0.3.0에는 적용하지 않는다. 별도 번들 ID `io.github.jbbdyee.tokenly.claudebundle.20261101`의 개발 앱에는 공식 Node 24.22.1 arm64·x64 범용 실행 파일, SDK 0.3.169, 최소 helper를 포함한다. Node는 `Contents/MacOS`, JavaScript와 SDK는 `Contents/Resources/ClaudeUsageSDK`에 둔다. 기본 상태에서는 SDK 경로가 비활성이며 개발 컴파일 플래그와 명시적 활성화 변수, 해당 번들 ID, 외부 공식 Claude CLI 경로가 모두 필요하다. CLI가 없거나 번들 파일·권한·SDK 버전이 맞지 않으면 statusLine으로 돌아간다. 기존 SDK 성공 후 300초 후보 정책을 유지하고 화면 표시 갱신과 실제 SDK 네트워크 조회를 구분한다. 60초 2회 실험 성공은 상시 1분 조회 활성화 근거로 삼지 않는다.
+
 ## Claude 60초 제한 실험 결과 (실험 브랜치, 2026-11-01)
 
 정식 v0.3.0과 기본 Claude 경로는 statusLine을 유지한다. 별도 번들 ID `io.github.jbbdyee.tokenly.claudereal60.20261101`의 개발 앱에서 공식 SDK 사용량 조회를 2회로 제한해 시험했다. 두 번 모두 5시간·7일 필드가 유효하고 Store에 직접 조회 출처/성공 시각이 반영됐다. 첫 성공 완료부터 두 번째 시작까지 60.014초였다. 이는 이 계정·환경의 일회성 관찰이며 Anthropic의 공식 최소 호출 간격 또는 지속 가능한 1분 정책을 뜻하지 않는다. 기존 300초 자동 조회 후보 정책은 그대로다. 화면 표시 갱신 주기는 SDK 네트워크 조회 주기와 별개다.

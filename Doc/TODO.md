@@ -1,3 +1,11 @@
+## Claude SDK 이식형 번들 후속 (2026-11-01)
+
+- [x] 공식 Node 24.22.1 arm64·x64 배포물 SHA-256 검증, 범용 Node와 SDK 0.3.169을 포함한 별도 개발 앱 구성.
+- [x] SDK 내장 선택적 CLI를 제외한 패키지 import, 번들 Node 가상 실행, CLI/SDK/권한 누락의 Mock 실패 검증.
+- [ ] 실제 외부 Claude CLI의 다른 Mac 설치 경로/버전 탐색 정책과 격리 개발 앱의 실계정 연결 검증(별도 승인 필요).
+- [ ] Developer ID 서명, Hardened Runtime 권한, notarization, Gatekeeper, macOS 최소 버전·arm64/x64 클린 Mac 실행 검증.
+- [ ] 공식 호출 제한·비용·장기 안정성 확인 전 1분 상시 조회 보류; 기본 후보 300초 유지.
+
 ## Claude 60초 실험 후속 (2026-11-01)
 
 - [x] 독립 개발 앱에서 실계정 SDK 조회 2회, 첫 성공 완료 후 60.014초 간격, 두 창 유효성과 Store 반영 확인.

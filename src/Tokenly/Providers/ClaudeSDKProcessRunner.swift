@@ -142,6 +142,34 @@ struct ClaudeSubprocessExecutor: ClaudeProcessExecuting {
     }
 }
 
+/// Resolves a development app's packaged Node and SDK without relying on Homebrew paths.
+/// A missing Claude CLI or incomplete bundle leaves the caller on statusLine.
+enum ClaudeBundledRuntime {
+    static let sdkVersion = "0.3.169"
+
+    static func executor(bundleURL: URL, cliURL: URL,
+                         environment: [String: String] = ProcessInfo.processInfo.environment)
+        -> ClaudeSubprocessExecutor? {
+        let root = bundleURL.resolvingSymlinksInPath().standardizedFileURL.path + "/"
+        let runtime = bundleURL.appendingPathComponent("Contents/MacOS/TokenlyClaudeNode")
+        let resources = bundleURL.appendingPathComponent("Contents/Resources/ClaudeUsageSDK")
+        let helper = resources.appendingPathComponent("claude-usage-helper.mjs")
+        let manifest = resources.appendingPathComponent("node_modules/@anthropic-ai/claude-agent-sdk/package.json")
+        guard [runtime, helper, manifest].allSatisfy({
+            $0.resolvingSymlinksInPath().standardizedFileURL.path.hasPrefix(root)
+        }), cliURL.isFileURL, cliURL.path.hasPrefix("/"),
+              access(runtime.path, X_OK) == 0, access(helper.path, R_OK) == 0,
+              access(cliURL.path, X_OK) == 0,
+              let attributes = try? FileManager.default.attributesOfItem(atPath: manifest.path),
+              let size = attributes[.size] as? NSNumber, size.intValue <= 8192,
+              let data = try? Data(contentsOf: manifest),
+              let package = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              package["version"] as? String == sdkVersion else { return nil }
+        return ClaudeSubprocessExecutor(runtimeURL: runtime, helperURL: helper,
+                                        cliURL: cliURL, environment: environment)
+    }
+}
+
 private final class ClaudeProcessControl: @unchecked Sendable {
     enum Reason { case cancelled, timeout, unsafeOutput, transport }
     private let lock = NSLock()

@@ -27,6 +27,11 @@ enum ClaudeDevelopmentConfiguration {
             && Bundle.main.bundleIdentifier == "io.github.jbbdyee.tokenly.claudereal60.20261101"
     }
 
+    static var isBundledDevelopment: Bool {
+        ProcessInfo.processInfo.environment["TOKENLY_CLAUDE_DEV_BUNDLED_ENABLE"] == "1"
+            && Bundle.main.bundleIdentifier == "io.github.jbbdyee.tokenly.claudebundle.20261101"
+    }
+
     static func recordAttempt(result: ClaudeDirectResult?, error: Error?, elapsed: TimeInterval) {
         guard isRealOnce || isRealTwo || isRealSixty else { return }
         let code: String
@@ -77,7 +82,16 @@ enum ClaudeDevelopmentConfiguration {
     }
 
     static var isEnabled: Bool {
-        ProcessInfo.processInfo.environment["TOKENLY_CLAUDE_DEV_ENABLE"] == "1"
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["TOKENLY_CLAUDE_DEV_ENABLE"] == "1" else { return false }
+        if isBundledDevelopment {
+            guard let cli = environment["TOKENLY_CLAUDE_DEV_CLI"], cli.hasPrefix("/") else {
+                return false
+            }
+            return ClaudeBundledRuntime.executor(bundleURL: Bundle.main.bundleURL,
+                cliURL: URL(fileURLWithPath: cli), environment: environment) != nil
+        }
+        return true
     }
 
     static func makeProvider(environment: [String: String] = ProcessInfo.processInfo.environment)
@@ -89,6 +103,26 @@ enum ClaudeDevelopmentConfiguration {
             statusLine = ClaudeSubscriptionProvider(fileURL: URL(fileURLWithPath: path))
         } else {
             statusLine = ClaudeSubscriptionProvider()
+        }
+        if environment["TOKENLY_CLAUDE_DEV_ENABLE"] == "1", isBundledDevelopment {
+            guard let cli = environment["TOKENLY_CLAUDE_DEV_CLI"], cli.hasPrefix("/"),
+                  let executor = ClaudeBundledRuntime.executor(
+                    bundleURL: Bundle.main.bundleURL, cliURL: URL(fileURLWithPath: cli),
+                    environment: environment),
+                  let bundleID = Bundle.main.bundleIdentifier,
+                  let support = FileManager.default.urls(for: .applicationSupportDirectory,
+                                                         in: .userDomainMask).first else {
+                return ClaudeOptionalUsageProvider(statusLine: statusLine)
+            }
+            let directory = support.appendingPathComponent("Tokenly Claude Experiment", isDirectory: true)
+                .appendingPathComponent(bundleID, isDirectory: true)
+            do { try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                         attributes: [.posixPermissions: 0o700]) }
+            catch { return ClaudeOptionalUsageProvider(statusLine: statusLine) }
+            let direct = ClaudeDirectUsageProvider(runner: ClaudeSDKProcessRunner(executor: executor))
+            return ClaudeOptionalUsageProvider(statusLine: statusLine,
+                route: .experimentalDirect(provider: direct, maxAge: 900),
+                gate: ClaudeDirectRefreshGate(checkpointURL: directory.appendingPathComponent("refresh-checkpoint.json")))
         }
         guard environment["TOKENLY_CLAUDE_DEV_ENABLE"] == "1",
               let node = environment["TOKENLY_CLAUDE_DEV_NODE"],

@@ -1,3 +1,7 @@
+## Claude SDK 이식형 개발 번들 (2026-11-01)
+
+공식 [Node 24.22.1 배포물](https://nodejs.org/en/download/archive/v24.22.1)의 macOS arm64/x64 압축 파일을 공개 SHA-256과 비교하고, 각 Node 실행 파일을 `lipo`로 범용화했다. `otool -arch all -L`에서 Homebrew·로컬 절대경로·`@rpath` 의존성이 없고 macOS 시스템 라이브러리만 확인됐다. `npm ci --omit=optional --ignore-scripts`로 SDK 0.3.169과 helper를 설치해 SDK 모듈 import만 확인했다. 선택적 SDK 내장 CLI를 빼서 앱 크기를 줄였으므로 공식 Claude CLI는 외부 설치·로그인 상태가 필요하다. `scripts/build-claude-portable-dev.sh`는 별도 번들 ID의 개발 앱 `Contents/MacOS/TokenlyClaudeNode`와 `Contents/Resources/ClaudeUsageSDK`에 파일을 두고 ad-hoc 서명/검증한다. [Apple 번들 배치 지침](https://developer.apple.com/documentation/bundleresources/placing-content-in-a-bundle)에 맞춘 후보 구조다. 개발 앱은 명시적 옵션과 CLI 경로가 없으면 기존 statusLine만 사용한다. Swift resolver는 번들 경로·권한·SDK manifest 버전을 검사한다. 이 단계의 번들 Node 가상 실행은 계정/SDK helper 호출이 아니다. 앱 약 310 MB, 다른 Mac 실행·Developer ID 서명·notarization은 미검증이다. 기존 300초 실제 조회 후보를 유지하고 60초 상시 조회는 보류한다. 화면 갱신은 SDK 네트워크 조회와 별개다.
+
 ## Claude 60초 단발 제한 실험 (2026-11-01)
 
 기존 300초 후보 정책은 `ClaudeDirectRefreshGate` 기본값으로 유지했다. 새 개발 앱에만 성공 간격 60초, 최대 2회, 첫 실패 시 중단, 재시작 후 제한 유지, 단발 타이머를 적용했다. 번들 ID·UserDefaults 도메인·예약/체크포인트 경로는 기존 300초 실험과 분리했다. 조회 2회가 끝난 뒤 앱을 종료했으며 예약 2개와 체크포인트는 보존한다. 첫 성공 완료 시각에서 두 번째 프로세스 시작까지 60.014초, 실행 시간은 2.309/1.761초였다. 두 응답의 5시간·7일 필드는 유효하고 Swift Store의 직접 조회 출처와 성공 시각 표시 자료가 두 번 갱신됐다. 실제 팝오버 시각 변화는 직접 확인하지 않았다. helper의 모델 메시지/양의 세션 비용 감지 안전장치는 발동하지 않았으나 최종 과금 부재를 보증하지 않는다. 이 결과만으로 1분 상시 폴링을 채택하지 않는다. 화면 표시 갱신과 SDK 네트워크 조회는 별개다.
