@@ -758,12 +758,41 @@ final class ClaudeOptionalUsageTests: XCTestCase {
             bundleID: "io.github.jbbdyee.tokenly", environment: ["TOKENLY_CLAUDE_DEV_ALLOW_60": "1"]), 300)
         XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 300, bundleID: id,
             environment: ["TOKENLY_CLAUDE_DEV_ALLOW_60": "1"]), 300)
+        let mockID = ClaudeDevelopmentConfiguration.mockSixtyBundleID
+        XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 300, bundleID: mockID,
+            environment: ["TOKENLY_CLAUDE_DEV_MOCK": "1", "TOKENLY_CLAUDE_DEV_MOCK_SIXTY": "1"]), 60)
+        XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 300, bundleID: mockID,
+            environment: ["TOKENLY_CLAUDE_DEV_MOCK_SIXTY": "1"]), 300)
+        XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 300, bundleID: id,
+            environment: ["TOKENLY_CLAUDE_DEV_MOCK": "1", "TOKENLY_CLAUDE_DEV_MOCK_SIXTY": "1"]), 300)
         XCTAssertFalse(ClaudeDevelopmentConfiguration.bundledRouteAllowed(environment: [
             "TOKENLY_CLAUDE_DEV_BUNDLED_ENABLE": "1", "TOKENLY_CLAUDE_DEV_MOCK": "1"], bundleID: id))
         XCTAssertTrue(ClaudeDevelopmentConfiguration.bundledRouteAllowed(environment: [
             "TOKENLY_CLAUDE_DEV_BUNDLED_ENABLE": "1"], bundleID: id))
         XCTAssertEqual(ExternalProviderStore(displaySettings: settings, automaticTickInterval: 60)
             .automaticTickInterval, 60)
+    }
+
+    func testMockSixtyTwoAttemptBudgetSurvivesRestartAndBlocksThirdCall() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-mock-sixty-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("checkpoint.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+            successInterval: 60, reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(first, at: start, expected: true)
+        await first.finish(error: nil, at: start)
+        await assertBegin(first, at: start.addingTimeInterval(59), expected: false)
+        await assertBegin(first, at: start.addingTimeInterval(60), expected: true)
+        await first.finish(error: nil, at: start.addingTimeInterval(60))
+        await assertBegin(first, at: start.addingTimeInterval(120), expected: false)
+        let restarted = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+            successInterval: 60, reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(restarted, at: start.addingTimeInterval(3_600), expected: false)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("attempt-1.reserved").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("attempt-2.reserved").path))
     }
 
     func testMockUIFixtureMatchesSDKContractAndStatusLineFallback() async throws {

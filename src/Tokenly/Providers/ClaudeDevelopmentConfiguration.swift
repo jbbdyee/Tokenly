@@ -12,6 +12,12 @@ enum ClaudeDevelopmentConfiguration {
         ProcessInfo.processInfo.environment["TOKENLY_CLAUDE_DEV_MOCK"] == "1"
     }
 
+    static let mockSixtyBundleID = "io.github.jbbdyee.tokenly.claudemock60.20261101"
+    static var isMockSixty: Bool {
+        ProcessInfo.processInfo.environment["TOKENLY_CLAUDE_DEV_MOCK_SIXTY"] == "1"
+            && isMock && Bundle.main.bundleIdentifier == mockSixtyBundleID
+    }
+
     static var isRealOnce: Bool {
         ProcessInfo.processInfo.environment["TOKENLY_CLAUDE_DEV_REAL_ONCE"] == "1"
             && Bundle.main.bundleIdentifier == "io.github.jbbdyee.tokenly.clauderealone.20261101"
@@ -42,6 +48,9 @@ enum ClaudeDevelopmentConfiguration {
     /// 60 seconds is a guarded development trial, never an implicit production default.
     static func refreshInterval(selected: Int, bundleID: String?,
                                 environment: [String: String]) -> TimeInterval {
+        if bundleID == mockSixtyBundleID,
+           environment["TOKENLY_CLAUDE_DEV_MOCK"] == "1",
+           environment["TOKENLY_CLAUDE_DEV_MOCK_SIXTY"] == "1" { return 60 }
         guard bundleID == portableBundleID, selected == 60,
               environment["TOKENLY_CLAUDE_DEV_MOCK"] == "1" ||
               environment["TOKENLY_CLAUDE_DEV_ALLOW_60"] == "1" else { return 300 }
@@ -165,6 +174,22 @@ enum ClaudeDevelopmentConfiguration {
                                                helperURL: URL(fileURLWithPath: helper),
                                                cliURL: URL(fileURLWithPath: cli))
         let direct = ClaudeDirectUsageProvider(runner: ClaudeSDKProcessRunner(executor: executor))
+        if isMockSixty {
+            guard let root = environment["TOKENLY_CLAUDE_DEV_MOCK_SIXTY_ROOT"],
+                  root.hasPrefix("/private/tmp/tokenly-claude-dev-mock-sixty-") else {
+                return ClaudeOptionalUsageProvider(statusLine: statusLine)
+            }
+            let directory = URL(fileURLWithPath: root)
+            guard (try? FileManager.default.createDirectory(at: directory,
+                withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])) != nil else {
+                return ClaudeOptionalUsageProvider(statusLine: statusLine)
+            }
+            return ClaudeOptionalUsageProvider(statusLine: statusLine,
+                route: .experimentalDirect(provider: direct, maxAge: 900),
+                gate: ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true,
+                    successInterval: 60, reservationDirectory: directory,
+                    checkpointURL: directory.appendingPathComponent("refresh-checkpoint.json")))
+        }
         let reservationDirectory: URL? = isRealOnce
             ? URL(fileURLWithPath: "/private/tmp/tokenly-claude-real-once-20261101")
             : isRealTwo

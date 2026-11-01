@@ -57,6 +57,12 @@ final class ExternalProviderStore: ObservableObject {
 
     func start() {
 #if TOKENLY_CLAUDE_DEV
+        if ClaudeDevelopmentConfiguration.isMockSixty {
+            guard !realTwoStarted else { return }
+            realTwoStarted = true
+            _ = refresh(.claude)
+            return // One completion may schedule one further attempt; never a repeating timer.
+        }
         if ClaudeDevelopmentConfiguration.isMock {
             guard !mockStarted else { return }
             mockStarted = true
@@ -126,10 +132,12 @@ final class ExternalProviderStore: ObservableObject {
                 ClaudeDevelopmentConfiguration.recordStore(snapshot)
             }
             if id == .claude,
-               ClaudeDevelopmentConfiguration.isRealTwo || ClaudeDevelopmentConfiguration.isRealSixty,
+               ClaudeDevelopmentConfiguration.isRealTwo || ClaudeDevelopmentConfiguration.isRealSixty ||
+                   ClaudeDevelopmentConfiguration.isMockSixty,
                !realTwoSecondScheduled, Self.shouldScheduleSecondClaudeAttempt(settled) {
                 realTwoSecondScheduled = true
-                let interval: TimeInterval = ClaudeDevelopmentConfiguration.isRealSixty ? 60 : 300
+                let interval: TimeInterval = ClaudeDevelopmentConfiguration.isRealSixty ||
+                    ClaudeDevelopmentConfiguration.isMockSixty ? 60 : 300
                 timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
                     Task { @MainActor [weak self] in
                         guard let self else { return }
