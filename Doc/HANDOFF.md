@@ -1,3 +1,7 @@
+## Claude 60초 배포 입력·등록·서명 점검 (2026-11-02)
+
+브랜치 `experiment/claude-usage-refresh` / 시작 HEAD `862717d`. 제품 코드·설치 앱·설정·인증은 변경하지 않았고 실계정/모델 요청 및 LaunchServices 등록 변경은 0회다. 설치 앱 v0.3.0(5)은 제품 ID로 정상 등록돼 있다. 같은 ID의 오래된 임시 사본 등록이 다수 남아 있어 임의 일괄 해제는 금지한다. Node v24.22.1 arm64/x64 현지 아카이브 SHA-256은 스크립트 고정값과 일치하고 SDK 0.3.169는 lockfile에 고정됐다. 호스트 npm·패키지 캐시/접근·외부 Claude CLI는 여전히 필요하다. Developer ID Application 인증서 0개, 현재 스크립트는 ad-hoc 서명만 한다. 다음 버전 v0.4.0(6) 및 CHANGELOG 문안은 제안 단계다. 상세 근거·클린 Mac 체크리스트·남은 릴리즈 게이트는 [배포 준비 점검](CLAUDE-RELEASE-PREP.md)을 따른다. 이전 XCTest 454개/Node 11개/Debug·Release 결과는 재실행하지 않았다. `git diff --check`만 이번 변경에 실행한다. GPU 로그 2개 보존. 📸 캡처 추천: 없음. 이번 단계는 읽기 전용 등록/빌드 입력 확인이며 공개할 화면이 없다.
+
 ## Claude 일반 빌드 60초 경로 적용 준비 (2026-11-02)
 
 **검증 결과:** 일반 전체 XCTest 454개, 개발 플래그 관련 XCTest 44개, Node 정책 11개 통과. 일반 Debug·Release 빌드, 릴리즈 스크립트 `--dev`의 임시 ID ZIP·앱/Node 서명·압축 해제 동일성·체크섬, `git diff --check` 통과. 실계정 사용량/모델 호출과 앱 설치는 0회.
