@@ -1,3 +1,68 @@
+## v0.4.0 출시 후 유지보수 (2026-11-02)
+
+**CHANGELOG:** `[0.4.0]` 제목을 `(GitHub Release)`로 바꾸고 태그 대상 `a59eedd`·ZIP SHA-256을 적었다. 검증 범위는 출시 전과 출시 후 결과를 나눴다. 출시 후 결과는 개발자 Mac 설치·설정 유지·Claude 60초 연속 성공·팝오버 화면 확인이며, 한 계정·한 기기의 단기 관찰로 명시했다. 미검증 항목(SDK 장시간 제한·비용·신선도, M1 실기기, 클린 Mac, Gatekeeper)은 그대로다.
+
+**`scripts/release.sh`:** Node 압축 파일 기본 경로를 `/private/tmp/...`에서 `$HOME/Developer/Tokenly-Workspace/TokenlyRelease.noindex/claude-node-archives/v24.22.1`로 바꿨다. 동작은 다음과 같다.
+- `TOKENLY_CLAUDE_NODE_ARCHIVES`가 우선하며, 지정하면 기본 경로로 대체하지 않는다. `~`·symlink는 기존 `resolve_path`로 해석한다.
+- SHA-256 고정값을 Xcode 빌드 전에 한 번, 번들 직전에 한 번 다시 검사한다.
+- 읽기 전용 옵션 `--print-node-archives`를 추가했다. `--help` 범위도 갱신했다.
+- `/tmp` 대체 경로는 두지 않는다.
+
+이 기본 위치에 공식 압축 파일 2개를 보존 사본에서 복사했고(읽기 전용, 고정 SHA 일치), `/tmp` 원본과 `preserved-from-tmp-20261102` 사본은 그대로 둔다.
+
+**검증:** `bash -n` 통과(shellcheck 미설치). `--print-node-archives`로 10가지 경우를 시험했다.
+- 성공: 기본, 환경 변수(보존 폴더·옛 `/tmp`·`~` 경로), 다른 HOME에 압축 파일이 있는 경우
+- 실패(exit 1과 안내): 폴더 없음, 압축 파일 하나 누락, 체크섬 불일치, 빈 HOME, 환경 변수가 잘못돼도 기본 경로로 대체하지 않음
+
+`--print-output`과 `--help`가 정상이었고, 릴리즈 루트에 새 폴더가 생기지 않았다. 전체 XCTest·앱 빌드·ZIP 생성·실계정 조회는 하지 않았다.
+
+**문서:** README 빌드 절, TODO, SPEC 상단, IMP-PLAN 결정 기록을 동기화했다.
+
+**남은 일:** 실험용 `build-claude-product-candidate.sh`·`build-claude-portable-dev.sh`는 아직 `/tmp` 기본 경로를 쓴다. 실제 `release.sh` 전체 실행으로 새 기본 경로를 확인하는 일은 다음 릴리즈 때 한다. 📸 캡처 추천: 없음.
+
+## 디스크 정리 1단계 (2026-11-02)
+
+여유 공간이 15 GB에서 66 GB로 늘었다(`df -H`, GiB 기준 14.11 → 61.48).
+
+보존한 것:
+- Node 압축 파일, M1 fixture, v0.4.0 release output 세 폴더를 `TokenlyRelease.noindex/preserved-from-tmp-20261102/`에 ditto로 복사했다. `diff -r`가 동일했고, SHA-256도 일치했다. Node 압축 파일은 `release.sh` 고정값과, 두 ZIP은 각 `.sha256`과 같았다.
+- `release.sh`의 `TOKENLY_CLAUDE_NODE_ARCHIVES` 기본값이 `/private/tmp/tokenly-claude-portable-node-v24.22.1`이라 `/tmp` 원본도 남겼다. 소스는 변경하지 않았다.
+
+삭제한 것:
+- `/private/tmp/tokenly*` 중 333개(46.74 GB)를 정확한 경로로 하나씩 삭제했다. 실패 0. DerivedData 222개, xcresult, 빌드·검증·release 출력 사본, helper 패키지, clang 캐시, 임시 HOME이 해당한다.
+- Homebrew·pip·Notion updater 캐시, Xcode DerivedData의 Tokenly 2개, 이번 세션 작업 공간의 다운로드·압축 해제 사본을 삭제해 1.8 GB를 더 확보했다.
+
+남긴 것(약 0.7 GB):
+- 소스 사본 14개. 이 중 `tokenly-rc-v0.2.0-src`에는 미커밋 수정 7파일이 있고, 커밋은 모두 메인 저장소에 있다.
+- 작은 로그·스크립트·patch, npm 캐시 2개, ram02 측정 데이터, codex sqlite 사본
+- 실행 중인 Discord의 ShipIt 캐시, Xcode의 공용 SDK 모듈 캐시, 다른 세션 작업 공간
+
+정리 후 v0.4.0은 계속 실행 중이었고, Claude 직접 조회 attempts 39회, transientFailures 0이었다. Docker 사용량·컨테이너, 다른 프로젝트, `.codex/sessions`, GPU 로그는 변경 없음. 삭제된 임시 앱 사본의 LaunchServices 등록은 해제하지 않았다.
+
+후속 제안이던 `release.sh`의 Node 기본 경로 변경은 아래 "v0.4.0 출시 후 유지보수"에서 완료했다.
+
+## README v0.4.0 정식 상태 반영 (2026-11-02)
+
+README만 수정해 커밋·Push했다. 반영한 내용은 다음과 같다.
+- 상단에 현재 버전 v0.4.0(6), 다운로드·설치 안내, 구현·검증됨·미검증 표를 넣었다.
+- 주요 기능 표와 Claude 직접 조회·statusLine 대체·CLI 경로(`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`)를 추가했다.
+- 팝오버 중첩 방지 설명, 구조도·연동 표, `release.sh` Node·SDK 입력, v0.4.0 설치 검증 행, 향후 계획을 갱신했다.
+
+M1 실기기와 Claude 장시간 안정성은 미검증으로 표기했다. 기존 v0.3.0 Codex 기록은 "개발 기록"으로 구분해 보존했다. CHANGELOG의 `[0.4.0] (배포 파일 준비)` 제목과 "통합 후보의 실제 계정 조회·설치…실행하지 않았습니다" 문장은 출시 전 기준이다. README는 이를 출시 후 설치 결과로 구분해 적었고, CHANGELOG는 이번 범위가 아니라 수정하지 않았다. 테스트·빌드는 문서 변경이라 실행하지 않았고, `git diff --check`는 통과했다. 📸 캡처 추천: 없음.
+
+## 디스크 사용량 분석 (2026-11-02, 분석만·삭제 0회)
+
+Data 볼륨 245 GB 중 사용 230 GB, 여유 15 GB(6%). `/private/tmp/tokenly*` 626개 항목이 47.4 GB이고, 이 중 DerivedData가 222개 44.5 GB, `Tokenly*.app` 사본이 242개다. 날짜별로 10-29~10-31분이 20.1 GB, 11-01~11-02분이 27.4 GB다. 보존할 항목은 다음과 같다.
+- `tokenly-claude-portable-node-v24.22.1`: `release.sh`의 기본 `TOKENLY_CLAUDE_NODE_ARCHIVES` 경로다. `/tmp`에 있어 유실될 위험이 있다.
+- M1 fixture final
+- v0.4.0 release output(GitHub 자산과 SHA 동일)
+
+v0.4.0 ZIP 사본 3개는 모두 같은 SHA다. 임시 `.app` 사본 다수가 제품 번들 ID로 LaunchServices에 등록돼 있을 수 있다. 삭제해도 일괄 해제(`lsregister -kill`)는 하지 않는다. 그 밖의 항목은 Docker 이미지 13.7 GB(9.9 GB 회수 가능), 볼륨 7.3 GB(미사용 6.0 GB), iOS 시뮬레이터 런타임 27.0·27.1 14.8 GB다. 분석 중 `xcrun simctl runtime list`를 실행하자 Xcode 구성요소 설치("Install Started…Succeeded")가 자동으로 실행됐다. 삭제 결정은 사용자 승인 대기다. 📸 캡처 추천: 없음.
+
+## v0.4.0(6) 정식 릴리즈 로컬 설치 (2026-11-02)
+
+`main` / HEAD `a59eedd`, 소스·GitHub 변경 0회. 백업 `TokenlyRelease.noindex/backup-0.3.0-before-0.4.0-20261102/`의 앱은 설치본 v0.3.0(5)과 `diff -rq` 동일, 설정 plist는 바이트 동일, statusline·backups 폴더 동일(quota 캐시 두 개만 런타임 갱신으로 달랐음). GitHub Release ZIP SHA-256 `73ce37bcdb9cbdb81ae1a7fec11d40709d43d6880c5685853e1be61aa7aa814b`가 `.sha256` 자산과 GitHub digest 모두와 일치. 설치본 v0.3.0은 실행 중이 아니어서 종료할 필요가 없었다. 별도 개발 앱 `…clauderealone.20261101`(/private/tmp, 11-01부터 실행)은 범위 밖이라 유지했다. ZIP 해제본을 `/Applications/Tokenly.app`에 ditto로 설치. 해제본과 동일, `io.github.jbbdyee.tokenly` 0.4.0(6), universal, ad-hoc 서명 `codesign --verify --deep --strict` 통과, quarantine 없음(`spctl` rejected는 ad-hoc이라 예상된 결과). LaunchServices 수동 변경 0회. 실행 후 설정 24키가 백업과 동일했다. v0.4.0이 `~/Library/Application Support/io.github.jbbdyee.tokenly/Claude Direct Refresh/` 체크포인트를 새로 만들었다. 제품 60초 자동 조회 첫 시도는 성공했다(attempts 1, transientFailures 0). 이 외에 수동 모델·API 호출은 0회. 접근성으로 읽은 메뉴 막대 항목: AI(`Claude 5시간·7일` 표시), CPU, RAM, Disk, 배터리. 메뉴 막대가 가득 차서 AI 항목이 `«` 오버플로에 숨어 있었고, AXPress로 팝오버가 열리지 않았다. 따라서 팝오버 내부의 Codex·Claude·AGY 행은 미확인이다. AI 제목에 Codex 수치가 보이지 않는 원인도 미확인이다. GPU 로그 2개 보존. 📸 캡처 추천: 사용자가 메뉴 막대 공간을 확보한 뒤 v0.4.0 AI 팝오버 전체 화면. 계정·개인 경로는 가린다.
+
 ## v0.4.0 배포 파일 준비 정책 (2026-11-02)
 
 사용자는 v0.3.0과 같은 ad-hoc 서명 배포를 결정했다. Claude 60초 상시 조회의 호출 제한·비용·장기 안정성은 운영 중 관찰하며, M1 팝오버 수정은 실기기 미검증으로 릴리즈 노트에 명시한다. `release.sh --final`은 `TOKENLY_PRESERVE_LAUNCHSERVICES=1`로 수동 등록 해제를 건너뛰어 이번 요청의 LaunchServices 변경 금지를 지킨다. 공식 Claude CLI 설치·로그인이 직접 조회의 외부 조건이며 statusLine 대체는 유지한다. 기존 설치 v0.3.0(5)은 교체하지 않는다. 산출물·체크섬·검증 결과는 이번 작업 완료 후 기록한다. 📸 캡처 추천: 없음. 설치·실사용 화면을 이번 단계에서 만들지 않는다.

@@ -1,5 +1,5 @@
-- [ ] v0.4.0 배포 파일 검증 후 사용자 최종 확인을 받아 설치·main 병합·Push·GitHub Release 여부를 결정한다. M1 실기기 확인과 Developer ID 서명·공증은 이번 ad-hoc 배포의 필수 선행 조건이 아니라 알려진 제한/향후 개선이다.
-- [ ] v0.4.0(6) 통합 후보: 클린 Apple Silicon·Intel Mac, M1 팝오버 전환, 공식 Claude CLI 설치·미설치/로그인·미로그인, statusLine 대체, 장시간 60초 호출의 제한·비용·신선도·안정성, Developer ID 서명·공증·Gatekeeper를 릴리즈 전에 확인한다.
+- [x] v0.4.0(6) GitHub Release 발행(2026-11-02, 태그 `a59eedd`), 개발자 Mac 설치·설정 유지·Claude 60초 자동 조회 연속 성공·Codex·Claude·AGY 팝오버 화면 확인. M1 실기기 확인과 Developer ID 서명·공증은 알려진 제한/향후 개선으로 남긴다.
+- [ ] v0.4.0 출시 후 남은 검증: 클린 Apple Silicon·Intel Mac, M1 팝오버 전환, 공식 Claude CLI 설치·미설치/로그인·미로그인, statusLine 대체, 장시간 60초 호출의 제한·비용·신선도·안정성, Developer ID 서명·공증·Gatekeeper.
 - [x] 팝오버 공통 조정기의 CPU→RAM→Disk→CPU 전환, 동일 창 재활성, 모의 외부 닫힘·지연 알림 회귀 테스트를 추가한다. 실제 메뉴 막대 이벤트 검증은 별도다.
 - [ ] M1 지인 Mac에서 별도 ID 팝오버 테스트 앱으로 CPU→RAM→Disk→CPU 전환, 같은 항목 재클릭, 외부 클릭 및 AI 팝오버 전환을 확인한다. macOS 버전과 기존 설치 Tokenly 버전을 기록하고, 중첩이 사라진 경우에만 최종 해결로 판정한다. 자동 XCTest와 M4 확인만으로 M1 결과를 대체하지 않는다.
 
@@ -10,7 +10,8 @@
 - [x] 릴리즈 스크립트에 체크섬 검증 Node·고정 SDK·helper의 번들/검증 경로 추가. - [x] 개발 점검 ZIP은 임시 ID로 빌드·서명·압축 해제·체크섬까지 검증해 기존 설치 앱의 ID 등록을 피했다.
 - [x] 가짜 자식 실행 파일로 Provider→Adapter→응답 파서·60초 게이트를 실계정 없이 확인.
 - [ ] 릴리즈용 버전·CHANGELOG 갱신과 Developer ID 서명/Hardened Runtime/공증/Gatekeeper 검증. 현재 스크립트는 ad-hoc 서명이다.
-- [ ] 정식 빌드 머신에 공식 Node 24.22.1 arm64/x64 압축 파일을 `TOKENLY_CLAUDE_NODE_ARCHIVES`로 제공하고 SDK lockfile의 `npm ci` 재현성을 확인.
+- [x] `release.sh`의 Node 압축 파일 기본 경로를 `/private/tmp`에서 `~/Developer/Tokenly-Workspace/TokenlyRelease.noindex/claude-node-archives/v24.22.1/`로 옮기고 `TOKENLY_CLAUDE_NODE_ARCHIVES` 재지정·SHA-256 검사·빌드 전 확인(`--print-node-archives`)을 유지·추가(2026-11-02).
+- [ ] 다른 빌드 머신에서 SDK lockfile의 `npm ci` 재현성을 확인.
 - [ ] 외부 Claude CLI 누락·미인증·오류의 클린 Mac 및 실제 앱 화면 검증, Intel Mac 실행 확인.
 - [ ] 60초 반복 호출의 공식 제한·비용·장기 안정성·서버 신선도 확인. 정식 앱 설치/릴리즈는 별도 승인 전까지 보류.
 
