@@ -261,7 +261,7 @@ scripts/release.sh                  # 개발 확인: Release universal 빌드 �
 scripts/release.sh --final <버전>   # 배포용: 깨끗한 작업 트리, Info.plist·CHANGELOG 버전 일치가 필요
 ```
 
-v0.4.0부터 `release.sh`는 Claude 직접 조회용 공식 Node v24.22.1 arm64·x64 압축 파일(`TOKENLY_CLAUDE_NODE_ARCHIVES`, SHA-256 고정값 검사)과 SDK 0.3.169 패키지(lockfile 고정, npm 캐시 또는 접근 필요)를 번들에 넣고 버전·아키텍처·실행 권한·서명을 검사합니다.
+v0.4.0부터 `release.sh`는 Claude 직접 조회용 공식 Node v24.22.1 arm64·x64 압축 파일(SHA-256 고정값 검사)과 SDK 0.3.169 패키지(lockfile 고정, npm 캐시 또는 접근 필요)를 번들에 넣고 버전·아키텍처·실행 권한·서명을 검사합니다. Node 압축 파일은 `TOKENLY_CLAUDE_NODE_ARCHIVES`로 지정한 폴더, 지정하지 않으면 `~/Developer/Tokenly-Workspace/TokenlyRelease.noindex/claude-node-archives/v24.22.1/`에서 읽습니다. [nodejs.org](https://nodejs.org/dist/v24.22.1/)의 `node-v24.22.1-darwin-arm64.tar.gz`와 `-x64.tar.gz`를 이 폴더에 두면 됩니다. 빌드 전에 경로와 체크섬을 확인하므로, 파일이 없거나 다르면 빌드를 시작하지 않습니다. `scripts/release.sh --print-node-archives`는 선택된 폴더와 체크섬만 확인하고 아무것도 바꾸지 않습니다.
 
 **Stage 6-8B 개발 기록:** 곰돌이 제품 에셋 제거 후 남았던 `release.sh`의 옛 필수 리소스 검사는 Stage 6-8B에서 수정했습니다. 저장소 밖 임시 위치에서 개발용 universal Release ZIP의 빌드·서명·리소스·명령줄 스모크·압축 해제 후 내용 동일성·체크섬 검증이 통과했습니다. 실제 게시·설치 검증은 아닙니다. 아래 표는 이전 버전 기록에 v0.4.0 설치 결과를 더한 것입니다.
 

@@ -5,6 +5,11 @@
 #   scripts/release.sh --final 0.1.0   release mode: clean tree and matching version required
 #   --replace                          disabled: existing output folders cannot be replaced
 #   --print-output                     resolve and check the output folder, print it, change nothing
+#   --print-node-archives              resolve and verify the Claude Node archives, print the folder, change nothing
+#
+# Claude Node archives (node-v24.22.1-darwin-{arm64,x64}.tar.gz, SHA-256 pinned below) are read from
+# TOKENLY_CLAUDE_NODE_ARCHIVES, or by default from <release root>/claude-node-archives/v24.22.1/, where the
+# release root is ~/Developer/Tokenly-Workspace/TokenlyRelease.noindex (not affected by TOKENLY_RELEASE_DIR).
 #
 # Output goes outside the repository (default ~/Developer/Tokenly-Workspace/TokenlyRelease.noindex/<version>[-dev]/,
 # override with TOKENLY_RELEASE_DIR; `~`, relative paths, `..` and symlinks are resolved first).
@@ -35,11 +40,21 @@ case "$KEEP_INTERMEDIATES" in 0|1) ;; *) echo "TOKENLY_KEEP_INTERMEDIATES must b
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT_REAL="$(cd -P "$ROOT" && pwd -P)"
 INFO_PLIST="$ROOT/src/Tokenly/Info.plist"
+RELEASE_ROOT_DEFAULT="$HOME/Developer/Tokenly-Workspace/TokenlyRelease.noindex"
+NODE_VERSION='v24.22.1'
+NODE_ARCHIVES_DEFAULT="$RELEASE_ROOT_DEFAULT/claude-node-archives/$NODE_VERSION"
+node_archive_sha256() {
+    case "$1" in
+        arm64) echo '89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7' ;;
+        x64) echo 'd132557e7ee2b85af08b0c8c34338e65c6430f2238d01f727728ef42dc83b035' ;;
+    esac
+}
 
 mode="dev"
 wanted_version=""
 replace=0
 print_only=0
+print_node_archives=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --final)
@@ -48,7 +63,8 @@ while [ $# -gt 0 ]; do
         --dev) mode="dev"; shift ;;
         --replace) replace=1; shift ;;
         --print-output) print_only=1; shift ;;
-        -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+        --print-node-archives) print_node_archives=1; shift ;;
+        -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 64 ;;
     esac
 done
@@ -136,7 +152,28 @@ unregister_outputs() {
     done <<< "$records"
 }
 
-requested="${TOKENLY_RELEASE_DIR:-$HOME/Developer/Tokenly-Workspace/TokenlyRelease.noindex}"
+# Resolves the Claude Node archive folder and checks both pinned archives before the long build starts.
+# Prints the resolved folder; reasons for a failure go to stderr.
+resolve_node_archives() {
+    local requested="${TOKENLY_CLAUDE_NODE_ARCHIVES:-$NODE_ARCHIVES_DEFAULT}" dir arch archive actual
+    dir="$(resolve_path "$requested")" && [ -d "$dir" ] || {
+        echo "Claude Node archive folder not found: $requested" >&2
+        echo "  put node-$NODE_VERSION-darwin-arm64.tar.gz and -x64.tar.gz in $NODE_ARCHIVES_DEFAULT" >&2
+        echo "  or set TOKENLY_CLAUDE_NODE_ARCHIVES to the folder that holds them" >&2
+        return 1; }
+    for arch in arm64 x64; do
+        archive="$dir/node-$NODE_VERSION-darwin-$arch.tar.gz"
+        [ -f "$archive" ] || { echo "Claude Node archive missing: $archive" >&2; return 1; }
+        actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+        [ "$actual" = "$(node_archive_sha256 "$arch")" ] \
+            || { echo "Claude Node checksum mismatch: $archive" >&2; return 1; }
+    done
+    printf '%s\n' "$dir"
+}
+NODE_ARCHIVES="$(resolve_node_archives)" || fail "Claude Node archives unusable (see above)"
+[ "$print_node_archives" = 1 ] && { echo "node archives: $NODE_ARCHIVES"; exit 0; }
+
+requested="${TOKENLY_RELEASE_DIR:-$RELEASE_ROOT_DEFAULT}"
 base="$(resolve_path "$requested")" || fail "unusable output location: $requested"
 [ "$base" != / ] || fail "unusable output location: $requested"
 OUT="$base/$version$suffix"
@@ -217,17 +254,13 @@ ok "executable: debug symbols stripped (strip -S)"
 # Bundle the pinned Claude usage helper and official universal Node runtime. No Claude CLI,
 # credentials, or account response is copied, and this step never executes the helper.
 package_claude_runtime() {
-    local archives="${TOKENLY_CLAUDE_NODE_ARCHIVES:-/private/tmp/tokenly-claude-portable-node-v24.22.1}"
-    local node_version='v24.22.1' arch archive expected actual node resources package_work
+    local node_version="$NODE_VERSION" arch archive actual node resources package_work
+    # Checked again here: the archives may change during the build that follows the early check.
     for arch in arm64 x64; do
-        archive="$archives/node-$node_version-darwin-$arch.tar.gz"
-        [ -f "$archive" ] || fail "Claude Node archive missing: $arch"
-        case "$arch" in
-            arm64) expected='89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7' ;;
-            x64) expected='d132557e7ee2b85af08b0c8c34338e65c6430f2238d01f727728ef42dc83b035' ;;
-        esac
+        archive="$NODE_ARCHIVES/node-$node_version-darwin-$arch.tar.gz"
+        [ -f "$archive" ] || fail "Claude Node archive missing: $archive"
         actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
-        [ "$actual" = "$expected" ] || fail "Claude Node checksum mismatch: $arch"
+        [ "$actual" = "$(node_archive_sha256 "$arch")" ] || fail "Claude Node checksum mismatch: $arch"
         mkdir -p "$OUT/claude-node-$arch"
         tar -xzf "$archive" -C "$OUT/claude-node-$arch" --strip-components=2 \
             "node-$node_version-darwin-$arch/bin/node" || fail "Claude Node extraction failed: $arch"
@@ -251,6 +284,7 @@ package_claude_runtime() {
     "$node" --input-type=module -e 'import(process.argv[1]).then(m=>{if(typeof m.query!=="function")process.exit(23)})' \
         "$resources/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs" \
         || fail "Claude SDK import failed"
+    ok "Claude Node archives: $NODE_ARCHIVES (SHA-256 pinned)"
     ok "Claude Node $node_version arm64/x64 and SDK 0.3.169 bundled; CLI and account excluded"
 }
 package_claude_runtime

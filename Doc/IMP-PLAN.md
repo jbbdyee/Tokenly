@@ -1701,3 +1701,11 @@ Mock 앱은 격리 HOME, `/bin/sh` 가상 helper, `/usr/bin/true` CLI 경로와 
 기존 2회 예약을 재사용하지 않고 새 번들 ID·설정 도메인·예약 경로·체크포인트의 개발 앱을 만들었다. 기존 SDK helper와 로그인 재사용 경로를 유지하고, 최대 3회·성공 뒤 비반복 60초 예약 두 개·오류 중단을 시험 전 XCTest로 검증했다. 공식 SDK 조회 3회 모두 성공, 소요 2.418초/2.284초/2.219초, 완료→다음 시작 60.017초/60.019초였다. Store는 세 번 모두 직접 출처·두 창·성공 시각 존재를 기록했다. supervisor가 앱을 종료했으며 4번째 예약은 없다. 모델 메시지·양의 세션 비용 징후와 오류/429는 관찰되지 않았으나 무과금은 단정하지 않는다. 실제 팝오버 시각 변화는 사용자 확인 전까지 남긴다. 300초 기본값과 정식 설치 앱은 그대로다.
 
 검증: Node 정책 11개, 개발 플래그 전체 XCTest 459개, Debug·Release 빌드, `git diff --check` 통과.
+
+## release.sh Node 압축 파일 경로 (2026-11-02)
+
+v0.4.0 빌드 입력인 공식 Node v24.22.1 압축 파일의 기본 경로가 `/private/tmp/tokenly-claude-portable-node-v24.22.1`이었다. 이 경로는 디스크 정리나 재부팅으로 사라질 수 있다. 기본값을 `$HOME/Developer/Tokenly-Workspace/TokenlyRelease.noindex/claude-node-archives/v24.22.1`로 바꿨다. 개인 사용자 이름을 넣지 않고 기존 릴리즈 출력 기본 위치와 같은 기준을 쓴다. `TOKENLY_RELEASE_DIR`과는 독립이다. 임시 출력 폴더로 빌드해도 입력 위치가 바뀌지 않게 하기 위해서다.
+
+`TOKENLY_CLAUDE_NODE_ARCHIVES`는 그대로 우선한다. 지정하면 기본 경로로 대체하지 않는다. arm64·x64 SHA-256 고정값은 그대로이며, Xcode 빌드 전 확인과 번들 직전 재확인 두 번 검사한다. `/private/tmp` 대체 경로는 두지 않는다. 기존 위치를 쓰려면 환경 변수로 명시한다. `--print-node-archives`는 선택된 폴더·체크섬만 확인하고 출력 폴더를 만들지 않는다.
+
+다른 실험용 빌드 스크립트(`build-claude-product-candidate.sh`, `build-claude-portable-dev.sh`)의 같은 기본 경로는 이번 범위가 아니라 유지했다.
