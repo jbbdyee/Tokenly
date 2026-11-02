@@ -1,3 +1,4 @@
+- [ ] v0.4.0(6) 통합 후보: 클린 Apple Silicon·Intel Mac, M1 팝오버 전환, 공식 Claude CLI 설치·미설치/로그인·미로그인, statusLine 대체, 장시간 60초 호출의 제한·비용·신선도·안정성, Developer ID 서명·공증·Gatekeeper를 릴리즈 전에 확인한다.
 - [x] 팝오버 공통 조정기의 CPU→RAM→Disk→CPU 전환, 동일 창 재활성, 모의 외부 닫힘·지연 알림 회귀 테스트를 추가한다. 실제 메뉴 막대 이벤트 검증은 별도다.
 - [ ] M1 지인 Mac에서 별도 ID 팝오버 테스트 앱으로 CPU→RAM→Disk→CPU 전환, 같은 항목 재클릭, 외부 클릭 및 AI 팝오버 전환을 확인한다. macOS 버전과 기존 설치 Tokenly 버전을 기록하고, 중첩이 사라진 경우에만 최종 해결로 판정한다. 자동 XCTest와 M4 확인만으로 M1 결과를 대체하지 않는다.
 
