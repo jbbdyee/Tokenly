@@ -717,6 +717,42 @@ final class ClaudeOptionalUsageTests: XCTestCase {
             candidates: [cli], supportDirectory: support, checkpointNamespace: "io.github.tokenly.candidate"))
     }
 
+    func testProductFactoryMockSubprocessParsesAndWaitsSixtySeconds() async throws {
+        let root = URL(fileURLWithPath: "/private/tmp/tokenly-claude-product-path-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let bundle = root.appendingPathComponent("Tokenly.app")
+        let resources = bundle.appendingPathComponent("Contents/Resources/ClaudeUsageSDK")
+        let sdk = resources.appendingPathComponent("node_modules/@anthropic-ai/claude-agent-sdk")
+        let macOS = bundle.appendingPathComponent("Contents/MacOS")
+        try FileManager.default.createDirectory(at: sdk, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
+        let calls = root.appendingPathComponent("calls.txt")
+        let node = macOS.appendingPathComponent("TokenlyClaudeNode")
+        let script = "#!/bin/sh\necho call >> '\(calls.path)'\nprintf '%s\\n' '\(String(data: directJSON, encoding: .utf8)!)'\n"
+        try Data(script.utf8).write(to: node)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: node.path)
+        let cli = root.appendingPathComponent("claude")
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: cli)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: cli.path)
+        try Data("// mock helper\n".utf8).write(to: resources.appendingPathComponent("claude-usage-helper.mjs"))
+        try Data(#"{"version":"0.3.169"}"#.utf8).write(to: sdk.appendingPathComponent("package.json"))
+        let clock = Clock()
+        let provider = try XCTUnwrap(ClaudeProductConfiguration.makeProvider(bundleURL: bundle,
+            candidates: [cli], statusLine: MockStatusLine(result: .failure(.noData)), now: { clock.date },
+            supportDirectory: root.appendingPathComponent("support"), checkpointNamespace: "mock.product"))
+        let first = try await provider.fetch()
+        XCTAssertEqual(first.source, .directCLI)
+        guard case .quotas(let quotas) = first.metrics else { return XCTFail("missing Mock quotas") }
+        XCTAssertEqual(quotas.map(\.remainingPercent), [80, 60])
+        clock.date = clock.date.addingTimeInterval(59)
+        _ = try await provider.fetch()
+        XCTAssertEqual(try String(contentsOf: calls).split(separator: "\n").count, 1)
+        clock.date = clock.date.addingTimeInterval(1)
+        let second = try await provider.fetch()
+        XCTAssertEqual(second.sourceTimes[.directCLI], clock.date)
+        XCTAssertEqual(try String(contentsOf: calls).split(separator: "\n").count, 2)
+    }
+
     func testProductGateWaitsSixtySecondsAcrossRestartAndPausesUnknownError() async throws {
         let root = URL(fileURLWithPath: "/private/tmp/tokenly-claude-product-gate-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

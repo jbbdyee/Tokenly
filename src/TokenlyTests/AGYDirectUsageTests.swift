@@ -234,7 +234,11 @@ final class UsagePopoverCopyTests: XCTestCase {
     }
 
     func testFooterAndAGYDirectSuccessWithNoStatusLineFeed() {
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        XCTAssertEqual(UsagePopoverCopy.footer, "Codex · AGY · Claude 자동 갱신")
+#else
         XCTAssertEqual(UsagePopoverCopy.footer, "Codex · AGY 자동 갱신 | Claude 사용 중 갱신")
+#endif
         let direct = snapshot(source: .directCLI)
         XCTAssertEqual(UsagePopoverCopy.agyStatus(.success(direct)), "자동 갱신")
         XCTAssertEqual(UsagePopoverCopy.agyTimestamp(direct), "마지막 갱신 · \(CompactDateTime.string(for: receivedAt))")
@@ -256,12 +260,20 @@ final class UsagePopoverCopyTests: XCTestCase {
 
     func testClaudeFreshStaleAndAbsentStates() {
         let fresh = snapshot(source: .statusLine)
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(.success(fresh)), "상태줄 데이터")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(.failure(.claudeStaleData, previous: fresh)),
+                       "이전 데이터 · 갱신 지연")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(.failure(.noData, previous: nil)), "데이터 없음")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(.idle), "자동 갱신 대기")
+#else
         XCTAssertNil(UsagePopoverCopy.claudeStatus(.success(fresh)))
         XCTAssertEqual(UsagePopoverCopy.claudeStatus(.failure(.claudeStaleData, previous: fresh)),
                        "이전 데이터 · 사용 중 갱신")
-        XCTAssertEqual(UsagePopoverCopy.claudeDetail(.claudeStaleData), "Claude Code 사용 시 갱신됩니다.")
         XCTAssertEqual(UsagePopoverCopy.claudeStatus(.failure(.noData, previous: nil)), "사용 중 갱신")
         XCTAssertEqual(UsagePopoverCopy.claudeStatus(.idle), "사용 중 갱신")
+#endif
+        XCTAssertEqual(UsagePopoverCopy.claudeDetail(.claudeStaleData), "Claude Code 사용 시 갱신됩니다.")
         XCTAssertEqual(UsagePopoverCopy.claudeDetail(.setupRequired), "Claude Code 연결 설정을 확인하세요.")
     }
 }

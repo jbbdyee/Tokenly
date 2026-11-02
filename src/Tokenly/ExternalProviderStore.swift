@@ -40,7 +40,7 @@ final class ExternalProviderStore: ObservableObject {
     private var scheduledClaudeFollowUps = 0
     private var mockStarted = false
 #endif
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
     private var claudeTimer: Timer?
     private var directClaudeEnabled: Bool {
         (providers[.claude] as? ClaudeOptionalUsageProvider)?.usesDirectSDK == true
@@ -91,7 +91,7 @@ final class ExternalProviderStore: ObservableObject {
 #endif
         guard timer == nil else { return }
         refreshSelected()
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
         if directClaudeEnabled, displaySettings.showsClaude { _ = refresh(.claude) }
 #endif
 #if TOKENLY_CLAUDE_DEV
@@ -111,7 +111,7 @@ final class ExternalProviderStore: ObservableObject {
             }
         }
 #endif
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
         let tickInterval: TimeInterval = 300
 #else
         let tickInterval = automaticTickInterval
@@ -126,7 +126,7 @@ final class ExternalProviderStore: ObservableObject {
            force || lastAutomaticAGYAttempt.map({ now().timeIntervalSince($0) >= 300 }) != false {
             if refresh(.antigravity) != nil, !force { lastAutomaticAGYAttempt = now() }
         }
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
         if displaySettings.showsClaude, force || !directClaudeEnabled { _ = refresh(.claude) }
 #else
         if displaySettings.showsClaude { _ = refresh(.claude) }
@@ -151,7 +151,7 @@ final class ExternalProviderStore: ObservableObject {
             }
             states[id] = settled
             settledStates[id] = settled
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
             if id == .claude, let claude = provider as? ClaudeOptionalUsageProvider, claude.usesDirectSDK {
                 scheduleClaude(at: await claude.nextAutomaticRefresh())
             }
@@ -195,7 +195,7 @@ final class ExternalProviderStore: ObservableObject {
     func state(for id: ExternalProviderID) -> ExternalLoadState { states[id] ?? .idle }
     func settledState(for id: ExternalProviderID) -> ExternalLoadState { settledStates[id] ?? .idle }
 
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
     private func scheduleClaude(at date: Date?) {
         claudeTimer?.invalidate()
         claudeTimer = nil

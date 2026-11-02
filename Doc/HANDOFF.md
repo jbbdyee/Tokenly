@@ -1,3 +1,9 @@
+## Claude 일반 빌드 60초 경로 적용 준비 (2026-11-02)
+
+**검증 결과:** 일반 전체 XCTest 454개, 개발 플래그 관련 XCTest 44개, Node 정책 11개 통과. 일반 Debug·Release 빌드, 릴리즈 스크립트 `--dev`의 임시 ID ZIP·앱/Node 서명·압축 해제 동일성·체크섬, `git diff --check` 통과. 실계정 사용량/모델 호출과 앱 설치는 0회.
+
+시작 브랜치 `experiment/claude-usage-refresh` / `ee55d6f`, 미추적 GPU 로그 2개만 있었다. 일반 Debug·Release와 테스트 빌드에 제품 컴파일 경로를 연결했고, 개발용 Mock·실계정 2회/3회 제한은 제품 경로에 포함하지 않았다. `scripts/release.sh`에 공식 Node 24.22.1 양쪽 아키텍처의 SHA-256 검사, SDK 0.3.169 lockfile 패키징, helper·실행권한·버전/아키텍처 검증을 추가했다. 정식 v0.3.0 설치 앱/설정/인증에는 손대지 않았다. 첫 릴리즈 점검은 Xcode 설정 편집에서 `GENERATE_INFOPLIST_FILE=NO`·`INFOPLIST_FILE`이 빠져 버전 없는 Info.plist가 생성되어 실패했고 즉시 복구했다. 개발 점검 ZIP은 임시 번들 ID를 유지하고 임시 HOME의 Mock 명령만 실행하도록 수정했다. 최종 개발 점검에서 Node 양쪽 아키텍처, SDK 버전, 앱/Node ad-hoc 서명, ZIP/압축 해제 동일성·SHA-256과 출력 폴더의 제품 ID 미등록을 확인했다. 이전 개발 점검 두 번은 실번들 ID의 임시 사본이 LaunchServices에 등록됐고 자동 해제는 설치 앱 기록에 영향을 줄 수 있어 수행하지 않았다. 설치 앱 파일·설정은 변경되지 않았다. 테스트는 가짜 Node 실행 파일만 사용하며 실제 Claude 계정·모델 조회 0회다. 문서 하단의 이전 후보 플래그 보류 기록은 해당 당시 단계 이력이다. 남은 배포 조건은 버전·CHANGELOG, Developer ID/Hardened Runtime/공증, 클린 arm64/Intel Mac과 외부 CLI, 반복 60초 조회 위험 검증이다. 빌드 머신에는 SHA-256이 고정된 공식 Node 양쪽 압축 파일(`TOKENLY_CLAUDE_NODE_ARCHIVES`)과 npm 패키지 캐시/접근이 필요하다. 정식 `--final` 모드는 새 버전·깨끗한 작업 트리·태그 관계를 요구하며 아직 실행하지 않았다.
+
 ## Claude 1분 정식 통합 후보 (2026-11-02)
 
 **이번 검증:** Node 정책 11개와 기본 XCTest 453개 통과, 후보 Debug·Release 빌드 성공, `git diff --check` 통과. 후보 Debug 앱은 별도 ID `io.github.jbbdyee.tokenly.claudecandidate.20261102`로 공식 Node arm64/x64와 SDK 0.3.169를 포함해 ad-hoc 서명했지만 실행하지 않았다. 기존 개발 플래그 전용 6개 테스트는 기본 전체 테스트 집계에 포함되지 않는다.

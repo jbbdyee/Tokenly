@@ -1,3 +1,11 @@
+## 일반 빌드 60초 연결과 Mock 실행 경로 (2026-11-02)
+
+**검증 결과:** 일반 전체 XCTest 454개, 개발 플래그 관련 44개, Node 정책 11개 통과. 일반 Debug·Release, 임시 ID의 개발 ZIP·Node/앱 ad-hoc 서명·SHA-256 검증 성공. 이번 실계정 조회·모델 요청은 0회다.
+
+**구현 변경:** Xcode 일반 Debug·Release와 테스트 타깃이 제품 Claude 경로를 기본 컴파일한다. 개발용 `TOKENLY_CLAUDE_DEV`의 Mock·2회/3회 제한은 일반 빌드에 없다. 릴리즈 스크립트는 Node 24.22.1 arm64/x64 공개 SHA-256과 SDK 0.3.169 잠금 파일을 확인하고 helper/런타임을 앱 ZIP에 넣도록 변경했다. 외부 공식 Claude CLI/로그인과 인증 자료는 번들하지 않는다. 비민감 체크포인트·60초 완료 기준 게이트·single-flight·실패 중단 및 statusLine 대체는 유지한다. 실계정 조회나 모델 요청 없이 가짜 자식 실행 파일로 제품 factory→Swift Adapter→응답 파서→Store 데이터와 59초 차단/60초 허용을 시험했다. 초기 릴리즈 점검은 Release 타깃의 Info.plist 지정 누락으로 버전 검증에서 차단됐고 설정 복구 후 통과했다. 개발 점검 `--dev`는 임시 번들 ID를 ZIP까지 사용해 설치된 앱과 분리한다. 임시 HOME의 가상 statusLine 명령, ad-hoc 서명, 범용 Node/SDK, ZIP 무결성 및 압축 해제 동일성을 확인했다. 이전 점검에서 실번들 ID 임시 사본이 LaunchServices에 등록된 문제를 발견해 개발 점검 경로를 수정했으며, 기존 설치 앱에는 접근하지 않았다.
+
+**배포 경계:** 현재 릴리즈 스크립트는 ad-hoc 서명이다. 정식 빌드에는 공식 Node 두 압축 파일(`TOKENLY_CLAUDE_NODE_ARCHIVES`)과 SDK lockfile 기준 npm 설치가 필요하다. Developer ID/Hardened Runtime/공증·Gatekeeper·클린 Mac/Intel·외부 CLI 호환성 및 장기간 60초 호출의 공식 제한·비용·신선도는 확인되지 않았다. 설치된 v0.3.0은 그대로다. 실계정 3회 성공은 장기 안전성의 증거가 아니다. 블로그 본문은 작성하지 않았다.
+
 ## 60초 정식 통합 후보와 검증 경계 (2026-11-02)
 
 **이번 검증:** Node Mock 정책 11개와 기본 전체 XCTest 453개 통과, 제품 후보 Debug·Release 컴파일 성공. 별도 번들 ID의 ad-hoc 후보에 공식 Node arm64/x64와 SDK 0.3.169를 패키징했다. 후보 앱은 실행·설치하지 않아 이번 실계정 조회는 0회다. 기본 XCTest 453개는 개발 플래그 전용 6개를 포함하지 않는 집계다.

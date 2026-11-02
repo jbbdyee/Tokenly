@@ -1,6 +1,6 @@
 import Foundation
 
-/// The SDK route is built explicitly by the development or release-candidate configuration.
+/// The SDK route is built explicitly by the development or product configuration.
 enum ClaudeUsageRoute {
     case statusLineOnly
     case experimentalDirect(provider: ClaudeDirectUsageProvider, maxAge: TimeInterval)

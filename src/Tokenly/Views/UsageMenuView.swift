@@ -316,7 +316,7 @@ struct UsageMenuView: View {
             return pieces.joined(separator: " · ")
         }
 #endif
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
         if let direct = snapshot.sourceTimes[.directCLI] {
             let receipt = "마지막 갱신 \(CompactDateTime.string(for: direct))"
             if let feed = snapshot.sourceTimes[.statusLine] {
@@ -448,7 +448,7 @@ struct UsageMenuView: View {
 
 enum UsagePopoverCopy {
     static var claudeIdleDetail: String {
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
         return "Claude SDK 자동 조회를 기다립니다. 실행 환경이 없으면 Claude Code 사용 시 갱신됩니다."
 #else
         return "Claude Code 사용 시 갱신됩니다."
@@ -456,7 +456,7 @@ enum UsagePopoverCopy {
     }
 
     static var claudeLoadingDetail: String {
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
         return "Claude 사용량 확인 중"
 #else
         return "로컬 수신 파일 확인 중"
@@ -471,7 +471,7 @@ enum UsagePopoverCopy {
                 : "Codex · AGY 자동 갱신 | Claude SDK 개발 검증 중"
         }
 #endif
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
         return "Codex · AGY · Claude 자동 갱신"
 #else
         return "Codex · AGY 자동 갱신 | Claude 사용 중 갱신"
@@ -484,7 +484,7 @@ enum UsagePopoverCopy {
             return "Codex·AGY를 조회하고 Claude 개발용 SDK 조회 조건을 확인합니다"
         }
 #endif
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
         return "Codex·AGY·Claude의 조회 조건을 확인합니다"
 #else
         return "Codex·AGY는 공식 CLI로 조회하고 Claude는 로컬 상태줄 파일을 다시 읽습니다"
@@ -492,7 +492,7 @@ enum UsagePopoverCopy {
     }
 
     static func claudeStatus(_ state: ExternalLoadState) -> String? {
-#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
         switch state {
         case .idle: return "자동 갱신 대기"
         case .loading: return "갱신 중"

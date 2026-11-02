@@ -1,3 +1,14 @@
+## Claude 정식 빌드 연결 후속 (2026-11-02)
+
+- [x] 일반 전체 XCTest 454개, 개발 플래그 관련 44개, Node 정책 11개 및 일반 Debug·Release 빌드 통과.
+- [x] 일반 Debug·Release와 테스트 타깃에 60초 제품 경로 포함, 개발용 예약 제한 분리.
+- [x] 릴리즈 스크립트에 체크섬 검증 Node·고정 SDK·helper의 번들/검증 경로 추가. - [x] 개발 점검 ZIP은 임시 ID로 빌드·서명·압축 해제·체크섬까지 검증해 기존 설치 앱의 ID 등록을 피했다.
+- [x] 가짜 자식 실행 파일로 Provider→Adapter→응답 파서·60초 게이트를 실계정 없이 확인.
+- [ ] 릴리즈용 버전·CHANGELOG 갱신과 Developer ID 서명/Hardened Runtime/공증/Gatekeeper 검증. 현재 스크립트는 ad-hoc 서명이다.
+- [ ] 정식 빌드 머신에 공식 Node 24.22.1 arm64/x64 압축 파일을 `TOKENLY_CLAUDE_NODE_ARCHIVES`로 제공하고 SDK lockfile의 `npm ci` 재현성을 확인.
+- [ ] 외부 Claude CLI 누락·미인증·오류의 클린 Mac 및 실제 앱 화면 검증, Intel Mac 실행 확인.
+- [ ] 60초 반복 호출의 공식 제한·비용·장기 안정성·서버 신선도 확인. 정식 앱 설치/릴리즈는 별도 승인 전까지 보류.
+
 ## Claude 1분 제품 통합 후보 후속 (2026-11-02)
 
 - [x] 이 브랜치의 기본 XCTest 453개, Node Mock 11개, 격리 후보 Debug·Release 빌드 통과.

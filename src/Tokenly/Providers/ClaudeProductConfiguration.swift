@@ -1,6 +1,6 @@
 import Foundation
 
-/// Release-candidate wiring. This never reads credentials or invokes the CLI during setup.
+/// Product wiring. This never reads credentials or invokes the CLI during setup.
 /// An incomplete bundle or missing executable leaves Claude on the existing statusLine feed.
 enum ClaudeProductConfiguration {
     static let successInterval: TimeInterval = 60
@@ -13,6 +13,8 @@ enum ClaudeProductConfiguration {
 
     static func makeProvider(bundleURL: URL = Bundle.main.bundleURL,
                              candidates: [URL] = cliCandidates(),
+                             statusLine: any ExternalUsageProvider = ClaudeSubscriptionProvider(),
+                             now: @escaping () -> Date = Date.init,
                              supportDirectory: URL? = FileManager.default.urls(
                                 for: .applicationSupportDirectory, in: .userDomainMask).first,
                              checkpointNamespace: String = Bundle.main.bundleIdentifier ?? "Tokenly",
@@ -30,9 +32,9 @@ enum ClaudeProductConfiguration {
             try FileManager.default.createDirectory(at: checkpointDirectory, withIntermediateDirectories: true,
                                                     attributes: [.posixPermissions: 0o700])
         } catch { return nil }
-        let direct = ClaudeDirectUsageProvider(runner: ClaudeSDKProcessRunner(executor: executor))
-        return ClaudeOptionalUsageProvider(statusLine: ClaudeSubscriptionProvider(),
-            route: .experimentalDirect(provider: direct, maxAge: 900),
+        let direct = ClaudeDirectUsageProvider(runner: ClaudeSDKProcessRunner(executor: executor), now: now)
+        return ClaudeOptionalUsageProvider(statusLine: statusLine,
+            route: .experimentalDirect(provider: direct, maxAge: 900), now: now,
             gate: ClaudeDirectRefreshGate(pauseOnUnknownError: true, successInterval: successInterval,
                 checkpointURL: checkpointDirectory.appendingPathComponent("refresh-checkpoint.json")))
     }
