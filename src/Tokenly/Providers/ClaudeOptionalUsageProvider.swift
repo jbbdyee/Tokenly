@@ -1,6 +1,6 @@
 import Foundation
 
-/// Only the separately built development app may inject `.experimentalDirect`.
+/// The SDK route is built explicitly by the development or release-candidate configuration.
 enum ClaudeUsageRoute {
     case statusLineOnly
     case experimentalDirect(provider: ClaudeDirectUsageProvider, maxAge: TimeInterval)
@@ -63,6 +63,13 @@ struct ClaudeOptionalUsageProvider: ExternalUsageProvider {
     }
 
     func storedQuotaRecord() -> [QuotaMetric]? { statusLine.storedQuotaRecord() }
+
+    var usesDirectSDK: Bool {
+        if case .experimentalDirect = route { return true }
+        return false
+    }
+
+    func nextAutomaticRefresh() async -> Date? { await gate.automaticNextEligibleAt }
 }
 
 private actor ClaudeOptionalUsageState {

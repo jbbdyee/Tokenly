@@ -1,3 +1,11 @@
+## Claude 정식 통합 후보 계획 (2026-11-02)
+
+**현재 검증:** Node 정책 11개, 기본 전체 XCTest 453개, 후보 Debug·Release 빌드 통과. 실제 계정 호출/후보 UI 실행은 하지 않았다. 배포 시 후보 컴파일 플래그를 제품 빌드 설정에 정식 반영하고 코드 서명·공증 후 다른 Mac에서 확인해야 한다.
+
+1. 독립 후보 빌드 플래그로 공식 SDK 0.3.169, 범용 Node, 최소 helper를 앱 내부에 묶는다. Claude CLI/로그인은 외부 공식 설치를 재사용하며 인증 자료는 묶지 않는다.
+2. 제품 경로의 성공 간격은 기본 60초, 2회/3회 제한과 사용자 주기 선택은 없다. 완료 시각을 기준으로 한 단발 타이머가 조건을 검사한다. 재시작 체크포인트·single-flight·백오프·자동 중단·statusLine 대체를 유지한다.
+3. Mock/빌드 후 별도 승인으로 클린 Mac·서명/공증·장시간 실계정 안전성을 검증한다. 후보를 정식 설치 앱이나 main에 적용하지 않는다.
+
 ## Claude SDK 이식형 개발 번들 (2026-11-01)
 
 공식 [Node 24.22.1 배포물](https://nodejs.org/en/download/archive/v24.22.1)의 macOS arm64/x64 압축 파일을 공개 SHA-256과 비교하고, 각 Node 실행 파일을 `lipo`로 범용화했다. `otool -arch all -L`에서 Homebrew·로컬 절대경로·`@rpath` 의존성이 없고 macOS 시스템 라이브러리만 확인됐다. `npm ci --omit=optional --ignore-scripts`로 SDK 0.3.169과 helper를 설치해 SDK 모듈 import만 확인했다. 선택적 SDK 내장 CLI를 빼서 앱 크기를 줄였으므로 공식 Claude CLI는 외부 설치·로그인 상태가 필요하다. `scripts/build-claude-portable-dev.sh`는 별도 번들 ID의 개발 앱 `Contents/MacOS/TokenlyClaudeNode`와 `Contents/Resources/ClaudeUsageSDK`에 파일을 두고 ad-hoc 서명/검증한다. [Apple 번들 배치 지침](https://developer.apple.com/documentation/bundleresources/placing-content-in-a-bundle)에 맞춘 후보 구조다. 개발 앱은 명시적 옵션과 CLI 경로가 없으면 기존 statusLine만 사용한다. Swift resolver는 번들 경로·권한·SDK manifest 버전을 검사한다. 이 단계의 번들 Node 가상 실행은 계정/SDK helper 호출이 아니다. 앱 약 310 MB, 다른 Mac 실행·Developer ID 서명·notarization은 미검증이다. 기존 300초 실제 조회 후보를 유지하고 60초 상시 조회는 보류한다. 화면 갱신은 SDK 네트워크 조회와 별개다.

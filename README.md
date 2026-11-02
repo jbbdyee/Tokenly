@@ -1,6 +1,11 @@
 # Tokenly
 
-> 개발용 Claude 자동 조회는 `scripts/build-claude-dev.sh`로 만든 별도 Debug 앱에만 들어갑니다. 실행 시 명시적 활성화와 Node·SDK helper·Claude CLI 경로가 필요하며, 정식 v0.3.0 앱에는 포함되지 않습니다. 개발용 앱의 실계정 자동 조회는 아직 검증하지 않았습니다.
+## Claude 1분 통합 후보 (실험 브랜치)
+
+Claude SDK 독립 조회의 60초 기본 후보를 구현 중입니다. 공식 SDK 0.3.169·번들 Node·외부 Claude CLI가 필요하며, 조회할 수 없으면 기존 statusLine 데이터를 사용합니다. 설치된 정식 v0.3.0에는 이 기능이 포함되지 않았습니다. 장기 호출 제한·비용·다른 Mac 호환성·배포 서명과 공증은 아직 검증 중입니다.
+
+
+> 정식 v0.3.0에는 Claude statusLine만 포함됩니다. 실험 브랜치의 통합 후보는 별도 번들 ID로 빌드하며 아직 설치·실계정 실행하지 않았습니다.
 
 
 > Claude 독립 자동 조회는 별도 개발 환경에서 검증 중입니다. 현재 정식 v0.3.0은 기존 Claude Code statusLine 수신 방식을 유지하며, 개발용 SDK 경로가 설치 앱에서 자동 실행되지는 않습니다.
@@ -17,7 +22,7 @@ macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** �
 
 ## 다운로드
 
-**[Tokenly v0.3.0 — Automatic usage refresh 내려받기](https://github.com/jbbdyee/Tokenly/releases/tag/v0.3.0)** (최신, GitHub Pre-release, 2026-10-30)
+**[Tokenly v0.3.0 — Automatic usage refresh 내려받기](https://github.com/jbbdyee/Tokenly/releases/tag/v0.3.0)** (최신 정식 Release, 2026-10-30)
 
 - macOS 14 Sonoma 이상, Apple silicon·Intel Mac 공용(universal) 앱입니다.
 - Release 페이지의 **Assets**에서 `Tokenly-0.3.0-macOS-universal.zip`을 받습니다. 자동으로 붙는 **Source code (zip / tar.gz)** 는 실행할 수 있는 앱이 아닙니다.

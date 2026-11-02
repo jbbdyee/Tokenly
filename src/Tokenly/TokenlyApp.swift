@@ -40,6 +40,15 @@ struct TokenlyApp: App {
             .antigravity: AGYCombinedProvider(),
             .openAIAPI: OpenAIAPIUsageProvider()
         ]))
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        let claudeProvider: any ExternalUsageProvider = ClaudeProductConfiguration.makeProvider()
+            ?? ClaudeSubscriptionProvider()
+        _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display,
+            automaticTickInterval: ClaudeProductConfiguration.successInterval, providers: [
+            .claude: claudeProvider,
+            .antigravity: AGYCombinedProvider(),
+            .openAIAPI: OpenAIAPIUsageProvider()
+        ]))
 #else
         _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display))
 #endif
@@ -72,6 +81,10 @@ struct TokenlyApp: App {
 #if TOKENLY_CLAUDE_DEV
                         if displaySettings.showsAGY ||
                             (ClaudeDevelopmentConfiguration.isEnabled && displaySettings.showsClaude) {
+                            externalStore.start()
+                        }
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+                        if displaySettings.showsAGY || displaySettings.showsClaude {
                             externalStore.start()
                         }
 #else

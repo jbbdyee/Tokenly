@@ -67,6 +67,8 @@ struct UsageMenuView: View {
                     } else {
                         Text("Claude는 Claude Code 사용 중 전달된 한도를 표시합니다. 앱에서 서버에 직접 조회하지 않습니다.")
                     }
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+                    Text("Claude는 성공한 SDK 조회 완료 후 최소 1분이 지나면 다시 조회합니다. 실패하거나 실행 환경이 없으면 기존 상태줄 데이터를 대신 표시합니다.")
 #else
                     Text("Claude는 Claude Code 사용 중 전달된 한도를 표시합니다. 앱에서 서버에 직접 조회하지 않습니다.")
 #endif
@@ -282,8 +284,8 @@ struct UsageMenuView: View {
     private var claudeDetails: some View {
         VStack(alignment: .leading, spacing: 9) {
             switch externalStore.state(for: .claude) {
-            case .idle: Text("Claude Code 사용 시 갱신됩니다.").font(.caption).foregroundStyle(.secondary)
-            case .loading: ProgressView("로컬 수신 파일 확인 중").controlSize(.small).font(.caption)
+            case .idle: Text(UsagePopoverCopy.claudeIdleDetail).font(.caption).foregroundStyle(.secondary)
+            case .loading: ProgressView(UsagePopoverCopy.claudeLoadingDetail).controlSize(.small).font(.caption)
             case .failure(let error, let previous):
                 Text(UsagePopoverCopy.claudeDetail(error)).font(.caption).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
@@ -312,6 +314,15 @@ struct UsageMenuView: View {
                 pieces.append("상태줄 마지막 수신 \(CompactDateTime.string(for: feed))")
             }
             return pieces.joined(separator: " · ")
+        }
+#endif
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        if let direct = snapshot.sourceTimes[.directCLI] {
+            let receipt = "마지막 갱신 \(CompactDateTime.string(for: direct))"
+            if let feed = snapshot.sourceTimes[.statusLine] {
+                return receipt + " · 마지막 수신 \(CompactDateTime.string(for: feed))"
+            }
+            return receipt
         }
 #endif
         return "마지막 수신 \(CompactDateTime.string(for: snapshot.fetchedAt))"
@@ -436,6 +447,22 @@ struct UsageMenuView: View {
 }
 
 enum UsagePopoverCopy {
+    static var claudeIdleDetail: String {
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        return "Claude SDK 자동 조회를 기다립니다. 실행 환경이 없으면 Claude Code 사용 시 갱신됩니다."
+#else
+        return "Claude Code 사용 시 갱신됩니다."
+#endif
+    }
+
+    static var claudeLoadingDetail: String {
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        return "Claude 사용량 확인 중"
+#else
+        return "로컬 수신 파일 확인 중"
+#endif
+    }
+
     static var footer: String {
 #if TOKENLY_CLAUDE_DEV
         if ClaudeDevelopmentConfiguration.isEnabled {
@@ -444,7 +471,11 @@ enum UsagePopoverCopy {
                 : "Codex · AGY 자동 갱신 | Claude SDK 개발 검증 중"
         }
 #endif
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        return "Codex · AGY · Claude 자동 갱신"
+#else
         return "Codex · AGY 자동 갱신 | Claude 사용 중 갱신"
+#endif
     }
 
     static var refreshHelp: String {
@@ -453,10 +484,26 @@ enum UsagePopoverCopy {
             return "Codex·AGY를 조회하고 Claude 개발용 SDK 조회 조건을 확인합니다"
         }
 #endif
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        return "Codex·AGY·Claude의 조회 조건을 확인합니다"
+#else
         return "Codex·AGY는 공식 CLI로 조회하고 Claude는 로컬 상태줄 파일을 다시 읽습니다"
+#endif
     }
 
     static func claudeStatus(_ state: ExternalLoadState) -> String? {
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        switch state {
+        case .idle: return "자동 갱신 대기"
+        case .loading: return "갱신 중"
+        case .failure(_, let previous): return previous == nil ? "데이터 없음" : "이전 데이터 · 갱신 지연"
+        case .success(let value):
+            if case .quotas(let quotas) = value.metrics, quotas.contains(where: { $0.remainingPercent <= 0 }) {
+                return "일부 한도 소진"
+            }
+            return value.source == .directCLI ? "자동 갱신" : "상태줄 데이터"
+        }
+#else
         switch state {
         case .idle: return "사용 중 갱신"
         case .loading: return "갱신 중"
@@ -471,6 +518,7 @@ enum UsagePopoverCopy {
             }
             return nil
         }
+#endif
     }
 
     static func claudeDetail(_ error: ExternalProviderError) -> String {

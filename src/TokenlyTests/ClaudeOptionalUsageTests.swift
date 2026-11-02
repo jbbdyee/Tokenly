@@ -684,6 +684,60 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertEqual(second.fetchedAt, first.fetchedAt)
     }
 
+    func testProductConfigurationRequiresBundledRuntimeAndClaudeCLI() throws {
+        XCTAssertEqual(ClaudeProductConfiguration.successInterval, 60)
+        let root = URL(fileURLWithPath: "/private/tmp/tokenly-claude-product-test-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let bundle = root.appendingPathComponent("Tokenly.app")
+        let resources = bundle.appendingPathComponent("Contents/Resources/ClaudeUsageSDK")
+        let sdk = resources.appendingPathComponent("node_modules/@anthropic-ai/claude-agent-sdk")
+        let macOS = bundle.appendingPathComponent("Contents/MacOS")
+        let support = root.appendingPathComponent("support")
+        try FileManager.default.createDirectory(at: sdk, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
+        let node = macOS.appendingPathComponent("TokenlyClaudeNode")
+        let cli = root.appendingPathComponent("claude")
+        let helper = resources.appendingPathComponent("claude-usage-helper.mjs")
+        for executable in [node, cli] {
+            try Data("#!/bin/sh\nexit 0\n".utf8).write(to: executable)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        }
+        try Data("// mock helper\n".utf8).write(to: helper)
+        let manifest = sdk.appendingPathComponent("package.json")
+        try Data(#"{"version":"0.3.169"}"#.utf8).write(to: manifest)
+        XCTAssertNil(ClaudeProductConfiguration.makeProvider(bundleURL: bundle,
+            candidates: [root.appendingPathComponent("missing")], supportDirectory: support))
+        let configured = ClaudeProductConfiguration.makeProvider(bundleURL: bundle,
+            candidates: [cli], supportDirectory: support, checkpointNamespace: "io.github.tokenly.candidate")
+        XCTAssertEqual(configured?.usesDirectSDK, true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: support
+            .appendingPathComponent("io.github.tokenly.candidate/Claude Direct Refresh").path))
+        try Data(#"{"version":"0.0.0"}"#.utf8).write(to: manifest)
+        XCTAssertNil(ClaudeProductConfiguration.makeProvider(bundleURL: bundle,
+            candidates: [cli], supportDirectory: support, checkpointNamespace: "io.github.tokenly.candidate"))
+    }
+
+    func testProductGateWaitsSixtySecondsAcrossRestartAndPausesUnknownError() async throws {
+        let root = URL(fileURLWithPath: "/private/tmp/tokenly-claude-product-gate-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("checkpoint.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = ClaudeDirectRefreshGate(pauseOnUnknownError: true, successInterval: 60,
+                                            checkpointURL: file)
+        await assertBegin(first, at: start, expected: true)
+        await first.finish(error: nil, at: start)
+        let restarted = ClaudeDirectRefreshGate(pauseOnUnknownError: true, successInterval: 60,
+                                                checkpointURL: file)
+        await assertBegin(restarted, at: start.addingTimeInterval(59), expected: false)
+        await assertBegin(restarted, at: start.addingTimeInterval(60), expected: true)
+        await restarted.finish(error: NSError(domain: "unknown", code: 1), at: start.addingTimeInterval(60))
+        await assertBegin(restarted, at: start.addingTimeInterval(86_400), expected: false)
+        let final = ClaudeDirectRefreshGate(pauseOnUnknownError: true, successInterval: 60,
+                                            checkpointURL: file)
+        await assertBegin(final, at: start.addingTimeInterval(86_401), expected: false)
+    }
+
 #if TOKENLY_CLAUDE_DEV
     @MainActor
     func testSecondAttemptSchedulesOnlyAfterDirectSuccess() {

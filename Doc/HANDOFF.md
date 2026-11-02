@@ -1,3 +1,9 @@
+## Claude 1분 정식 통합 후보 (2026-11-02)
+
+**이번 검증:** Node 정책 11개와 기본 XCTest 453개 통과, 후보 Debug·Release 빌드 성공, `git diff --check` 통과. 후보 Debug 앱은 별도 ID `io.github.jbbdyee.tokenly.claudecandidate.20261102`로 공식 Node arm64/x64와 SDK 0.3.169를 포함해 ad-hoc 서명했지만 실행하지 않았다. 기존 개발 플래그 전용 6개 테스트는 기본 전체 테스트 집계에 포함되지 않는다.
+
+실험 브랜치 `dcc26a7`에서 시작했다. 제품 후보 플래그는 공식 SDK/번들 Node/외부 Claude CLI가 검증될 때 60초 기본 독립 조회를 사용하며 개발용 번들 ID와 2회/3회 예약 제한을 사용하지 않으며 후보 체크포인트는 해당 번들 ID별 경로에 격리한다. 완료 기준 단발 타이머, 재시작 체크포인트, 실패 백오프 및 불명확한 오류 자동 중단, 상태줄 대체를 연결했다. 후보는 실행·설치하거나 실제 계정을 조회하지 않았다. 설치된 v0.3.0, 설정, 인증, GPU 로그 2개는 보존한다. 아래의 300초 보류 설명은 이전 실험의 기록이다. 릴리즈 전에 클린 Mac/Intel, 외부 CLI 호환성, Developer ID/Hardened Runtime/공증, 반복 60초 호출의 제한·비용·신선도·장기 안정성을 확인해야 한다.
+
 ## Claude SDK 이식형 개발 앱 준비 (2026-11-01)
 
 시작 `experiment/claude-usage-refresh` HEAD `e1a04c4`, 미추적 GPU 로그 2개 외 깨끗했다. 공식 Node 24.22.1 arm64/x64 tarball을 공개 SHA-256으로 확인했다. 공식 Node는 macOS 시스템 라이브러리만 참조했고 Homebrew Node의 동적 라이브러리 의존성을 제거했다. `lipo` 범용 Node, SDK 0.3.169 lockfile 기반 패키지와 helper를 별도 개발 앱에 포함했다. SDK 내장 선택적 CLI는 제외하고 SDK import만 확인했으며 실제 사용량/모델 요청은 없었다. 번들 ID `io.github.jbbdyee.tokenly.claudebundle.20261101`, 앱 경로 `/private/tmp/tokenly-claude-portable-app-final-20261101/DerivedData/Build/Products/Debug/Tokenly.app`, 크기 약 310 MB. 앱은 실행하지 않았다.

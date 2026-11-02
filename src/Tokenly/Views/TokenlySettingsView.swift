@@ -125,6 +125,9 @@ struct TokenlySettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+            Text("Claude SDK로 1분 조건부 자동 조회합니다. 실행 환경이 없거나 조회에 실패하면 기존 상태줄 데이터를 사용합니다.")
+                .font(.caption).foregroundStyle(.secondary)
 #else
             Text("공식 상태줄의 5시간·7일 한도만 사용합니다. 설정 연결과 실제 계정 수신은 별도 확인이 필요합니다.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -135,6 +138,14 @@ struct TokenlySettingsView: View {
                     .onChange(of: displaySettings.showsClaude) { _, enabled in
                         if enabled, ClaudeDevelopmentConfiguration.isEnabled {
                             externalStore.start()
+                        }
+                    }
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+                Toggle("Claude를 팝오버에 표시", isOn: $displaySettings.showsClaude)
+                    .onChange(of: displaySettings.showsClaude) { _, enabled in
+                        if enabled {
+                            externalStore.start()
+                            _ = externalStore.refresh(.claude)
                         }
                     }
 #else

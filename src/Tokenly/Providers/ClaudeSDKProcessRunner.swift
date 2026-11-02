@@ -1,8 +1,7 @@
 import Darwin
 import Foundation
 
-/// Explicitly constructed only by a future opt-in integration. The app's default Claude
-/// provider still reads statusLine and never creates this runner.
+/// Constructed only by a configured Claude SDK route after local runtime validation.
 protocol ClaudeProcessExecuting {
     func execute() async throws -> Data
 }
@@ -142,7 +141,7 @@ struct ClaudeSubprocessExecutor: ClaudeProcessExecuting {
     }
 }
 
-/// Resolves a development app's packaged Node and SDK without relying on Homebrew paths.
+/// Resolves an app's packaged Node and SDK without relying on Homebrew paths.
 /// A missing Claude CLI or incomplete bundle leaves the caller on statusLine.
 enum ClaudeBundledRuntime {
     static let sdkVersion = "0.3.169"

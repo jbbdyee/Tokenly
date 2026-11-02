@@ -1,26 +1,31 @@
 import Darwin
 import Foundation
 
-/// Five minutes is an experiment candidate, not an Anthropic published minimum interval.
-/// The checkpoint is used only by explicitly configured development app routes.
+/// The interval is supplied by the route; neither 60 nor 300 seconds is an Anthropic published minimum.
+/// A non-sensitive checkpoint preserves eligibility and failure state across launches.
 actor ClaudeDirectRefreshGate {
     private static let maximumTransientFailures = 3
     private let maxAttempts: Int?
     private let stopOnFailure: Bool
+    private let pauseOnUnknownError: Bool
     private let successInterval: TimeInterval
     private let reservationDirectory: URL?
     private let checkpointURL: URL?
     private var state = ClaudeRefreshCheckpoint()
 
     var nextEligibleAt: Date? { state.nextEligibleAt }
+    var automaticNextEligibleAt: Date? {
+        state.isPaused || state.isInFlight ? nil : state.nextEligibleAt
+    }
     var isPaused: Bool { state.isPaused }
     var isInFlight: Bool { state.isInFlight }
 
-    init(maxAttempts: Int? = nil, stopOnFailure: Bool = false,
+    init(maxAttempts: Int? = nil, stopOnFailure: Bool = false, pauseOnUnknownError: Bool = false,
          successInterval: TimeInterval = 300,
          reservationDirectory: URL? = nil, checkpointURL: URL? = nil) {
         self.maxAttempts = maxAttempts
         self.stopOnFailure = stopOnFailure
+        self.pauseOnUnknownError = pauseOnUnknownError
         self.successInterval = max(60, successInterval)
         self.reservationDirectory = reservationDirectory
         self.checkpointURL = checkpointURL
@@ -120,6 +125,11 @@ actor ClaudeDirectRefreshGate {
             value.isPaused = true
             value.nextEligibleAt = nil
         default:
+            if pauseOnUnknownError, !(error is ClaudeUsageRunnerError) {
+                value.isPaused = true
+                value.nextEligibleAt = nil
+                return
+            }
             value.transientFailures += 1
             guard value.transientFailures < Self.maximumTransientFailures else {
                 value.isPaused = true

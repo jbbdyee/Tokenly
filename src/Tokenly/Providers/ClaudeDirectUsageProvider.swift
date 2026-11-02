@@ -1,8 +1,7 @@
 import CoreFoundation
 import Foundation
 
-// Intentionally no SDK process implementation in this phase. A later, reviewed adapter can
-// implement this boundary without changing response validation or touching authentication here.
+// The SDK process boundary never reads or stores authentication directly.
 protocol ClaudeUsageRunning {
     func getUsage() async throws -> Data
 }

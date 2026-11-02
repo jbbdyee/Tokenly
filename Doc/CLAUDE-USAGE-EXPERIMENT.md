@@ -1,3 +1,11 @@
+## 60초 정식 통합 후보와 검증 경계 (2026-11-02)
+
+**이번 검증:** Node Mock 정책 11개와 기본 전체 XCTest 453개 통과, 제품 후보 Debug·Release 컴파일 성공. 별도 번들 ID의 ad-hoc 후보에 공식 Node arm64/x64와 SDK 0.3.169를 패키징했다. 후보 앱은 실행·설치하지 않아 이번 실계정 조회는 0회다. 기본 XCTest 453개는 개발 플래그 전용 6개를 포함하지 않는 집계다.
+
+**구현:** 이전 실계정 2회(60.014초)·동일 개발 앱 3회 성공 및 Mock UI 시각 변경을 근거로 제품 후보를 60초 기본 경로로 분리했다. 공식 SDK의 실험적 `get_usage`를 모델 대화 없이 사용하는 기존 helper/Swift Adapter를 재사용한다. 후보에는 개발 플래그의 2회/3회 예약 제한, 개별 번들 ID, 사용자 주기 선택이 없다. 체크포인트는 번들 ID별 Application Support 경로에 격리한다. 성공 완료 시각+60초의 단발 예약, single-flight, 비민감 영속 체크포인트, 일시 오류 백오프와 3회 연속 중단, 인증/권한/429/SDK 및 분류 불가능한 오류 즉시 중단, 마지막 성공값/statusLine 대체를 유지한다. 번들/외부 공식 CLI가 없으면 계정 요청 전에 statusLine만 사용한다. 실제 화면 갱신은 SDK 네트워크 요청과 별개다.
+
+**이번 단계에서 하지 않은 것:** 새 실계정 조회, 모델 요청, 후보 앱 실행, 정식 v0.3.0 설치·설정 변경. **미확인:** 공식 60초 허용 간격, 장기간 429·과금·신선도·메모리 영향, 다른 계정/클린 Mac/Intel의 외부 CLI, Developer ID 서명·Hardened Runtime·공증·Gatekeeper. ad-hoc 후보 빌드 성공은 배포 승인 근거가 아니다. 📸 캡처 추천: 후보 Mock UI의 갱신 시각과 출처를 민감 값 없이 확인. 캡처만 위해 실계정 조회를 재실행하지 않는다. 블로그 본문은 작성하지 않았다.
+
 ## 이식형 Node·SDK 개발 번들 (2026-11-01)
 
 **확인:** 공식 Node 24.22.1 arm64/x64 배포물의 공개 SHA-256이 각각 일치했다. 범용 실행 파일의 두 아키텍처와 macOS 시스템 라이브러리 링크를 확인했다. Homebrew dylib/로컬 절대경로 링크는 없다. SDK 0.3.169 lockfile로 `npm ci --omit=optional --ignore-scripts` 설치 후 SDK 모듈 import만 검증했다. 선택적 SDK 내장 CLI를 제외해 payload를 줄였고 외부 공식 Claude CLI가 없으면 개발 SDK route를 만들지 않는다. 별도 개발 앱 내부에 Node·helper·SDK를 포함하고 ad-hoc 서명/검증했다. 범용 Node의 가상 JSON 실행과 Swift 번들 경로 Mock을 확인했다. 앱 실행, 실제 SDK helper/계정 요청, 모델 요청, 자동 폴링은 없었다. Node 정책 테스트 11개·관련 XCTest 7개·전체 XCTest 447개·Debug/Release 빌드가 통과했다. 최초 Mock XCTest는 임시 위치로 복사한 `/bin/sh`가 macOS에서 종료돼 실패했으며, 가상 shell 스크립트로 교체 후 재검증했다.

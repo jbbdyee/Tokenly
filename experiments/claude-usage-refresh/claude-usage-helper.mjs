@@ -1,4 +1,4 @@
-// Development-only SDK bridge. Do not invoke without separate real-account authorization.
+// SDK usage bridge. The app's build route and refresh gate decide when account access is allowed.
 // stdout is one minimal JSON object on success; never print SDK errors or raw responses.
 import { readFileSync } from 'node:fs';
 const EXIT = { unavailable: 20, unexpectedMessage: 21, failed: 22, incompatible: 23,

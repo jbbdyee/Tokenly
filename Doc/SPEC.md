@@ -1,3 +1,9 @@
+## Claude 1분 정식 통합 후보 (2026-11-02)
+
+**검증(2026-11-02):** Mock 정책 11개 및 전체 macOS XCTest 453개 통과(개발 플래그 전용 6개는 이번 기본 테스트 빌드에 포함되지 않음). 격리 후보 Debug·Release 컴파일 성공. 실계정 호출·후보 앱 UI 실행은 0회.
+
+실험 브랜치의 `TOKENLY_CLAUDE_PRODUCT_CANDIDATE` 빌드는 공식 Agent SDK 0.3.169과 번들 Node를 사용해 Claude를 성공 완료 후 최소 60초 조건으로 자동 조회한다. Claude Code를 열 필요는 없으며 화면 표시 갱신과 실제 SDK 네트워크 조회를 구분한다. 개발용 번들 ID·수동 환경 플래그·2회/3회 예약 한도는 후보 경로에 없다. 후보 체크포인트는 번들 ID별 Application Support 경로에 격리한다. 영속 체크포인트, 단일 실행, 일시 오류 백오프, 인증·권한·요청 제한·SDK/불명확 오류 자동 중단, 기존 statusLine 대체 경로를 유지한다. 외부 공식 Claude CLI/로그인이 없거나 번들 검증 실패 시 statusLine만 사용한다. 현재 설치된 v0.3.0은 변경되지 않았다. 후보 앱은 실제 계정으로 실행하지 않았다. 아래의 300초/보류 설명은 이전 실험 시점의 기록이다.
+
 ## Claude SDK 이식형 개발 앱 (2026-11-01)
 
 정식 v0.3.0에는 적용하지 않는다. 별도 번들 ID `io.github.jbbdyee.tokenly.claudebundle.20261101`의 개발 앱에는 공식 Node 24.22.1 arm64·x64 범용 실행 파일, SDK 0.3.169, 최소 helper를 포함한다. Node는 `Contents/MacOS`, JavaScript와 SDK는 `Contents/Resources/ClaudeUsageSDK`에 둔다. 기본 상태에서는 SDK 경로가 비활성이며 개발 컴파일 플래그와 명시적 활성화 변수, 해당 번들 ID, 외부 공식 Claude CLI 경로가 모두 필요하다. CLI가 없거나 번들 파일·권한·SDK 버전이 맞지 않으면 statusLine으로 돌아간다. 기존 SDK 성공 후 300초 후보 정책을 유지하고 화면 표시 갱신과 실제 SDK 네트워크 조회를 구분한다. 60초 2회 실험 성공은 상시 1분 조회 활성화 근거로 삼지 않는다.

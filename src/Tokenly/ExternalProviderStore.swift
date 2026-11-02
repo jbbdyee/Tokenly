@@ -1,5 +1,5 @@
 import Foundation
-#if TOKENLY_CLAUDE_DEV
+#if TOKENLY_CLAUDE_DEV || TOKENLY_CLAUDE_PRODUCT_CANDIDATE
 import AppKit
 #endif
 
@@ -33,12 +33,18 @@ final class ExternalProviderStore: ObservableObject {
     let automaticTickInterval: TimeInterval
     private var timer: Timer?
     private var lastAutomaticAGYAttempt: Date?
-#if TOKENLY_CLAUDE_DEV
     private var claudeWakeObserver: NSObjectProtocol?
+#if TOKENLY_CLAUDE_DEV
     private var realOnceStarted = false
     private var realTwoStarted = false
     private var scheduledClaudeFollowUps = 0
     private var mockStarted = false
+#endif
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+    private var claudeTimer: Timer?
+    private var directClaudeEnabled: Bool {
+        (providers[.claude] as? ClaudeOptionalUsageProvider)?.usesDirectSDK == true
+    }
 #endif
 
     init(displaySettings: ProviderDisplaySettings,
@@ -85,8 +91,16 @@ final class ExternalProviderStore: ObservableObject {
 #endif
         guard timer == nil else { return }
         refreshSelected()
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        if directClaudeEnabled, displaySettings.showsClaude { _ = refresh(.claude) }
+#endif
 #if TOKENLY_CLAUDE_DEV
-        if claudeWakeObserver == nil, ClaudeDevelopmentConfiguration.isEnabled {
+        let observeClaudeWake = ClaudeDevelopmentConfiguration.isEnabled
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        let observeClaudeWake = directClaudeEnabled
+#endif
+#if TOKENLY_CLAUDE_DEV || TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        if claudeWakeObserver == nil, observeClaudeWake {
             claudeWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
             ) { [weak self] _ in
@@ -97,7 +111,12 @@ final class ExternalProviderStore: ObservableObject {
             }
         }
 #endif
-        timer = Timer.scheduledTimer(withTimeInterval: automaticTickInterval, repeats: true) { [weak self] _ in
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        let tickInterval: TimeInterval = 300
+#else
+        let tickInterval = automaticTickInterval
+#endif
+        timer = Timer.scheduledTimer(withTimeInterval: tickInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.refreshSelected() }
         }
     }
@@ -107,7 +126,11 @@ final class ExternalProviderStore: ObservableObject {
            force || lastAutomaticAGYAttempt.map({ now().timeIntervalSince($0) >= 300 }) != false {
             if refresh(.antigravity) != nil, !force { lastAutomaticAGYAttempt = now() }
         }
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        if displaySettings.showsClaude, force || !directClaudeEnabled { _ = refresh(.claude) }
+#else
         if displaySettings.showsClaude { _ = refresh(.claude) }
+#endif
         // OpenAI API account integration is paused; retain the provider implementation.
     }
 
@@ -128,6 +151,11 @@ final class ExternalProviderStore: ObservableObject {
             }
             states[id] = settled
             settledStates[id] = settled
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+            if id == .claude, let claude = provider as? ClaudeOptionalUsageProvider, claude.usesDirectSDK {
+                scheduleClaude(at: await claude.nextAutomaticRefresh())
+            }
+#endif
 #if TOKENLY_CLAUDE_DEV
             if id == .claude, case .success(let snapshot) = settled {
                 ClaudeDevelopmentConfiguration.recordStore(snapshot)
@@ -166,6 +194,23 @@ final class ExternalProviderStore: ObservableObject {
 
     func state(for id: ExternalProviderID) -> ExternalLoadState { states[id] ?? .idle }
     func settledState(for id: ExternalProviderID) -> ExternalLoadState { settledStates[id] ?? .idle }
+
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+    private func scheduleClaude(at date: Date?) {
+        claudeTimer?.invalidate()
+        claudeTimer = nil
+        guard let date, displaySettings.showsClaude else { return }
+        claudeTimer = Timer.scheduledTimer(withTimeInterval: max(0.1, date.timeIntervalSince(now())),
+                                          repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.claudeTimer = nil
+                guard self.displaySettings.showsClaude else { return }
+                _ = self.refresh(.claude)
+            }
+        }
+    }
+#endif
 
 #if TOKENLY_CLAUDE_DEV
     static func shouldScheduleSecondClaudeAttempt(_ state: ExternalLoadState) -> Bool {
