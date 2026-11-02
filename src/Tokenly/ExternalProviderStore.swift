@@ -37,7 +37,7 @@ final class ExternalProviderStore: ObservableObject {
     private var claudeWakeObserver: NSObjectProtocol?
     private var realOnceStarted = false
     private var realTwoStarted = false
-    private var realTwoSecondScheduled = false
+    private var scheduledClaudeFollowUps = 0
     private var mockStarted = false
 #endif
 
@@ -75,7 +75,8 @@ final class ExternalProviderStore: ObservableObject {
             refreshSelected()
             return // No repeating timer or wake observer for the one-shot account check.
         }
-        if ClaudeDevelopmentConfiguration.isRealTwo || ClaudeDevelopmentConfiguration.isRealSixty {
+        if ClaudeDevelopmentConfiguration.isRealTwo || ClaudeDevelopmentConfiguration.isRealSixty ||
+            ClaudeDevelopmentConfiguration.isRealThree {
             guard !realTwoStarted else { return }
             realTwoStarted = true
             _ = refresh(.claude)
@@ -133,11 +134,14 @@ final class ExternalProviderStore: ObservableObject {
             }
             if id == .claude,
                ClaudeDevelopmentConfiguration.isRealTwo || ClaudeDevelopmentConfiguration.isRealSixty ||
+                   ClaudeDevelopmentConfiguration.isRealThree ||
                    ClaudeDevelopmentConfiguration.isMockSixty,
-               !realTwoSecondScheduled, Self.shouldScheduleSecondClaudeAttempt(settled) {
-                realTwoSecondScheduled = true
+               scheduledClaudeFollowUps < (ClaudeDevelopmentConfiguration.isRealThree ? 2 : 1),
+               Self.shouldScheduleSecondClaudeAttempt(settled) {
+                scheduledClaudeFollowUps += 1
                 let interval: TimeInterval = ClaudeDevelopmentConfiguration.isRealSixty ||
-                    ClaudeDevelopmentConfiguration.isMockSixty ? 60 : 300
+                    ClaudeDevelopmentConfiguration.isMockSixty ||
+                    ClaudeDevelopmentConfiguration.isRealThree ? 60 : 300
                 timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
                     Task { @MainActor [weak self] in
                         guard let self else { return }

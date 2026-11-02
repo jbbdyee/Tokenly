@@ -765,6 +765,11 @@ final class ClaudeOptionalUsageTests: XCTestCase {
             environment: ["TOKENLY_CLAUDE_DEV_MOCK_SIXTY": "1"]), 300)
         XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 300, bundleID: id,
             environment: ["TOKENLY_CLAUDE_DEV_MOCK": "1", "TOKENLY_CLAUDE_DEV_MOCK_SIXTY": "1"]), 300)
+        let realThreeID = ClaudeDevelopmentConfiguration.realThreeBundleID
+        XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 300, bundleID: realThreeID,
+            environment: ["TOKENLY_CLAUDE_DEV_REAL_THREE": "1"]), 60)
+        XCTAssertEqual(ClaudeDevelopmentConfiguration.refreshInterval(selected: 300, bundleID: realThreeID,
+            environment: [:]), 300)
         XCTAssertFalse(ClaudeDevelopmentConfiguration.bundledRouteAllowed(environment: [
             "TOKENLY_CLAUDE_DEV_BUNDLED_ENABLE": "1", "TOKENLY_CLAUDE_DEV_MOCK": "1"], bundleID: id))
         XCTAssertTrue(ClaudeDevelopmentConfiguration.bundledRouteAllowed(environment: [
@@ -793,6 +798,49 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         await assertBegin(restarted, at: start.addingTimeInterval(3_600), expected: false)
         XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("attempt-1.reserved").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("attempt-2.reserved").path))
+    }
+
+    func testRealThreeTrialRequiresSixtySecondsAndBlocksFourthAfterRestart() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-real-three-gate-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("checkpoint.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let gate = ClaudeDirectRefreshGate(maxAttempts: 3, stopOnFailure: true,
+            successInterval: 60, reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(gate, at: start, expected: true)
+        await gate.finish(error: nil, at: start)
+        await assertBegin(gate, at: start.addingTimeInterval(59), expected: false)
+        await assertBegin(gate, at: start.addingTimeInterval(60), expected: true)
+        await gate.finish(error: nil, at: start.addingTimeInterval(60))
+        await assertBegin(gate, at: start.addingTimeInterval(119), expected: false)
+        await assertBegin(gate, at: start.addingTimeInterval(120), expected: true)
+        await gate.finish(error: nil, at: start.addingTimeInterval(120))
+        await assertBegin(gate, at: start.addingTimeInterval(180), expected: false)
+        let restarted = ClaudeDirectRefreshGate(maxAttempts: 3, stopOnFailure: true,
+            successInterval: 60, reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(restarted, at: start.addingTimeInterval(86_400), expected: false)
+        for attempt in 1...3 {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: directory
+                .appendingPathComponent("attempt-\(attempt).reserved").path))
+        }
+    }
+
+    func testRealThreeTrialStopsAfterFirstFailureAndCannotRestart() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-real-three-failure-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("checkpoint.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let gate = ClaudeDirectRefreshGate(maxAttempts: 3, stopOnFailure: true,
+            successInterval: 60, reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(gate, at: start, expected: true)
+        await gate.finish(error: ClaudeUsageRunnerError.timeout, at: start)
+        let restarted = ClaudeDirectRefreshGate(maxAttempts: 3, stopOnFailure: true,
+            successInterval: 60, reservationDirectory: directory, checkpointURL: file)
+        await assertBegin(restarted, at: start.addingTimeInterval(86_400), expected: false)
     }
 
     func testMockUIFixtureMatchesSDKContractAndStatusLineFallback() async throws {
