@@ -26,6 +26,8 @@ CATEGORY="public.app-category.utilities"
 MIN_MACOS="14.0"
 REQUIRED_ARCHS="arm64 x86_64"
 LSREGISTER="${TOKENLY_TEST_LSREGISTER:-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister}"
+PRESERVE_LAUNCHSERVICES="${TOKENLY_PRESERVE_LAUNCHSERVICES:-0}"
+case "$PRESERVE_LAUNCHSERVICES" in 0|1) ;; *) echo "TOKENLY_PRESERVE_LAUNCHSERVICES must be 0 or 1" >&2; exit 64 ;; esac
 # Preserve generated intermediates when validating the release path without deleting temporary files.
 KEEP_INTERMEDIATES="${TOKENLY_KEEP_INTERMEDIATES:-0}"
 case "$KEEP_INTERMEDIATES" in 0|1) ;; *) echo "TOKENLY_KEEP_INTERMEDIATES must be 0 or 1" >&2; exit 64 ;; esac
@@ -121,6 +123,7 @@ ls_records_under_out() {  # prints "<bundle id>\t<path>" per registered bundle u
         END { flush() }'
 }
 unregister_outputs() {
+    [ "$PRESERVE_LAUNCHSERVICES" = 1 ] && return 0
     [ -x "$LSREGISTER" ] || return 0
     local records id path
     records="$(ls_records_under_out)" || return 0
@@ -384,7 +387,9 @@ notes="$OUT/RELEASE-NOTES.md"
     echo
     echo "- macOS $MIN_MACOS 이상, Apple silicon·Intel 공용(universal)"
     echo "- 번들 ID \`$PACKAGE_ID\`"
-    [ "$mode" = final ] && echo "- Claude Code·AGY는 설치 후 \`/Applications/Tokenly.app/Contents/MacOS/Tokenly --connect claude\`(또는 \`agy\`)로 연결합니다."
+    if [ "$mode" = final ]; then
+        echo "- Claude 자동 조회에는 공식 Claude CLI 설치·로그인이 필요합니다. 상태줄 대체 경로는 기존 Claude 연결을 유지하며, AGY 상태줄은 필요할 때 \`Tokenly --connect agy\`로 연결합니다."
+    fi
     echo
     echo "## 변경 내용"
     awk -v v="$version" '
