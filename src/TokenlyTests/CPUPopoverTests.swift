@@ -30,6 +30,53 @@ final class CPUPopoverTests: XCTestCase {
         XCTAssertNil(PopoverWindowCoordinator.shared.activeWindow)
     }
 
+    func testCPUToRAMToDiskToCPUSwitchClosesEveryPreviousWindow() {
+        let coordinator = PopoverWindowCoordinator()
+        let cpu = makePopoverWindow()
+        let ram = makePopoverWindow()
+        let disk = makePopoverWindow()
+        defer { [cpu, ram, disk].forEach { $0.orderOut(nil) } }
+
+        for (next, others) in [(cpu, [ram, disk]), (ram, [cpu, disk]),
+                               (disk, [cpu, ram]), (cpu, [ram, disk])] {
+            next.orderFront(nil)
+            coordinator.activate(next)
+            XCTAssertTrue(next.isVisible)
+            XCTAssertTrue(coordinator.activeWindow === next)
+            XCTAssertTrue(others.allSatisfy { !$0.isVisible }, "Only the selected popover may remain visible")
+        }
+    }
+
+    func testRepeatedActivationAndSimulatedOutsideDismissal() {
+        let coordinator = PopoverWindowCoordinator()
+        let cpu = makePopoverWindow()
+        let ram = makePopoverWindow()
+        defer { cpu.orderOut(nil); ram.orderOut(nil) }
+
+        cpu.orderFront(nil)
+        coordinator.activate(cpu)
+        coordinator.activate(cpu)
+        XCTAssertTrue(cpu.isVisible, "The coordinator leaves same-item toggling to SwiftUI")
+
+        // Model the window being ordered out by SwiftUI after a repeat or outside click. This does
+        // not claim to synthesize or verify macOS's actual status-item and outside-click events.
+        cpu.orderOut(nil)
+        coordinator.closed(cpu)
+        XCTAssertNil(coordinator.activeWindow)
+        XCTAssertFalse(cpu.isVisible)
+
+        ram.orderFront(nil)
+        coordinator.activate(ram)
+        coordinator.closed(cpu) // A delayed close notification must not clear the newly active window.
+        XCTAssertTrue(coordinator.activeWindow === ram)
+        XCTAssertTrue(ram.isVisible)
+    }
+
+    private func makePopoverWindow() -> NSWindow {
+        NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+                 styleMask: .borderless, backing: .buffered, defer: false)
+    }
+
     // MARK: Load wording
 
     func testLoadBoundaries() {

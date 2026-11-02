@@ -1,3 +1,7 @@
+## 시스템 팝오버 중첩 회귀 보강 (2026-11-02)
+
+`fix/system-popover-exclusivity` / 시작 HEAD `085e2d6`. 공통 창 조정기는 유지하고 제품 동작은 변경하지 않았다. CPU→RAM→Disk→CPU 창 전환에서 이전 창이 각각 보이지 않는지, 같은 창의 재활성은 조정기가 강제로 닫지 않는지, SwiftUI가 창을 닫은 상황을 모의한 `orderOut`/`closed` 뒤 active 상태가 비워지고 지연된 닫힘 알림이 새 창을 지우지 않는지 XCTest 두 개를 추가해 이번 세션에서 2/2 통과했다. 기존 22개와 Debug·Release 전체 빌드는 반복하지 않았다. 시스템 5개와 AI 화면 모두 `WindowVisibilityReporter`로 같은 조정기에 연결돼 있음을 정적 확인했다. 이는 macOS 메뉴 막대의 실제 재클릭·외부 클릭 이벤트를 재현한 테스트가 아니다. M4/macOS 27.0.1의 이번 수정 GUI 확인과 지인 M1 실기기 검증은 모두 보류한다. M1 칩/OS가 원인이라고 단정하지 않는다. 설치 앱·Claude 코드·GPU 로그는 변경하지 않았다. 📸 캡처 추천: M1 실기기 확인이 가능해지면 CPU→RAM→Disk 전환 후 팝오버 한 개만 보이는 화면. 현재는 캡처 재실행하지 않는다.
+
 ## 시스템 메뉴 막대 팝오버 중첩 수정 후보 (2026-11-02)
 
 Claude 실험 HEAD `7b40688`에서 `fix/system-popover-exclusivity` 브랜치를 만들었다. M4에서는 기존 전환이 정상이지만 지인 M1에서 CPU·RAM·Disk 팝오버 중첩이 보고됐다. 각 SwiftUI 창 사이에 배타 상태가 없는 경로를 확인해 `PopoverWindowCoordinator`를 추가하고, AI와 시스템 팝오버에 공통 적용했다. 그래프·측정·Claude SDK·인증·갱신 로직은 변경하지 않았다. 별도 `TOKENLY_POPOVER_FIXTURE` 앱은 외부 Provider를 비워 실계정 요청 없이 UI만 시험한다. 관련 CPUPopover XCTest 22개와 일반 Debug·Release 빌드가 통과했다. 실제 GUI 조작은 이번 세션에서 하지 않았다. fixture ZIP은 `/private/tmp/tokenly-popover-fixture-m1-final-20261102/`에 생성했고 arm64/x86_64 빌드·ad-hoc 서명과 macOS 최소 14.0을 확인했다. M1 실기기 전환·재클릭·외부 클릭과 Intel 실행은 미검증이며 지인의 macOS와 기존 Tokenly 버전을 함께 확인해야 한다. GPU 로그 두 개와 설치본은 보존한다. 📸 캡처 추천: M1에서 CPU→RAM→Disk를 순서대로 연 뒤 Disk 팝오버 하나만 보이는 메뉴 막대 전체 화면. 버전·계정·개인 경로는 가린다.
