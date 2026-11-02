@@ -106,6 +106,7 @@ struct UsageMenuView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
         }
+        .background(WindowVisibilityReporter(handle: nil) { _ in })
         .frame(width: 340)
         .background(.regularMaterial)
     }

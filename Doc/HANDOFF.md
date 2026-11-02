@@ -1,3 +1,7 @@
+## 시스템 메뉴 막대 팝오버 중첩 수정 후보 (2026-11-02)
+
+Claude 실험 HEAD `7b40688`에서 `fix/system-popover-exclusivity` 브랜치를 만들었다. M4에서는 기존 전환이 정상이지만 지인 M1에서 CPU·RAM·Disk 팝오버 중첩이 보고됐다. 각 SwiftUI 창 사이에 배타 상태가 없는 경로를 확인해 `PopoverWindowCoordinator`를 추가하고, AI와 시스템 팝오버에 공통 적용했다. 그래프·측정·Claude SDK·인증·갱신 로직은 변경하지 않았다. 별도 `TOKENLY_POPOVER_FIXTURE` 앱은 외부 Provider를 비워 실계정 요청 없이 UI만 시험한다. 관련 CPUPopover XCTest 22개와 일반 Debug·Release 빌드가 통과했다. 실제 GUI 조작은 이번 세션에서 하지 않았다. fixture ZIP은 `/private/tmp/tokenly-popover-fixture-m1-final-20261102/`에 생성했고 arm64/x86_64 빌드·ad-hoc 서명과 macOS 최소 14.0을 확인했다. M1 실기기 전환·재클릭·외부 클릭과 Intel 실행은 미검증이며 지인의 macOS와 기존 Tokenly 버전을 함께 확인해야 한다. GPU 로그 두 개와 설치본은 보존한다. 📸 캡처 추천: M1에서 CPU→RAM→Disk를 순서대로 연 뒤 Disk 팝오버 하나만 보이는 메뉴 막대 전체 화면. 버전·계정·개인 경로는 가린다.
+
 ## Claude 60초 배포 입력·등록·서명 점검 (2026-11-02)
 
 브랜치 `experiment/claude-usage-refresh` / 시작 HEAD `862717d`. 제품 코드·설치 앱·설정·인증은 변경하지 않았고 실계정/모델 요청 및 LaunchServices 등록 변경은 0회다. 설치 앱 v0.3.0(5)은 제품 ID로 정상 등록돼 있다. 같은 ID의 오래된 임시 사본 등록이 다수 남아 있어 임의 일괄 해제는 금지한다. Node v24.22.1 arm64/x64 현지 아카이브 SHA-256은 스크립트 고정값과 일치하고 SDK 0.3.169는 lockfile에 고정됐다. 호스트 npm·패키지 캐시/접근·외부 Claude CLI는 여전히 필요하다. Developer ID Application 인증서 0개, 현재 스크립트는 ad-hoc 서명만 한다. 다음 버전 v0.4.0(6) 및 CHANGELOG 문안은 제안 단계다. 상세 근거·클린 Mac 체크리스트·남은 릴리즈 게이트는 [배포 준비 점검](CLAUDE-RELEASE-PREP.md)을 따른다. 이전 XCTest 454개/Node 11개/Debug·Release 결과는 재실행하지 않았다. `git diff --check`만 이번 변경에 실행한다. GPU 로그 2개 보존. 📸 캡처 추천: 없음. 이번 단계는 읽기 전용 등록/빌드 입력 확인이며 공개할 화면이 없다.

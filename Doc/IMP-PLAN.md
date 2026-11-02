@@ -1,3 +1,7 @@
+## 시스템 팝오버 중첩 수정 후보 (2026-11-02)
+
+SwiftUI의 각 `MenuBarExtra(.window)`는 독립 창이다. 기존 `WindowVisibilityReporter`는 해당 창의 가시성과 프로세스 목록 스캔만 관찰했고, 다른 메뉴 막대 항목을 열 때 이전 창을 닫는 공통 상태는 없었다. 공통 창 조정기가 새 팝오버의 key 전환을 받으면 직전 창을 `orderOut`한다. 동일 창의 재활성은 무시하고, 외부 클릭의 닫기는 SwiftUI 기본 동작을 유지한다. AI 팝오버도 조정기에 연결해 Tokenly 팝오버 최대 1개 정책을 적용한다. 별도 빌드 플래그 `TOKENLY_POPOVER_FIXTURE`는 Codex·Claude·AGY 외부 Provider를 모두 제거하므로 지인용 테스트 앱은 계정 조회를 실행하지 않는다. M1과 macOS 버전 차이는 미확정이며 실기기 확인이 필요하다.
+
 ## Claude 60초 정식 빌드 적용 준비 (2026-11-02)
 
 **검증 상태:** 일반 전체 XCTest 454개, 개발 경로 관련 44개, Node 정책 11개 통과. 일반 Debug·Release와 임시 ID의 로컬 개발 ZIP 구성·ad-hoc 서명·SHA-256 검증 성공. 실제 SDK 조회·설치 없음.

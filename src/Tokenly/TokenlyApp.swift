@@ -4,7 +4,9 @@ import SwiftUI
 
 /// Started by `TokenlyMain` (the process entry point) when no command-line mode was requested.
 struct TokenlyApp: App {
-#if TOKENLY_CLAUDE_DEV
+#if TOKENLY_POPOVER_FIXTURE
+    @StateObject private var store = UsageStore(provider: PopoverFixtureUsageProvider())
+#elseif TOKENLY_CLAUDE_DEV
     @StateObject private var store = UsageStore(provider: ClaudeDevelopmentConfiguration.DisabledCodexProvider())
 #else
     @StateObject private var store = UsageStore(provider: CodexUsageProvider())
@@ -23,14 +25,18 @@ struct TokenlyApp: App {
     private let quitMenu = MenuBarQuitMenu()
 
     init() {
-#if TOKENLY_CLAUDE_DEV
+#if TOKENLY_POPOVER_FIXTURE
+        let display = ProviderDisplaySettings(defaultCodexVisible: false, defaultClaudeVisible: false)
+#elseif TOKENLY_CLAUDE_DEV
         let display = ProviderDisplaySettings(defaultCodexVisible: false, defaultClaudeVisible: true)
 #else
         let display = ProviderDisplaySettings()
 #endif
         _displaySettings = StateObject(wrappedValue: display)
         appearanceApplier = AppAppearanceApplier(settings: display)
-#if TOKENLY_CLAUDE_DEV
+#if TOKENLY_POPOVER_FIXTURE
+        _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display, providers: [:]))
+#elseif TOKENLY_CLAUDE_DEV
         let claudeInterval = ClaudeDevelopmentConfiguration.refreshInterval(
             selected: display.claudeRefreshSeconds, bundleID: Bundle.main.bundleIdentifier,
             environment: ProcessInfo.processInfo.environment)
@@ -112,6 +118,13 @@ struct TokenlyApp: App {
         }
     }
 }
+
+#if TOKENLY_POPOVER_FIXTURE
+private struct PopoverFixtureUsageProvider: UsageProvider {
+    let name = "Popover fixture"
+    func fetch() async throws -> UsageSnapshot { throw UsageProviderError.cliUnavailable }
+}
+#endif
 
 /// SwiftUI's window-style MenuBarExtra owns its status item and offers no right-click menu API.
 /// A local right-button monitor handles only this app's status-bar windows, before SwiftUI can open a popover.

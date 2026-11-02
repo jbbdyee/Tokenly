@@ -7,6 +7,29 @@ import XCTest
 /// popover's start/stop of the TOP 5 scan.
 @MainActor
 final class CPUPopoverTests: XCTestCase {
+    func testOnlyMostRecentlyActivatedPopoverWindowRemainsVisible() {
+        let first = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+                             styleMask: .borderless, backing: .buffered, defer: false)
+        let second = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        defer { first.orderOut(nil); second.orderOut(nil); PopoverWindowCoordinator.shared.closed(second) }
+        first.orderFront(nil)
+        PopoverWindowCoordinator.shared.activate(first)
+        XCTAssertTrue(first.isVisible)
+
+        second.orderFront(nil)
+        PopoverWindowCoordinator.shared.activate(second)
+        XCTAssertFalse(first.isVisible)
+        XCTAssertTrue(second.isVisible)
+        XCTAssertTrue(PopoverWindowCoordinator.shared.activeWindow === second)
+        PopoverWindowCoordinator.shared.activate(second)
+        XCTAssertTrue(second.isVisible, "Activating the same window must not toggle it")
+        PopoverWindowCoordinator.shared.closed(first)
+        XCTAssertTrue(PopoverWindowCoordinator.shared.activeWindow === second)
+        PopoverWindowCoordinator.shared.closed(second)
+        XCTAssertNil(PopoverWindowCoordinator.shared.activeWindow)
+    }
+
     // MARK: Load wording
 
     func testLoadBoundaries() {
