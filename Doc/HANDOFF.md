@@ -1,3 +1,33 @@
+## v0.4.1(7) 정식 릴리즈 (2026-11-04)
+
+**Git·Release:**
+- 릴리즈 입력 커밋 `acaa74b`(CHANGELOG 출시일, README 현재 버전). `fix/claude-refresh-recovery-v0.4.1` → main fast-forward(충돌 없음).
+- 주석 태그 `v0.4.1` → `acaa74b`. main·태그를 Push했고, [GitHub Release v0.4.1](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.1)을 Latest로 게시했다.
+- v0.4.0 태그(`a59eedd`)·Release(자산 2개)는 그대로다.
+
+**빌드:**
+- 깨끗한 복제본 `/private/tmp/tokenly-v041-release-source-20261104`에서 `TOKENLY_PRESERVE_LAUNCHSERVICES=1 release.sh --final 0.4.1`로 빌드했다.
+- Node는 영구 보관 경로 `claude-node-archives/v24.22.1`, 출력은 `TokenlyRelease.noindex/0.4.1/`이다.
+- `Tokenly-0.4.1-macOS-universal.zip`, SHA-256 `c93f72a19c1e059dc1615286cb2f11a9fa09e3c90884d7a473586c2d58e386e2`.
+- 독립 확인: 앱·Node x86_64+arm64, ad-hoc 서명, SDK 0.3.169, helper = 저장소 v0.4.1, 번들 안 `/Users/` 경로 0건. 공개 자산을 내려받아 체크섬·로컬 빌드와 동일함을 확인했다.
+- 출력 폴더의 stage 사본이 정식 ID로 LaunchServices에 등록된 경고는 그대로 두었다(v0.4.0과 같음).
+
+**설치:**
+- v0.4.0(6) 앱·설정·Application Support 2곳을 `TokenlyRelease.noindex/backup-0.4.0-before-0.4.1-20261104/`(700)에 백업하고 동일함을 확인한 뒤 진행했다.
+- v0.4.0을 정상 종료하고, 공개 ZIP 해제본으로 `/Applications/Tokenly.app`을 교체했다(해제본과 동일, 서명 OK, 설정 파일 그대로).
+- 실행 직후 v0.4.0 정지 체크포인트가 복구됐다: 17:42:33 시도, 17:42:36 성공, 이후 60초 간격(attempts 949까지, 오류 없음).
+
+**실화면(개발자 Mac, 다크):**
+- 메뉴 막대: `✦86/11`(Codex 7일 11%)·`✦9`(AGY), 겹침 없음.
+- 실제 AI 팝오버: 펄·크림·`· 부족`·Claude "자동 갱신", 24프레임 중 14개가 달라 반짝임 동작.
+- 실제 RAM 팝오버: 80% = 메뉴 막대 80%, `기타 ⓘ 627.8 MB` 잘림 없음. AI 팝오버는 RAM을 열자 닫혔다.
+- 팝오버는 합성 클릭으로 열고 닫았다. RAM을 닫는 첫 클릭은 반영되지 않아 한 번 더 눌렀다.
+- 화면은 `ui-check-v041-20261104/installed-0.4.1/`에 있다. 터미널이 찍힌 캡처 1장은 삭제했다.
+
+**참고:** 설치본 팝오버를 닫은 뒤 앱 CPU 2.7~4.0%(실제 Codex·AGY 조회, Claude Node 60초, 시스템 위젯 4개 포함). v0.4.0 동일 조건 값이 없어 비교하지 못했다.
+
+**복구 방법:** Tokenly 종료 → `/Applications/Tokenly.app` 삭제 → 백업 폴더의 `Tokenly.app` ditto. 필요하면 settings.plist와 Application Support도 복원한다.
+
 ## v0.4.1 반짝임 CPU 최적화 (2026-11-04)
 
 **커밋:** `b07f4ca`(코드·테스트)와 문서 커밋. 요청 메시지가 "[4. UI 검증] 기…"에서 잘려, 이후 항목은 직전 단계의 UI 확인 방식(프레임 비교, 동작 줄이기, 닫힘 중단)과 금지 사항(병합·Push·Release·실계정 금지)을 그대로 적용했다.
