@@ -212,7 +212,8 @@ enum SystemWidgetPresentation {
     /// The parts of the RAM composition bar. App (anonymous − purgeable), wired, compressed (pages held by the
     /// compressor) and "other" (in use but in none of those counters, v0.4.1) sum to `usedBytes`, the same value as the
     /// usage percent; "available" is total − used: free pages and cached files. The parts sum to exactly `totalBytes`.
-    /// "Other" is listed only when it is not zero, so the bar keeps its four parts otherwise.
+    /// "Other" is listed only when it is not zero, so the bar keeps its four parts otherwise. It is a remainder Tokenly
+    /// computes, not a memory type Apple defines; the legend calls it "기타" so it fits the 142 pt cell.
     struct MemoryPart: Equatable {
         enum Kind: Equatable { case app, wired, compressed, other, available }
         let kind: Kind
@@ -224,9 +225,14 @@ enum SystemWidgetPresentation {
             case .app: "앱 메모리"
             case .wired: "와이어드"
             case .compressed: "압축"
-            case .other: "기타 시스템"
+            case .other: "기타"
             case .available: "사용 가능"
             }
+        }
+
+        /// VoiceOver name: the short legend title, spelled out for "기타".
+        var accessibilityTitle: String {
+            kind == .other ? "기타, 앱 메모리·와이어드·압축으로 분류되지 않는 사용 메모리" : title
         }
     }
 
@@ -239,7 +245,7 @@ enum SystemWidgetPresentation {
             .map { MemoryPart(kind: $0.0, bytes: $0.1, fraction: Double($0.1) / total) }
     }
 
-    static let memoryAvailableHelp = "사용 = 전체 − 비어 있는 메모리 − 캐시된 파일로, 활성 상태 보기의 \"사용된 메모리\"와 같은 기준입니다. 기타 시스템은 사용 중이지만 앱 메모리·와이어드·압축 어느 쪽으로도 집계되지 않는 메모리(제거 가능한 데이터 포함)입니다. 사용 가능은 비어 있는 메모리와 캐시된 파일처럼 macOS가 필요하면 바로 내줄 수 있는 메모리입니다."
+    static let memoryAvailableHelp = "사용 = 전체 − 비어 있는 메모리 − 캐시된 파일로, 활성 상태 보기의 \"사용된 메모리\"와 같은 기준입니다. 기타는 사용 메모리 중 앱 메모리·와이어드·압축으로 분류되지 않는 차이(사용 − 세 항목의 합)이며, Apple이 정의한 별도의 메모리 종류가 아니라 Tokenly가 계산한 나머지입니다. 제거 가능한 데이터도 여기에 들어갑니다. 사용 가능은 비어 있는 메모리와 캐시된 파일처럼 macOS가 필요하면 바로 내줄 수 있는 메모리입니다."
 
     static let memoryTopHelp = "프로세스 메모리는 각 프로세스가 실제로 차지한 메모리(phys_footprint, 활동 모니터의 \"메모리\" 열과 같은 기준)입니다. 공유 메모리 등이 있어 합계가 위의 사용량과 같지 않습니다. 권한에 따라 일부 프로세스는 표시되지 않을 수 있습니다."
 

@@ -22,8 +22,8 @@ struct RAMPopoverView: View {
     static let wiredColor = Color(red: 0xA8 / 255, green: 0xCD / 255, blue: 0xF4 / 255)
     static let compressedColor = Color(red: 0xC5 / 255, green: 0xB3 / 255, blue: 0xEE / 255)
     static let availableColor = Color(red: 0x73 / 255, green: 0x77 / 255, blue: 0x82 / 255)
-    /// "기타 시스템" (v0.4.1): a muted slate lavender between the used parts and the grey "available".
-    static let otherColor = Color(red: 0x9E / 255, green: 0xA3 / 255, blue: 0xB5 / 255)
+    /// "기타" (v0.4.1): a blue grey (#8C9BC0) that stays apart from the neutral grey "available" in both appearances.
+    static let otherColor = Color(red: 0x8C / 255, green: 0x9B / 255, blue: 0xC0 / 255)
 
     /// Pressure badge colours (approved 2026-10-28). Dark values as given; light values keep the same pastel hues
     /// with text dark enough for WCAG AA (≥ 4.5:1) on its own background. Unknown is neutral grey, never mint.
@@ -144,6 +144,7 @@ struct RAMPopoverView: View {
                         }
                         .frame(width: 142)
                         .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(part.accessibilityTitle), \(SystemWidgetPresentation.processMemoryText(part.bytes))")
                     }
                 }
             }

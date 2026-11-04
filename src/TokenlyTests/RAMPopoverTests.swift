@@ -34,7 +34,7 @@ final class RAMPopoverTests: XCTestCase {
         }
         let parts = SystemWidgetPresentation.memoryComposition(memory)
         XCTAssertEqual(parts.map(\.kind), [.app, .wired, .compressed, .other, .available])
-        XCTAssertEqual(parts[3].title, "기타 시스템")
+        XCTAssertEqual(parts[3].title, "기타")
         XCTAssertEqual(parts.map(\.bytes).reduce(0, +), memory.totalBytes)
         XCTAssertEqual(parts[0].bytes, (269_780 - 2) * 16_384, "App = anonymous − purgeable")
         XCTAssertEqual(parts[2].bytes, 385_128 * 16_384, "Compressed = pages held by the compressor")
@@ -257,5 +257,100 @@ final class RAMPopoverTests: XCTestCase {
         }
         // Words stay with the colours: colour is never the only signal.
         XCTAssertEqual(states.map { SystemWidgetPresentation.memoryPressureText($0) }, ["정상", "주의", "높음", "확인 불가", "확인 불가", "확인 불가"])
+    }
+}
+
+// MARK: - v0.4.1 "기타" legend (fit, wording, accessibility, colour)
+
+extension RAMPopoverTests {
+    /// Width the legend cell needs: 8 pt swatch, 6 pt gaps, title, optional ⓘ button, 4 pt minimum spacer, value.
+    private func legendWidth(title: String, value: String, info: Bool) -> CGFloat {
+        let titleWidth = (title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11)]).width
+        let valueFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+        let valueWidth = (value as NSString).size(withAttributes: [.font: valueFont]).width
+        let symbol = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)!
+            .withSymbolConfiguration(.init(pointSize: 9, weight: .regular))!
+        let infoWidth = info ? 6 + symbol.size.width : 0
+        return 8 + 6 + titleWidth + infoWidth + 6 + 4 + valueWidth
+    }
+
+    func testOtherLegendFitsItsCellForEveryRealisticValue() {
+        // Every value the formatter produces from 1 MB to 16 GB, the widest strings first.
+        let values = stride(from: UInt64(1) << 20, through: 16 * gib, by: 7_340_033)
+            .map(SystemWidgetPresentation.processMemoryText)
+        for value in values {
+            XCTAssertLessThanOrEqual(legendWidth(title: "기타", value: value, info: true), 142, "기타 \(value)")
+            XCTAssertLessThanOrEqual(legendWidth(title: "사용 가능", value: value, info: true), 142, "사용 가능 \(value)")
+        }
+        // The v0.4.1 candidate title overflowed with the value seen on screen (shown as "기타 시…").
+        XCTAssertGreaterThan(legendWidth(title: "기타 시스템", value: "651.5 MB", info: true), 142)
+    }
+
+    func testOtherHelpAndAccessibilityDescribeAComputedRemainder() {
+        let memory = MemoryUsage(totalBytes: 16 * gib, usedBytes: 14 * gib, appBytes: 4 * gib, wiredBytes: 3 * gib,
+                                 compressedBytes: 6 * gib, cachedFilesBytes: 1 * gib)
+        let parts = SystemWidgetPresentation.memoryComposition(memory)
+        let other = parts.first { $0.kind == .other }
+        XCTAssertEqual(other?.title, "기타")
+        XCTAssertEqual(other?.bytes, 1 * gib)
+        XCTAssertEqual(other?.accessibilityTitle, "기타, 앱 메모리·와이어드·압축으로 분류되지 않는 사용 메모리")
+        XCTAssertEqual(parts.first { $0.kind == .wired }?.accessibilityTitle, "와이어드")
+        let help = SystemWidgetPresentation.memoryAvailableHelp
+        XCTAssertTrue(help.contains("기타는 사용 메모리 중 앱 메모리·와이어드·압축으로 분류되지 않는 차이"))
+        XCTAssertTrue(help.contains("Apple이 정의한 별도의 메모리 종류가 아니라"))
+        XCTAssertFalse(help.contains("기타 시스템"))
+        // Values and ratios are unchanged by the rename.
+        XCTAssertEqual(parts.map(\.bytes).reduce(0, +), memory.totalBytes)
+    }
+
+    func testOtherAndAvailableLegendColoursStayApartInBothAppearances() throws {
+        typealias RGB = (r: Double, g: Double, b: Double)
+        func rgba(_ color: Color) throws -> (rgb: RGB, a: Double) {
+            let c = try XCTUnwrap(NSColor(color).usingColorSpace(.sRGB))
+            let rgb: RGB = (Double(c.redComponent), Double(c.greenComponent), Double(c.blueComponent))
+            return (rgb, Double(c.alphaComponent))
+        }
+        func over(_ color: (rgb: RGB, a: Double), _ bg: RGB) -> RGB {
+            let a = color.a
+            let r: Double = color.rgb.r * a + bg.r * (1 - a)
+            let g: Double = color.rgb.g * a + bg.g * (1 - a)
+            let b: Double = color.rgb.b * a + bg.b * (1 - a)
+            return (r, g, b)
+        }
+        /// CIE76 ΔE in CIELAB (D65). About 2 is just noticeable; above 10 reads as a different colour at a glance.
+        func deltaE(_ x: RGB, _ y: RGB) -> Double {
+            func lab(_ c: RGB) -> (Double, Double, Double) {
+                func lin(_ v: Double) -> Double { v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+                let r = lin(c.r), g = lin(c.g), b = lin(c.b)
+                let xn: Double = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047
+                let yn: Double = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                let zn: Double = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883
+                func f(_ t: Double) -> Double { t > 0.008856 ? pow(t, 1.0 / 3) : 7.787 * t + 16.0 / 116 }
+                return (116 * f(yn) - 16, 500 * (f(xn) - f(yn)), 200 * (f(yn) - f(zn)))
+            }
+            let p = lab(x), q = lab(y)
+            let dl: Double = p.0 - q.0, da: Double = p.1 - q.1, db: Double = p.2 - q.2
+            return (dl * dl + da * da + db * db).squareRoot()
+        }
+        let other = try rgba(RAMPopoverView.color(.other, legend: true)).rgb
+        XCTAssertEqual(other.r * 255, 0x8C, accuracy: 0.5)
+        XCTAssertEqual(other.g * 255, 0x9B, accuracy: 0.5)
+        XCTAssertEqual(other.b * 255, 0xC0, accuracy: 0.5)
+        let light: RGB = (0xEC / 255.0, 0xEC / 255.0, 0xEE / 255.0)
+        let dark: RGB = (0x2A / 255.0, 0x2A / 255.0, 0x2D / 255.0)
+        for (name, background) in [("light", light), ("dark", dark)] {
+            for legend in [true, false] {
+                let o = over(try rgba(RAMPopoverView.color(.other, legend: legend)), background)
+                let a = over(try rgba(RAMPopoverView.color(.available, legend: legend)), background)
+                // ΔE against "사용 가능": light legend 16.4 (the earlier #9EA3B5 was 6.4), light bar 20.6, dark 28–36.
+                let previous: RGB = (0x9E / 255.0, 0xA3 / 255.0, 0xB5 / 255.0)
+                XCTAssertGreaterThan(deltaE(o, a), 15, "\(name) legend=\(legend): 기타 vs 사용 가능")
+                if name == "light" {
+                    XCTAssertGreaterThan(deltaE(o, a), deltaE(previous, a) * 2, "light legend=\(legend): clearer than before")
+                }
+                XCTAssertGreaterThan((o.b - o.r) * 255, 40, "\(name): 기타 reads blue")
+                XCTAssertLessThan(abs(a.b - a.r) * 255, 15, "\(name): 사용 가능 stays neutral grey")
+            }
+        }
     }
 }
