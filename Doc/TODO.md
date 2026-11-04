@@ -9,7 +9,10 @@
 - [ ] 실기기에서 부족 상태 팝오버의 반짝임, 동작 줄이기 전환, 라이트·다크 메뉴 막대 별을 직접 확인하고 팝오버 열림 중 CPU 사용률을 활동 모니터로 확인.
 - [x] RAM-02 재조사·수정: used = total − free − external, 팝오버 "기타 시스템" 표시, 기록 샘플 회귀 테스트, 시스템 모니터 XCTest 215개·Debug 빌드 통과.
 - [ ] RAM-02: 지인 M1 Mac(24GB·16GB)에서 v0.4.1 설치 뒤 활성 상태 보기와 Tokenly 전체 사용량이 같은 시각에 맞는지 확인(새 계측 요청 없이, 사용자가 다음에 함께 볼 때). RAM 팝오버의 5번째 범례 줄 실제 화면 확인.
-- [ ] 릴리즈 때 Info.plist 0.4.1(7)로 올리고 `release.sh --final 0.4.1`, main 병합, 태그·Release는 별도 승인.
+- [x] RAM 범례 "기타" 잘림·색 구분 수정(`#8C9BC0`), 관련 XCTest 59개 통과. Info.plist 0.4.1(7).
+- [x] Release 테스트 앱 CPU: 애니메이션 평균 5.1%·동작 줄이기 0.5%·닫힘 0.4%. 줄이려면 별 그림자 제거·프레임 상한 등 B안 모양을 유지하는 최적화를 측정 후 결정.
+- [ ] 메뉴 막대 공간이 있는 상태에서 실제 MenuBarExtra 팝오버와 메뉴 막대 AI 별을 한 번 직접 확인(현재 메뉴 막대 숨김 영역에 가려 미검증).
+- [ ] `release.sh --final 0.4.1`, main 병합, 태그·Release는 별도 승인.
 
 - [x] v0.4.0(6) GitHub Release 발행(2026-11-02, 태그 `a59eedd`), 개발자 Mac 설치·설정 유지·Claude 60초 자동 조회 연속 성공·Codex·Claude·AGY 팝오버 화면 확인. M1 실기기 확인과 Developer ID 서명·공증은 알려진 제한/향후 개선으로 남긴다.
 - [ ] v0.4.0 출시 후 남은 검증: 클린 Apple Silicon·Intel Mac, M1 팝오버 전환, 공식 Claude CLI 설치·미설치/로그인·미로그인, statusLine 대체, 장시간 60초 호출의 제한·비용·신선도·안정성, Developer ID 서명·공증·Gatekeeper.

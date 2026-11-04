@@ -248,8 +248,8 @@ System Monitor의 요구사항·구현 현황·기술 검증·구현 순서를 �
 - **v0.4.1부터** used = total − Free − Cached Files (단, App + Wired + Compressed 미만으로는 내려가지 않음)
   - Free = `free_count`(speculative 포함), Cached Files = `external_page_count`
   - 세부: App = `internal_page_count` − `purgeable_count`, Wired = `wire_count`, Compressed = `compressor_page_count`
-  - 기타 시스템 = used − (App + Wired + Compressed): 어느 세부 카운터에도 들어가지 않는 페이지와 purgeable. 16GiB M4에서 0.44~0.59GiB
-- 사용률·메뉴 막대·팝오버 숫자·그래프는 모두 같은 used/total을 쓴다. 팝오버 구성 막대는 앱·와이어드·압축·기타 시스템(0이면 숨김)·사용 가능(= Free + Cached Files)이며 합계는 total과 같다.
+  - 기타 = used − (App + Wired + Compressed): 어느 세부 카운터에도 들어가지 않는 페이지와 purgeable. 16GiB M4에서 0.44~0.59GiB. Tokenly가 계산한 나머지이며 Apple이 정의한 메모리 종류가 아니다. 범례 이름은 142pt 칸에 맞게 "기타"(v0.4.1 후보의 "기타 시스템"은 잘림), VoiceOver는 "기타, 앱 메모리·와이어드·압축으로 분류되지 않는 사용 메모리", 색은 푸른 회색 `#8C9BC0`(사용 가능 회색과 CIELAB ΔE 라이트 범례 16.4, 다크 28 이상)
+- 사용률·메뉴 막대·팝오버 숫자·그래프는 모두 같은 used/total을 쓴다. 팝오버 구성 막대는 앱·와이어드·압축·기타(0이면 숨김)·사용 가능(= Free + Cached Files)이며 합계는 total과 같다.
 - total은 `physicalMemory`, 페이지 크기는 `host_page_size`에서 가져온다. 표시는 1024³ B를 GB로 쓰며 활성 상태 보기와 같다.
 - **근거(RAM-02):** 2026-11-04 이 Mac(16GiB M4, macOS 27.0.1)에서 원시 카운터 읽기와 활성 상태 보기 메모리 탭 읽기(접근성, 읽기 전용)를 번갈아 7쌍 비교했다. 새 식은 "사용된 메모리"와 −0.06~+0.02GiB 안에서 맞았고, 이전 App + Wired + Compressed 합은 0.56~0.66GiB 낮았다. 10-29 기록 3회에서도 새 식 − 이전 합 = 기록된 잔차 + purgeable이 바이트 단위로 일치한다. 활성 상태 보기 역시 전체가 자체 세 세부 합보다 크다. Apple은 산식을 공개하지 않으므로 이는 **재현된 일치**이며 Apple 산식을 확인한 것은 아니다. 24GB Mac(제보 차이 1.41GB)의 원시 카운터는 없어 그 기기에서의 일치는 미검증이다. 스왑은 포함하지 않는다. 메모리 압박(`kern.memorystatus_vm_pressure_level`)은 사용률과 별개로 그대로 표시한다.
 - v0.4.0까지는 used = App + Wired + Compressed, Cached Files = external + purgeable이었다.
