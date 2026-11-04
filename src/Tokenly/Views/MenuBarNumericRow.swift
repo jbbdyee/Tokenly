@@ -3,7 +3,8 @@ import SwiftUI
 
 // Numeric menu bar style: per service, the 5-hour remaining large and high, a small "/", the 7-day
 // remaining smaller and slightly lower, and the service name centred underneath. Text only, in the
-// menu bar's black or white; stale services are dimmed.
+// menu bar's black or white; stale services are dimmed. A service with a value at or below 20 % gets a
+// small static four-point star in front of its digits (v0.4.1), so the low state is not colour alone.
 
 enum MenuBarNumericImage {
     struct Layout: Equatable {
@@ -45,6 +46,9 @@ enum MenuBarNumericImage {
     static let height: CGFloat = 22
     static let sidePadding: CGFloat = 1
     static let staleAlpha: CGFloat = 0.5
+    /// The low-state star: its box size and the clear space between it and the first digit's ink.
+    static let starSize: CGFloat = 5
+    static let starGap: CGFloat = 1.5
 
     static func font(_ size: CGFloat, weight: NSFont.Weight = .heavy) -> CTFont {
         let base = NSFont.systemFont(ofSize: size, weight: weight)
@@ -62,9 +66,12 @@ enum MenuBarNumericImage {
     /// A drawn run of text: line plus its baseline origin, in top-left point coordinates.
     struct Run { let line: CTLine; let x: CGFloat; let baseline: CGFloat }
 
-    /// Lays out one column. Returns its width and the runs positioned from x = 0, using the digits'
-    /// ink boxes so "100/100" and "0/0" sit as tightly and evenly as "40/70".
-    static func column(_ item: NumericGaugeItem, layout: Layout, color: CGColor) -> (width: CGFloat, runs: [Run]) {
+    /// Lays out one column. Returns its width, the runs positioned from x = 0 (digits, then the name last),
+    /// using the digits' ink boxes so "100/100" and "0/0" sit as tightly and evenly as "40/70", and the
+    /// low-state star's box (nil when no shown value is low). The star sits left of the digits, centred
+    /// on the 5h digit band, and widens the column instead of overlapping anything.
+    static func column(_ item: NumericGaugeItem, layout: Layout, color: CGColor)
+        -> (width: CGFloat, runs: [Run], star: CGRect?) {
         let digitColor = item.stale ? color.copy(alpha: staleAlpha)! : color
         let primary = line(NumericGaugeItem.text(item.primary), font(layout.primarySize, weight: layout.primaryWeight), digitColor)
         let p = ink(primary)
@@ -93,16 +100,42 @@ enum MenuBarNumericImage {
             x += run.1.width
         }
         let digitsWidth = x
-        let width = max(digitsWidth, n.width)
+        // The star leads the digits; the name stays centred under the digits, not under the star.
+        let lead: CGFloat = item.isLow ? starSize + starGap : 0
+        let digitsCentre = lead + digitsWidth / 2
+        let left = min(0, digitsCentre - n.width / 2)
+        let right = max(lead + digitsWidth, digitsCentre + n.width / 2)
+        let width = right - left
+        let digitsLeft = lead - left
         // Vertical: fixed from font metrics, not from each value's ink, so every column (two numbers or
         // AGY's one) shares the same 5h baseline and the names line up across the row.
         let v = vertical(layout)
+        let primaryBaseline = item.hasSecondarySlot ? v.primaryBaseline : v.singleBaseline - layout.singleNumberLift
         var runs = placed.map { run -> Run in
-            let baseline = item.hasSecondarySlot ? v.primaryBaseline + run.3 : v.singleBaseline - layout.singleNumberLift
-            return Run(line: run.0, x: (width - digitsWidth) / 2 + run.1 - run.2.minX, baseline: baseline)
+            let baseline = item.hasSecondarySlot ? v.primaryBaseline + run.3 : primaryBaseline
+            return Run(line: run.0, x: digitsLeft + run.1 - run.2.minX, baseline: baseline)
         }
-        runs.append(Run(line: nameLine, x: (width - n.width) / 2 - n.minX, baseline: v.nameBaseline))
-        return (width, runs)
+        runs.append(Run(line: nameLine, x: digitsCentre - left - n.width / 2 - n.minX, baseline: v.nameBaseline))
+        var star: CGRect?
+        if item.isLow {
+            let digitTop = ink(line("0", font(layout.primarySize, weight: layout.primaryWeight), .black)).maxY
+            star = CGRect(x: digitsLeft - starGap - starSize, y: primaryBaseline - digitTop / 2 - starSize / 2,
+                          width: starSize, height: starSize)
+        }
+        return (width, runs, star)
+    }
+
+    /// The four-point star used for the low state, in a box (top-left point coordinates flipped by the caller).
+    static func starPath(in rect: CGRect) -> CGPath {
+        let path = CGMutablePath()
+        let c = CGPoint(x: rect.midX, y: rect.midY), r = rect.width / 2, k = r * 0.24
+        path.move(to: CGPoint(x: c.x, y: c.y - r))
+        path.addQuadCurve(to: CGPoint(x: c.x + r, y: c.y), control: CGPoint(x: c.x + k, y: c.y - k))
+        path.addQuadCurve(to: CGPoint(x: c.x, y: c.y + r), control: CGPoint(x: c.x + k, y: c.y + k))
+        path.addQuadCurve(to: CGPoint(x: c.x - r, y: c.y), control: CGPoint(x: c.x - k, y: c.y + k))
+        path.addQuadCurve(to: CGPoint(x: c.x, y: c.y - r), control: CGPoint(x: c.x - k, y: c.y - k))
+        path.closeSubpath()
+        return path
     }
 
     /// Baselines (points from the top) for a layout: 5h cap top → 7d baseline (5h baseline + drop),
@@ -140,10 +173,17 @@ enum MenuBarNumericImage {
         ctx.setShouldSmoothFonts(false)
         func snap(_ v: CGFloat) -> CGFloat { (v * CGFloat(scale)).rounded() / CGFloat(scale) }
         var x = sidePadding
-        for column in columns {
+        for (item, column) in zip(items, columns) {
             for run in column.runs {
                 ctx.textPosition = CGPoint(x: snap(x + run.x), y: snap(height - run.baseline))
                 CTLineDraw(run.line, ctx)
+            }
+            if let star = column.star {
+                // Flip the top-left box into the context's bottom-left coordinates.
+                let box = CGRect(x: x + star.minX, y: height - star.maxY, width: star.width, height: star.height)
+                ctx.addPath(starPath(in: box))
+                ctx.setFillColor(item.stale ? color.copy(alpha: staleAlpha)! : color)
+                ctx.fillPath()
             }
             x += column.width + layout.columnSpacing
         }

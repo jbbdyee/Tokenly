@@ -1,3 +1,24 @@
+## v0.4.1 AI 경고 색 B안 적용 (2026-11-04)
+
+브랜치 `fix/claude-refresh-recovery-v0.4.1`, 복구 커밋 `8f9989d` 위. 사용자가 A/B 미리보기(Artifact)에서 B안을 골랐다.
+
+**변경:**
+- `UsageMenuView.swift`:
+  - 막대 채움: `healthyGradientFill`을 `remainingLevelFill`로 바꿨다. 정상은 그라데이션, 주의는 크림, 부족은 펄 + `PearlSparkles`.
+  - 색: `AIWarningPalette`를 추가했다.
+  - 수치·접근성: `RemainingPercentLabel`("✦ N% 남음 · 부족")과 `RemainingLevelCopy`(VoiceOver "한도 부족")를 추가했다.
+  - 애니메이션 조건: 팝오버 창 가시성을 `remainingSparkleActive` 환경값으로 넘겨, 화면에 보일 때만 움직인다.
+- `MenuBarNumericRow.swift`, `NumericGauge.swift`: 부족 서비스에만 정적인 5pt 별을 숫자 앞에 그린다(`column(...).star`, `isLow`, 접근성 문구).
+- Claude 복구 로직, 임계값, `HarmonyPalette.amber`(RAM)는 그대로다.
+
+**검증:**
+- 관련 XCTest 169개 통과(새 3개, CPUPopoverTests 주석 수정, ClaudeOptionalUsageTests 포함). Debug build-for-testing 성공. 전체 466개는 반복하지 않았다.
+- 임시 렌더 테스트로 팝오버 막대와 메뉴 막대 PNG를 만들어 다크·라이트를 확인한 뒤 그 테스트는 삭제했다.
+
+**미확인:** 실제 메뉴 막대·팝오버에서의 반짝임과 동작 줄이기 전환, 팝오버를 연 동안의 CPU 사용량. 실계정 조회 0회. 설치본·GPU 로그 변경 없음.
+
+📸 캡처 추천: 부족 상태(예: Claude 12%)의 팝오버에서 별이 반짝이는 순간과 동작 줄이기 정지 화면, 다크·라이트 각각(계정 정보 가림).
+
 ## v0.4.1 Claude 직접 조회 복구 수정 (2026-11-04)
 
 브랜치 `fix/claude-refresh-recovery-v0.4.1`(main `94fded2`에서 분기). 바로 아래 진단을 바탕으로 수정했다. 정책 표는 `Doc/SPEC.md` 상단, 결정 근거는 `Doc/IMP-PLAN.md` 마지막 절에 있다.

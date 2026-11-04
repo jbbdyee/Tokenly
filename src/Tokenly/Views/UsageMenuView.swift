@@ -9,6 +9,8 @@ struct UsageMenuView: View {
     let settingsWindow: SettingsWindowManager
     @Environment(\.openSettings) private var openSettings
     @Environment(\.colorScheme) private var colorScheme
+    /// Whether the popover window is on screen; the low-state sparkle animates only while it is.
+    @State private var isOnScreen = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -106,7 +108,10 @@ struct UsageMenuView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
         }
-        .background(WindowVisibilityReporter(handle: nil) { _ in })
+        .background(WindowVisibilityReporter(handle: nil) { visible in
+            Task { @MainActor in isOnScreen = visible }
+        })
+        .environment(\.remainingSparkleActive, isOnScreen)
         .frame(width: 340)
         .background(.regularMaterial)
     }
@@ -242,8 +247,7 @@ struct UsageMenuView: View {
                 Text(kind.title).font(.caption.weight(.medium))
                 Spacer()
                 if let window = snapshot.window(kind) {
-                    Text("\(Int(window.remainingPercent.rounded()))% 남음")
-                        .font(.caption.weight(.semibold)).monospacedDigit()
+                    RemainingPercentLabel(percent: window.remainingPercent)
                 } else {
                     Text("데이터 없음").font(.caption).foregroundStyle(.secondary)
                 }
@@ -251,9 +255,9 @@ struct UsageMenuView: View {
             if let window = snapshot.window(kind) {
                 ProgressView(value: window.remainingPercent, total: 100)
                     .tint(color(for: window.remainingLevel))
-                    .healthyGradientFill(percent: window.remainingPercent, level: window.remainingLevel, dark: colorScheme == .dark)
+                    .remainingLevelFill(percent: window.remainingPercent, level: window.remainingLevel, dark: colorScheme == .dark)
                     .accessibilityLabel("\(kind.title) 남은 한도")
-                    .accessibilityValue("\(String(format: "%.1f", window.remainingPercent))퍼센트")
+                    .accessibilityValue(RemainingLevelCopy.accessibilityValue(window.remainingPercent, decimals: 1))
                 Text("사용 \(String(format: "%.1f%%", window.usedPercent)) · \(resetText(window.resetsAt))")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -351,14 +355,14 @@ struct UsageMenuView: View {
                         HStack {
                             Text(quota.name).font(.caption.weight(.medium))
                             Spacer()
-                            Text("\(Int(quota.remainingPercent.rounded()))% 남음")
-                                .font(.caption.weight(.semibold)).monospacedDigit()
+                            RemainingPercentLabel(percent: quota.remainingPercent)
                         }
                         ProgressView(value: quota.remainingPercent, total: 100)
                             .tint(color(for: RemainingLevel(percent: quota.remainingPercent)))
-                            .healthyGradientFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
-                                                 dark: colorScheme == .dark)
+                            .remainingLevelFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
+                                                dark: colorScheme == .dark)
                             .accessibilityLabel("Claude \(quota.name) 남은 한도")
+                            .accessibilityValue(RemainingLevelCopy.accessibilityValue(quota.remainingPercent))
                         Text(resetText(quota.resetsAt))
                             .font(.caption2).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -427,14 +431,14 @@ struct UsageMenuView: View {
                             .font(.caption.weight(.medium))
                             .lineLimit(1).truncationMode(.middle)
                         Spacer(minLength: 8)
-                        Text("\(Int(quota.remainingPercent.rounded()))% 남음")
-                            .font(.caption.weight(.semibold)).monospacedDigit()
+                        RemainingPercentLabel(percent: quota.remainingPercent)
                     }
                     ProgressView(value: quota.remainingPercent, total: 100)
                         .tint(color(for: RemainingLevel(percent: quota.remainingPercent)))
-                        .healthyGradientFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
-                                             dark: colorScheme == .dark)
+                        .remainingLevelFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
+                                            dark: colorScheme == .dark)
                         .accessibilityLabel("Gemini 그룹 남은 한도")
+                        .accessibilityValue(RemainingLevelCopy.accessibilityValue(quota.remainingPercent))
                     Text(resetText(quota.resetsAt))
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -449,13 +453,14 @@ struct UsageMenuView: View {
         return "초기화 \(CompactDateTime.string(for: date))"
     }
 
-    /// Remaining-limit bar colour. Healthy uses RAM's mint (UI colour harmony, 2026-10-29; was system green; the
-    /// gradient is drawn over it), caution RAM's soft warning amber (was system orange), low keeps the system red.
+    /// Native tint under the drawn fill (`remainingLevelFill` paints over it). Healthy uses RAM's mint (UI colour
+    /// harmony, 2026-10-29); caution and low use the AI-only cream and pearl (v0.4.1), so RAM's amber is untouched.
     private func color(for level: RemainingLevel) -> Color {
+        let dark = colorScheme == .dark
         switch level {
-        case .healthy: HarmonyPalette.mint(dark: colorScheme == .dark).color
-        case .caution: HarmonyPalette.amber(dark: colorScheme == .dark).color
-        case .low: .red
+        case .healthy: return HarmonyPalette.mint(dark: dark).color
+        case .caution: return AIWarningPalette.cream(dark: dark).color
+        case .low: return AIWarningPalette.pearl[0].color
         }
     }
 }
@@ -726,26 +731,217 @@ enum ResetCreditText {
     }
 }
 
-/// The healthy remaining-limit bars get RAM's mint → blue → lavender as a fill (UI colour harmony, 2026-10-29).
-/// The native linear `ProgressView` takes one tint colour only, so the bar itself is kept (size, track, rounding,
-/// position and accessibility unchanged) and the gradient is drawn over its fill: a capsule of the track's height,
-/// vertically centred, whose width is the remaining fraction, starting at the leading edge like the native fill.
-/// Caution uses HarmonyPalette.amber; low retains the system red tint.
+/// Every AI remaining-limit bar gets a drawn fill over the native bar (UI colour harmony, 2026-10-29; v0.4.1). The
+/// native linear `ProgressView` takes one tint colour only, so the bar itself is kept (size, track, rounding, position
+/// and accessibility unchanged) and the fill is drawn over it: a capsule of the track's height, vertically centred,
+/// whose width is the remaining fraction, starting at the leading edge like the native fill.
+/// Healthy: RAM's mint → blue → lavender. Caution: cream yellow. Low: pearl white with sparkles (`PearlSparkles`).
+/// In light mode the cream and pearl fills get a 1 pt edge so they do not disappear into the light track.
 extension View {
-    func healthyGradientFill(percent: Double, level: RemainingLevel, dark: Bool) -> some View {
+    func remainingLevelFill(percent: Double, level: RemainingLevel, dark: Bool) -> some View {
         overlay(alignment: .leading) {
-            if level == .healthy {
-                GeometryReader { geometry in
-                    Capsule()
-                        .fill(LinearGradient(colors: HarmonyPalette.progressGradient(dark: dark), startPoint: .leading, endPoint: .trailing))
-                        .frame(width: geometry.size.width * HealthyGradientFill.fraction(percent),
-                               height: min(HealthyGradientFill.trackHeight, geometry.size.height))
-                        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
+            GeometryReader { geometry in
+                let width = geometry.size.width * HealthyGradientFill.fraction(percent)
+                let height = min(HealthyGradientFill.trackHeight, geometry.size.height)
+                ZStack(alignment: .leading) {
+                    if width > 0 {
+                        Capsule()
+                            .fill(AIWarningPalette.fill(level, dark: dark))
+                            .overlay(Capsule().strokeBorder(AIWarningPalette.edge(level, dark: dark), lineWidth: 1))
+                            .shadow(color: AIWarningPalette.glow(level, dark: dark), radius: 3)
+                            .frame(width: width, height: height)
+                    }
+                    if level == .low {
+                        PearlSparkles(fillWidth: width, trackHeight: height, dark: dark)
+                    }
                 }
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+/// AI remaining-limit warning colours (v0.4.1, design B "반짝이는 펄"). Separate from `HarmonyPalette.amber`, which the
+/// RAM pressure badge shares, so the system monitor's warning colours do not change. Thresholds stay in `RemainingLevel`.
+enum AIWarningPalette {
+    private static func hex(_ value: UInt32) -> AuroraPalette.RGB { HarmonyPalette.hex(value) }
+    /// Caution cream yellow: #FFF0C4 dark, #F6E2A6 light; the fill fades down from #FFFAF0 at the top.
+    static func cream(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xFFF0C4 : 0xF6E2A6) }
+    static let creamHighlight = hex(0xFFFAF0)
+    /// Low pearl white, left to right: white → faint lavender → faint aqua → warm white.
+    static let pearl = [hex(0xFFFFFF), hex(0xF5EFFF), hex(0xEEF8FB), hex(0xFFFDF5)]
+    /// Star and "부족" ink: near-white lavender in dark mode, #5F5490 (about 7:1 on the light popover) in light mode.
+    static func pearlInk(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xF6F2FF : 0x5F5490) }
+    /// Popover sparkles: white in dark mode, #7D6CC4 in light mode so they show against the light track.
+    static func spark(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xFFFFFF : 0x7D6CC4) }
+    /// The pearl sheen: a lavender and an aqua band.
+    static func sheen(dark: Bool) -> [Color] {
+        dark ? [hex(0xC4B2FF).color.opacity(0.85), hex(0xAAE8F6).color.opacity(0.8)]
+             : [hex(0xBAA8FF).color.opacity(0.75), hex(0xA0DEEC).color.opacity(0.7)]
+    }
+
+    static func fill(_ level: RemainingLevel, dark: Bool) -> LinearGradient {
+        switch level {
+        case .healthy:
+            return LinearGradient(colors: HarmonyPalette.progressGradient(dark: dark), startPoint: .leading, endPoint: .trailing)
+        case .caution:
+            return LinearGradient(stops: [.init(color: creamHighlight.color, location: 0),
+                                          .init(color: cream(dark: dark).color, location: 0.7)],
+                                  startPoint: .top, endPoint: .bottom)
+        case .low:
+            return LinearGradient(stops: zip(pearl, [0, 0.38, 0.7, 1]).map { .init(color: $0.0.color, location: $0.1) },
+                                  startPoint: .leading, endPoint: .trailing)
+        }
+    }
+
+    /// 1 pt edge in light mode only: gold on cream, lavender grey on pearl. Healthy keeps no edge.
+    static func edge(_ level: RemainingLevel, dark: Bool) -> Color {
+        guard !dark else { return .clear }
+        switch level {
+        case .healthy: return .clear
+        case .caution: return hex(0x966C18).color.opacity(0.6)
+        case .low: return hex(0x5C508C).color.opacity(0.55)
+        }
+    }
+
+    /// A soft glow lifts the pearl off the dark track; nothing elsewhere.
+    static func glow(_ level: RemainingLevel, dark: Bool) -> Color {
+        dark && level == .low ? hex(0xEBE1FF).color.opacity(0.55) : .clear
+    }
+}
+
+private struct RemainingSparkleActiveKey: EnvironmentKey { static let defaultValue = false }
+
+extension EnvironmentValues {
+    /// True while the AI popover is on screen. Off by default, so a sparkle never animates where no one sees it.
+    var remainingSparkleActive: Bool {
+        get { self[RemainingSparkleActiveKey.self] }
+        set { self[RemainingSparkleActiveKey.self] = newValue }
+    }
+}
+
+/// A four-point star, the same outline as the menu bar's low-state star.
+struct SparkleShape: Shape {
+    func path(in rect: CGRect) -> Path { Path(MenuBarNumericImage.starPath(in: rect)) }
+}
+
+/// Low-state decoration at the end of a pearl fill: three small stars and, every cycle, one sheen across the fill.
+/// Animation runs only while the popover is on screen and Reduce Motion is off, as short eased transitions driven by
+/// a sleeping task (no per-frame timer): about 7 s per cycle, of which the last 3.2 s are idle. With Reduce Motion
+/// the stars are drawn still and there is no sheen.
+struct PearlSparkles: View {
+    let fillWidth: CGFloat
+    let trackHeight: CGFloat
+    let dark: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.remainingSparkleActive) private var onScreen
+    @State private var lit = [false, false, false]
+    @State private var swept = false
+
+    /// Star centre offsets from the fill's end on the track's midline, and box sizes, as in the approved preview.
+    static let stars: [(dx: CGFloat, dy: CGFloat, size: CGFloat)] = [(-1.5, -7.5, 7), (5.5, 4.5, 5), (-11, 6, 4)]
+    static let restingOpacity = 0.85
+
+    private var animates: Bool { onScreen && !reduceMotion }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let midY = geometry.size.height / 2
+            let spark = AIWarningPalette.spark(dark: dark).color
+            ZStack(alignment: .topLeading) {
+                if animates && fillWidth > 0 {
+                    LinearGradient(colors: [.clear] + AIWarningPalette.sheen(dark: dark) + [.clear],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: fillWidth * 0.6, height: trackHeight)
+                        .offset(x: swept ? fillWidth * 1.2 : -fillWidth * 0.6)
+                        .frame(width: fillWidth, height: trackHeight, alignment: .leading)
+                        .clipShape(Capsule())
+                        .position(x: fillWidth / 2, y: midY)
+                }
+                ForEach(Self.stars.indices, id: \.self) { index in
+                    let star = Self.stars[index]
+                    let x = min(max(fillWidth + star.dx, star.size / 2), geometry.size.width - star.size / 2)
+                    SparkleShape()
+                        .fill(spark)
+                        .shadow(color: spark.opacity(0.8), radius: 0.75)
+                        .frame(width: star.size, height: star.size)
+                        .scaleEffect(animates ? (lit[index] ? 1 : 0.5) : 1)
+                        .opacity(animates ? (lit[index] ? 1 : 0) : Self.restingOpacity)
+                        .position(x: x, y: midY + star.dy)
+                }
             }
         }
+        .task(id: animates) {
+            guard animates else { return }
+            await twinkle()
+        }
+    }
+
+    private func twinkle() async {
+        while !Task.isCancelled {
+            withAnimation(.easeInOut(duration: 1.4)) { swept = true }
+            for index in lit.indices {
+                guard await pause(index == 0 ? 0.3 : 0.75) else { return reset() }
+                withAnimation(.easeOut(duration: 0.45)) { lit[index] = true }
+                guard await pause(0.45) else { return reset() }
+                withAnimation(.easeIn(duration: 0.6)) { lit[index] = false }
+            }
+            var instant = Transaction()
+            instant.disablesAnimations = true
+            withTransaction(instant) { swept = false }
+            guard await pause(3.2) else { return reset() }
+        }
+    }
+
+    private func pause(_ seconds: Double) async -> Bool {
+        (try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))) != nil
+    }
+
+    private func reset() {
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { lit = [false, false, false]; swept = false }
+    }
+}
+
+/// "12% 남음", or "✦ 12% 남음 · 부족" at or below 20 %, so the low state is never colour alone. Same caption font.
+struct RemainingPercentLabel: View {
+    let percent: Double
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let ink = AIWarningPalette.pearlInk(dark: colorScheme == .dark).color
+        HStack(spacing: 3) {
+            if RemainingLevelCopy.isLow(percent) {
+                SparkleShape().fill(ink).frame(width: 8, height: 8)
+            }
+            Text(RemainingLevelCopy.percentText(percent))
+                .font(.caption.weight(.semibold)).monospacedDigit()
+            if RemainingLevelCopy.isLow(percent) {
+                Text(RemainingLevelCopy.lowSuffix).font(.caption.weight(.semibold)).foregroundStyle(ink)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(RemainingLevelCopy.spoken(percent))
+    }
+}
+
+enum RemainingLevelCopy {
+    static let lowSuffix = "· 부족"
+    static func isLow(_ percent: Double) -> Bool { RemainingLevel(percent: percent) == .low }
+    static func percentText(_ percent: Double) -> String { "\(Int(percent.rounded()))% 남음" }
+    /// What the popover row reads, with the star written as ✦.
+    static func displayText(_ percent: Double) -> String {
+        isLow(percent) ? "✦ \(percentText(percent)) \(lowSuffix)" : percentText(percent)
+    }
+    static func spoken(_ percent: Double) -> String {
+        isLow(percent) ? "\(percentText(percent)), 한도 부족" : percentText(percent)
+    }
+    static func accessibilityValue(_ percent: Double, decimals: Int = 0) -> String {
+        let value = String(format: "%.\(decimals)f퍼센트", percent)
+        return isLow(percent) ? "\(value), 한도 부족" : value
     }
 }
 
