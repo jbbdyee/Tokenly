@@ -209,12 +209,12 @@ enum SystemWidgetPresentation {
 
     // MARK: RAM popover
 
-    /// The four parts of the RAM composition bar. App (anonymous − purgeable), wired and compressed (pages held by
-    /// the compressor) are disjoint page sets whose sum is `usedBytes`, the same value as the usage percent;
-    /// "available" is total − used: free pages, cached files and pages macOS does not classify, all of which it can
-    /// hand out. The four sum to exactly `totalBytes`.
+    /// The parts of the RAM composition bar. App (anonymous − purgeable), wired, compressed (pages held by the
+    /// compressor) and "other" (in use but in none of those counters, v0.4.1) sum to `usedBytes`, the same value as the
+    /// usage percent; "available" is total − used: free pages and cached files. The parts sum to exactly `totalBytes`.
+    /// "Other" is listed only when it is not zero, so the bar keeps its four parts otherwise.
     struct MemoryPart: Equatable {
-        enum Kind: Equatable { case app, wired, compressed, available }
+        enum Kind: Equatable { case app, wired, compressed, other, available }
         let kind: Kind
         let bytes: UInt64
         let fraction: Double
@@ -224,6 +224,7 @@ enum SystemWidgetPresentation {
             case .app: "앱 메모리"
             case .wired: "와이어드"
             case .compressed: "압축"
+            case .other: "기타 시스템"
             case .available: "사용 가능"
             }
         }
@@ -233,11 +234,12 @@ enum SystemWidgetPresentation {
         guard memory.totalBytes > 0, memory.usedBytes <= memory.totalBytes else { return [] }
         let total = Double(memory.totalBytes)
         return [(MemoryPart.Kind.app, memory.appBytes), (.wired, memory.wiredBytes), (.compressed, memory.compressedBytes),
-                (.available, memory.totalBytes - memory.usedBytes)]
+                (.other, memory.otherBytes), (.available, memory.totalBytes - memory.usedBytes)]
+            .filter { $0.0 != .other || $0.1 > 0 }
             .map { MemoryPart(kind: $0.0, bytes: $0.1, fraction: Double($0.1) / total) }
     }
 
-    static let memoryAvailableHelp = "사용 가능 = 전체 − 사용(앱 메모리 + 와이어드 + 압축)입니다. 비어 있는 메모리와 캐시된 파일처럼 macOS가 필요하면 바로 내줄 수 있는 메모리가 포함됩니다."
+    static let memoryAvailableHelp = "사용 = 전체 − 비어 있는 메모리 − 캐시된 파일로, 활성 상태 보기의 \"사용된 메모리\"와 같은 기준입니다. 기타 시스템은 사용 중이지만 앱 메모리·와이어드·압축 어느 쪽으로도 집계되지 않는 메모리(제거 가능한 데이터 포함)입니다. 사용 가능은 비어 있는 메모리와 캐시된 파일처럼 macOS가 필요하면 바로 내줄 수 있는 메모리입니다."
 
     static let memoryTopHelp = "프로세스 메모리는 각 프로세스가 실제로 차지한 메모리(phys_footprint, 활동 모니터의 \"메모리\" 열과 같은 기준)입니다. 공유 메모리 등이 있어 합계가 위의 사용량과 같지 않습니다. 권한에 따라 일부 프로세스는 표시되지 않을 수 있습니다."
 

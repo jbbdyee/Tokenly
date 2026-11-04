@@ -57,7 +57,7 @@ actor MachSystemSampler: SystemSampler {
         guard result == KERN_SUCCESS else { return .unavailable(.readFailed(result)) }
         let pages = VMPageCounters(anonymous: stats.internal_page_count, purgeable: stats.purgeable_count,
                                    wired: stats.wire_count, compressed: stats.compressor_page_count,
-                                   external: stats.external_page_count)
+                                   external: stats.external_page_count, free: stats.free_count)
         return MemoryUsage.calculate(totalBytes: totalMemoryBytes, pageSize: UInt64(pageSize), pages: pages)
     }
 }

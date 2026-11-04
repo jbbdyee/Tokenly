@@ -26,16 +26,21 @@ final class RAMPopoverTests: XCTestCase {
     }
 
     func testCompositionFromTheCalculatorAlwaysAddsUp() {
-        // VM page counters as the kernel reports them (this Mac, 16 KB pages, 2026-10-28).
-        let pages = VMPageCounters(anonymous: 267_262, purgeable: 4, wired: 183_070, compressed: 417_613, external: 136_820)
+        // VM page counters as the kernel reports them (this Mac, 16 KB pages, 2026-11-04 06:51:46 UTC).
+        let pages = VMPageCounters(anonymous: 269_780, purgeable: 2, wired: 188_850, compressed: 385_128, external: 160_680,
+                                   free: 7_097)
         guard case .available(let memory) = MemoryUsage.calculate(totalBytes: 17_179_869_184, pageSize: 16_384, pages: pages) else {
             return XCTFail("calculate failed")
         }
         let parts = SystemWidgetPresentation.memoryComposition(memory)
+        XCTAssertEqual(parts.map(\.kind), [.app, .wired, .compressed, .other, .available])
+        XCTAssertEqual(parts[3].title, "기타 시스템")
         XCTAssertEqual(parts.map(\.bytes).reduce(0, +), memory.totalBytes)
-        XCTAssertEqual(parts[0].bytes, (267_262 - 4) * 16_384, "App = anonymous − purgeable")
-        XCTAssertEqual(parts[2].bytes, 417_613 * 16_384, "Compressed = pages held by the compressor")
-        XCTAssertEqual(memory.cachedFilesBytes, (136_820 + 4) * 16_384)
+        XCTAssertEqual(parts[0].bytes, (269_780 - 2) * 16_384, "App = anonymous − purgeable")
+        XCTAssertEqual(parts[2].bytes, 385_128 * 16_384, "Compressed = pages held by the compressor")
+        XCTAssertEqual(parts[0...3].map(\.bytes).reduce(0, +), memory.usedBytes, "Same basis as the usage %")
+        XCTAssertEqual(parts[4].bytes, (160_680 + 7_097) * 16_384, "Available = file cache + free")
+        XCTAssertEqual(memory.cachedFilesBytes, 160_680 * 16_384)
     }
 
     func testCompositionRejectsInconsistentValues() {
@@ -48,7 +53,7 @@ final class RAMPopoverTests: XCTestCase {
         let memory = try XCTUnwrap(snapshot.memory.value)
         let parts = SystemWidgetPresentation.memoryComposition(memory)
         XCTAssertEqual(parts.map(\.bytes).reduce(0, +), memory.totalBytes)
-        XCTAssertEqual(memory.appBytes + memory.wiredBytes + memory.compressedBytes, memory.usedBytes)
+        XCTAssertEqual(memory.appBytes + memory.wiredBytes + memory.compressedBytes + memory.otherBytes, memory.usedBytes)
     }
 
     // MARK: Memory pressure

@@ -1,3 +1,30 @@
+## v0.4.1 RAM-02 수정 (2026-11-04)
+
+브랜치 `fix/claude-refresh-recovery-v0.4.1`, `23769b4` 위. 10-29 "원인 미확정·보류"를 기존 기록과 한 번의 짧은 측정으로 재검토했다. 지인에게 새 자료를 요청하지 않았다. 10-29 원시 로그는 `/private/tmp` 자동 정리로 사라져 BLOG-NOTES 보관본 §9.3 표를 썼다.
+
+**추가 측정:**
+- 이 Mac(16GiB M4, macOS 27.0.1)에서 활성 상태 보기 메모리 탭 요약을 접근성으로 읽기 전용 수집하고, 그 앞뒤로 `HOST_VM_INFO64`를 읽어 10쌍을 얻었다.
+- 측정 도구와 원본은 저장소 밖 작업 공간 `ramprobe/`에 있고 커밋하지 않았다. 활성 상태 보기는 측정을 위해 열었다가 닫았다.
+- 결과: `total − free − external`이 갱신된 7쌍에서 −0.06~+0.02GiB로 일치했다. 이전 세부 합은 0.56~0.66GiB 낮았다.
+
+**변경:**
+- `SystemMetrics.swift`: `VMPageCounters.free` 추가. used = max(total − free − external, 앱+와이어드+압축). Cached Files = external. `otherBytes` 추가.
+- `MachSystemSampler.swift`: `free_count`를 전달한다.
+- `SystemWidgetPresentation.swift`, `RAMPopoverView.swift`: 구성 막대·범례에 "기타 시스템"(0이면 숨김, 색 `#9EA3B5`, 정보 버튼)을 추가하고 도움말 문구를 고쳤다.
+- 메뉴 막대·사용률·그래프는 같은 usedFraction을 쓴다. 메모리 압박, CPU·GPU·Disk·배터리 계산은 변경하지 않았다.
+
+**검증:**
+- 시스템 모니터 15개 클래스 XCTest 215개 통과, Debug build-for-testing 성공.
+- 회귀 테스트: 기록 7쌍 일치(±0.07GiB), 10-29 3회의 새−이전 = 잔차+purgeable 바이트 일치, 24GiB 구성 예시, 0~100%, 비원자 읽기 보호, 메뉴 막대=팝오버 퍼센트.
+- 전체 테스트는 반복하지 않았다. Claude 복구·경고 디자인 코드 변경 없음, 실계정 조회 0회.
+
+**미확정:**
+- Apple 실제 산식과 기타 시스템의 커널상 정체
+- 지인 24GB(1.41GB 차이)·16GB M1에서의 일치
+- RAM 팝오버 5번째 범례 줄의 실제 화면
+
+📸 캡처 추천: v0.4.1 설치 뒤 활성 상태 보기와 Tokenly RAM 팝오버를 나란히 둔 화면(전체·기타 시스템·사용 가능), 프로세스 목록과 사용자 이름은 가림.
+
 ## v0.4.1 AI 경고 색 B안 적용 (2026-11-04)
 
 브랜치 `fix/claude-refresh-recovery-v0.4.1`, 복구 커밋 `8f9989d` 위. 사용자가 A/B 미리보기(Artifact)에서 B안을 골랐다.

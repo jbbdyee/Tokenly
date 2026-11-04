@@ -22,6 +22,8 @@ struct RAMPopoverView: View {
     static let wiredColor = Color(red: 0xA8 / 255, green: 0xCD / 255, blue: 0xF4 / 255)
     static let compressedColor = Color(red: 0xC5 / 255, green: 0xB3 / 255, blue: 0xEE / 255)
     static let availableColor = Color(red: 0x73 / 255, green: 0x77 / 255, blue: 0x82 / 255)
+    /// "기타 시스템" (v0.4.1): a muted slate lavender between the used parts and the grey "available".
+    static let otherColor = Color(red: 0x9E / 255, green: 0xA3 / 255, blue: 0xB5 / 255)
 
     /// Pressure badge colours (approved 2026-10-28). Dark values as given; light values keep the same pastel hues
     /// with text dark enough for WCAG AA (≥ 4.5:1) on its own background. Unknown is neutral grey, never mint.
@@ -127,14 +129,14 @@ struct RAMPopoverView: View {
                         HStack(spacing: 6) {
                             RoundedRectangle(cornerRadius: 2).fill(Self.color(part.kind, legend: true)).frame(width: 8, height: 8)
                             Text(part.title).font(.system(size: 11)).foregroundStyle(.secondary)
-                            if part.kind == .available {
+                            if part.kind == .available || part.kind == .other {
                                 Button { showsAvailableHelp.toggle() } label: {
                                     Image(systemName: "info.circle").font(.system(size: 9))
                                 }
                                 .buttonStyle(.borderless)
                                 .foregroundStyle(.tertiary)
                                 .help(SystemWidgetPresentation.memoryAvailableHelp)
-                                .accessibilityLabel("사용 가능 설명")
+                                .accessibilityLabel("\(part.title) 설명")
                             }
                             Spacer(minLength: 4)
                             Text(SystemWidgetPresentation.processMemoryText(part.bytes))
@@ -153,6 +155,7 @@ struct RAMPopoverView: View {
         case .app: appColor
         case .wired: wiredColor
         case .compressed: compressedColor
+        case .other: otherColor
         case .available: availableColor.opacity(legend ? 0.7 : 0.45)
         }
     }
