@@ -1246,3 +1246,70 @@ extension TokenlyTests {
         }
     }
 }
+
+// MARK: - v0.4.1 sparkle as Core Animation layers (same sequence, no per-frame app work)
+
+extension TokenlyTests {
+    func testSparkleTimelineKeepsTheApprovedSequence() {
+        XCTAssertEqual(PearlSparkleTimeline.sweep, 1.4)
+        let stars = (0..<3).map(PearlSparkleTimeline.star)
+        for (star, on) in zip(stars, [0.3, 1.5, 2.7]) { XCTAssertEqual(star.on, on, accuracy: 1e-9) }
+        for star in stars {
+            XCTAssertEqual(star.peak - star.on, 0.45, accuracy: 1e-9)
+            XCTAssertEqual(star.off - star.peak, 0.6, accuracy: 1e-9)
+        }
+        XCTAssertEqual(PearlSparkleTimeline.cycle, 6.35, accuracy: 1e-9, "3.15 s of motion, 3.2 s still")
+        XCTAssertLessThan(stars[2].off, PearlSparkleTimeline.cycle)
+    }
+
+    @MainActor
+    func testSparkleLayersAnimateOnlyWhenAskedAndRestStill() throws {
+        let view = SparkleLayerView(frame: CGRect(x: 0, y: 0, width: 300, height: 20))
+        let size = CGSize(width: 300, height: 20)
+        view.configure(fillWidth: 36, trackHeight: 8, dark: true, animates: false, size: size)
+        XCTAssertFalse(view.isAnimating)
+        XCTAssertTrue(view.sheenClip.isHidden)
+        XCTAssertEqual(view.stars.map(\.opacity), [0.85, 0.85, 0.85])
+        XCTAssertNil(view.stars[0].animation(forKey: "twinkle"))
+
+        view.configure(fillWidth: 36, trackHeight: 8, dark: true, animates: true, size: size)
+        XCTAssertTrue(view.isAnimating)
+        XCTAssertFalse(view.sheenClip.isHidden)
+        let sweep = try XCTUnwrap(view.sheen.animation(forKey: "sweep") as? CAKeyframeAnimation)
+        XCTAssertEqual(sweep.duration, PearlSparkleTimeline.cycle, accuracy: 1e-9)
+        XCTAssertEqual(sweep.repeatCount, .infinity)
+        XCTAssertEqual(sweep.keyTimes?[1].doubleValue ?? 0, 1.4 / 6.35, accuracy: 1e-9)
+        for (index, layer) in view.stars.enumerated() {
+            let group = try XCTUnwrap(layer.animation(forKey: "twinkle") as? CAAnimationGroup)
+            XCTAssertEqual(group.duration, PearlSparkleTimeline.cycle, accuracy: 1e-9)
+            let fade = try XCTUnwrap(group.animations?.first as? CAKeyframeAnimation)
+            XCTAssertEqual(fade.keyPath, "opacity")
+            XCTAssertEqual(fade.values?.compactMap { ($0 as? NSNumber)?.doubleValue }, [0, 0, 1, 0, 0])
+            XCTAssertEqual(fade.keyTimes?[1].doubleValue ?? 0, PearlSparkleTimeline.star(index).on / 6.35, accuracy: 1e-9)
+        }
+        // Repeated updates while animating (SwiftUI re-renders) do not restart the animation.
+        let started = view.sheen.animation(forKey: "sweep")?.beginTime
+        view.configure(fillWidth: 36, trackHeight: 8, dark: true, animates: true, size: size)
+        XCTAssertEqual(view.sheen.animation(forKey: "sweep")?.beginTime, started)
+
+        // Closing the popover or turning on Reduce Motion stops everything and shows still stars.
+        view.configure(fillWidth: 36, trackHeight: 8, dark: true, animates: false, size: size)
+        XCTAssertFalse(view.isAnimating)
+        XCTAssertNil(view.sheen.animation(forKey: "sweep"))
+        XCTAssertTrue(view.stars.allSatisfy { $0.animation(forKey: "twinkle") == nil && $0.opacity == 0.85 })
+        // An empty fill has nothing to animate.
+        view.configure(fillWidth: 0, trackHeight: 8, dark: true, animates: true, size: size)
+        XCTAssertFalse(view.isAnimating)
+    }
+
+    func testSheenGradientEndsAreTransparentBandColoursNotBlack() throws {
+        for dark in [true, false] {
+            let colors = SparkleLayerView.sheenColors(dark: dark)
+            XCTAssertEqual(colors.count, 4)
+            XCTAssertEqual(colors.first?.alpha, 0)
+            XCTAssertEqual(colors.last?.alpha, 0)
+            let first = try XCTUnwrap(colors.first?.components), band = try XCTUnwrap(colors[1].components)
+            XCTAssertEqual(Array(first.prefix(3)), Array(band.prefix(3)), "same RGB as the first band, not black")
+        }
+    }
+}

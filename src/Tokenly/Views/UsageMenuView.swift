@@ -828,81 +828,186 @@ struct SparkleShape: Shape {
 }
 
 /// Low-state decoration at the end of a pearl fill: three small stars and, every cycle, one sheen across the fill.
-/// Animation runs only while the popover is on screen and Reduce Motion is off, as short eased transitions driven by
-/// a sleeping task (no per-frame timer): about 7 s per cycle, of which the last 3.2 s are idle. With Reduce Motion
-/// the stars are drawn still and there is no sheen.
+/// It animates only while the popover is on screen and Reduce Motion is off. With Reduce Motion, or off screen, the
+/// stars are drawn still at `restingOpacity` and there is no sheen.
+///
+/// The motion is Core Animation keyframes on layers (`SparkleLayerView`), set up once and repeated by Core Animation,
+/// so the app does no per-frame work. The first v0.4.1 build drove the same sequence with SwiftUI state changes and
+/// `withAnimation`; in the Release fixture that cost 5.7–6.1 % CPU on average while visible, against 0.5–0.7 % now
+/// (Doc/IMP-PLAN.md). The look and timing are unchanged (`PearlSparkleTimeline`).
 struct PearlSparkles: View {
     let fillWidth: CGFloat
     let trackHeight: CGFloat
     let dark: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.remainingSparkleActive) private var onScreen
-    @State private var lit = [false, false, false]
-    @State private var swept = false
 
     /// Star centre offsets from the fill's end on the track's midline, and box sizes, as in the approved preview.
     static let stars: [(dx: CGFloat, dy: CGFloat, size: CGFloat)] = [(-1.5, -7.5, 7), (5.5, 4.5, 5), (-11, 6, 4)]
     static let restingOpacity = 0.85
 
-    private var animates: Bool { onScreen && !reduceMotion }
-
     var body: some View {
         GeometryReader { geometry in
-            let midY = geometry.size.height / 2
-            let spark = AIWarningPalette.spark(dark: dark).color
-            ZStack(alignment: .topLeading) {
-                if animates && fillWidth > 0 {
-                    LinearGradient(colors: [.clear] + AIWarningPalette.sheen(dark: dark) + [.clear],
-                                   startPoint: .leading, endPoint: .trailing)
-                        .frame(width: fillWidth * 0.6, height: trackHeight)
-                        .offset(x: swept ? fillWidth * 1.2 : -fillWidth * 0.6)
-                        .frame(width: fillWidth, height: trackHeight, alignment: .leading)
-                        .clipShape(Capsule())
-                        .position(x: fillWidth / 2, y: midY)
-                }
-                ForEach(Self.stars.indices, id: \.self) { index in
-                    let star = Self.stars[index]
-                    let x = min(max(fillWidth + star.dx, star.size / 2), geometry.size.width - star.size / 2)
-                    SparkleShape()
-                        .fill(spark)
-                        .shadow(color: spark.opacity(0.8), radius: 0.75)
-                        .frame(width: star.size, height: star.size)
-                        .scaleEffect(animates ? (lit[index] ? 1 : 0.5) : 1)
-                        .opacity(animates ? (lit[index] ? 1 : 0) : Self.restingOpacity)
-                        .position(x: x, y: midY + star.dy)
-                }
-            }
+            PearlSparkleLayers(fillWidth: fillWidth, trackHeight: trackHeight, dark: dark,
+                               animates: onScreen && !reduceMotion, size: geometry.size)
         }
-        .task(id: animates) {
-            guard animates else { return }
-            await twinkle()
+    }
+}
+
+/// The approved sequence (design B): the sheen crosses the fill in 1.4 s (ease in-out); star i lights 0.3 + 1.2 i s
+/// into the cycle over 0.45 s (ease-out) and fades over 0.6 s (ease-in); the next cycle starts 3.2 s after the last
+/// star begins to fade, so a cycle is 6.35 s and about half of it is still.
+enum PearlSparkleTimeline {
+    static let sweep = 1.4
+    static let lightUp = 0.45
+    static let fade = 0.6
+    static let rest = 3.2
+    static func star(_ index: Int) -> (on: Double, peak: Double, off: Double) {
+        let on = 0.3 + 1.2 * Double(index)
+        return (on, on + lightUp, on + lightUp + fade)
+    }
+    static let cycle = star(PearlSparkles.stars.count - 1).peak + rest
+}
+
+struct PearlSparkleLayers: NSViewRepresentable {
+    let fillWidth: CGFloat
+    let trackHeight: CGFloat
+    let dark: Bool
+    let animates: Bool
+    let size: CGSize
+
+    func makeNSView(context: Context) -> SparkleLayerView { SparkleLayerView() }
+
+    func updateNSView(_ view: SparkleLayerView, context: Context) {
+        view.configure(fillWidth: fillWidth, trackHeight: trackHeight, dark: dark, animates: animates, size: size)
+    }
+}
+
+/// Layers for `PearlSparkles`: a capsule-clipped gradient for the sheen and three star shape layers. Geometry and
+/// colours change only when their inputs do; the animations are added once when animation starts and removed when it
+/// stops, so nothing runs while the popover is closed.
+final class SparkleLayerView: NSView {
+    let sheenClip = CALayer()
+    let sheen = CAGradientLayer()
+    let stars = PearlSparkles.stars.map { _ in CAShapeLayer() }
+    private let sheenMask = CAShapeLayer()
+    private(set) var isAnimating = false
+    private var geometryKey = ""
+
+    override var isFlipped: Bool { true }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.masksToBounds = false
+        sheenClip.mask = sheenMask
+        sheenClip.masksToBounds = true
+        sheenClip.isHidden = true
+        sheenClip.addSublayer(sheen)
+        layer?.addSublayer(sheenClip)
+        stars.forEach { layer?.addSublayer($0) }
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        let scale = window?.backingScaleFactor ?? 2
+        ([sheenClip, sheenMask, sheen] + stars).forEach { $0.contentsScale = scale }
+    }
+
+    func configure(fillWidth: CGFloat, trackHeight: CGFloat, dark: Bool, animates: Bool, size: CGSize) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        let key = "\(fillWidth)|\(trackHeight)|\(dark)|\(size.width)|\(size.height)"
+        if key != geometryKey {
+            geometryKey = key
+            layout(fillWidth: fillWidth, trackHeight: trackHeight, dark: dark, size: size)
+            if isAnimating { stopAnimating() }
+        }
+        if animates && fillWidth > 0 {
+            if !isAnimating { startAnimating(fillWidth: fillWidth) }
+        } else {
+            if isAnimating { stopAnimating() }
+            stars.forEach { $0.opacity = Float(PearlSparkles.restingOpacity) }
+            sheenClip.isHidden = true
         }
     }
 
-    private func twinkle() async {
-        while !Task.isCancelled {
-            withAnimation(.easeInOut(duration: 1.4)) { swept = true }
-            for index in lit.indices {
-                guard await pause(index == 0 ? 0.3 : 0.75) else { return reset() }
-                withAnimation(.easeOut(duration: 0.45)) { lit[index] = true }
-                guard await pause(0.45) else { return reset() }
-                withAnimation(.easeIn(duration: 0.6)) { lit[index] = false }
-            }
-            var instant = Transaction()
-            instant.disablesAnimations = true
-            withTransaction(instant) { swept = false }
-            guard await pause(3.2) else { return reset() }
+    private func layout(fillWidth: CGFloat, trackHeight: CGFloat, dark: Bool, size: CGSize) {
+        let midY = size.height / 2
+        sheenClip.frame = CGRect(x: 0, y: midY - trackHeight / 2, width: fillWidth, height: trackHeight)
+        sheenMask.path = CGPath(roundedRect: sheenClip.bounds, cornerWidth: min(trackHeight, fillWidth) / 2,
+                                cornerHeight: min(trackHeight, fillWidth) / 2, transform: nil)
+        sheen.frame = CGRect(x: -fillWidth * 0.6, y: 0, width: fillWidth * 0.6, height: trackHeight)
+        sheen.startPoint = CGPoint(x: 0, y: 0.5)
+        sheen.endPoint = CGPoint(x: 1, y: 0.5)
+        sheen.colors = Self.sheenColors(dark: dark)
+        let spark = NSColor(AIWarningPalette.spark(dark: dark).color).cgColor
+        for (layer, star) in zip(stars, PearlSparkles.stars) {
+            let x = min(max(fillWidth + star.dx, star.size / 2), size.width - star.size / 2)
+            layer.bounds = CGRect(x: 0, y: 0, width: star.size, height: star.size)
+            layer.position = CGPoint(x: x, y: midY + star.dy)
+            layer.path = MenuBarNumericImage.starPath(in: layer.bounds)
+            layer.fillColor = spark
+            layer.shadowColor = spark
+            layer.shadowOpacity = 0.8
+            layer.shadowRadius = 0.75
+            layer.shadowOffset = .zero
+            layer.shadowPath = layer.path
         }
     }
 
-    private func pause(_ seconds: Double) async -> Bool {
-        (try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))) != nil
+    /// Transparent ends in each band's own colour: `CGColor.clear` is transparent black and leaves a dark fringe.
+    static func sheenColors(dark: Bool) -> [CGColor] {
+        let bands = AIWarningPalette.sheen(dark: dark).map { NSColor($0).cgColor }
+        guard let first = bands.first?.copy(alpha: 0), let last = bands.last?.copy(alpha: 0) else { return bands }
+        return [first] + bands + [last]
     }
 
-    private func reset() {
-        var instant = Transaction()
-        instant.disablesAnimations = true
-        withTransaction(instant) { lit = [false, false, false]; swept = false }
+    private func startAnimating(fillWidth: CGFloat) {
+        isAnimating = true
+        sheenClip.isHidden = false
+        let cycle = PearlSparkleTimeline.cycle, begin = CACurrentMediaTime()
+        let sweep = CAKeyframeAnimation(keyPath: "position.x")
+        // From fully left of the fill to fully right (the gradient is 0.6 × the fill wide), then hold off-screen.
+        sweep.values = [-fillWidth * 0.3, fillWidth * 1.5, fillWidth * 1.5]
+        sweep.keyTimes = [0, NSNumber(value: PearlSparkleTimeline.sweep / cycle), 1]
+        sweep.timingFunctions = [CAMediaTimingFunction(name: .easeInEaseOut), CAMediaTimingFunction(name: .linear)]
+        sweep.duration = cycle
+        sweep.repeatCount = .infinity
+        sweep.beginTime = begin
+        sheen.add(sweep, forKey: "sweep")
+        let timing = [CAMediaTimingFunction(name: .linear), CAMediaTimingFunction(name: .easeOut),
+                      CAMediaTimingFunction(name: .easeIn), CAMediaTimingFunction(name: .linear)]
+        for (index, layer) in stars.enumerated() {
+            let t = PearlSparkleTimeline.star(index)
+            let keyTimes = [0, t.on, t.peak, t.off, cycle].map { NSNumber(value: $0 / cycle) }
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            fade.values = [0, 0, 1, 0, 0]
+            fade.keyTimes = keyTimes
+            fade.timingFunctions = timing
+            let grow = CAKeyframeAnimation(keyPath: "transform.scale")
+            grow.values = [0.5, 0.5, 1, 0.5, 0.5]
+            grow.keyTimes = keyTimes
+            grow.timingFunctions = timing
+            let twinkle = CAAnimationGroup()
+            twinkle.animations = [fade, grow]
+            twinkle.duration = cycle
+            twinkle.repeatCount = .infinity
+            twinkle.beginTime = begin
+            layer.opacity = 0
+            layer.add(twinkle, forKey: "twinkle")
+        }
+    }
+
+    private func stopAnimating() {
+        isAnimating = false
+        sheen.removeAllAnimations()
+        stars.forEach { $0.removeAllAnimations() }
     }
 }
 
