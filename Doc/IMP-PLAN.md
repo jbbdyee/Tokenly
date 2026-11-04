@@ -1709,3 +1709,13 @@ v0.4.0 빌드 입력인 공식 Node v24.22.1 압축 파일의 기본 경로가 `
 `TOKENLY_CLAUDE_NODE_ARCHIVES`는 그대로 우선한다. 지정하면 기본 경로로 대체하지 않는다. arm64·x64 SHA-256 고정값은 그대로이며, Xcode 빌드 전 확인과 번들 직전 재확인 두 번 검사한다. `/private/tmp` 대체 경로는 두지 않는다. 기존 위치를 쓰려면 환경 변수로 명시한다. `--print-node-archives`는 선택된 폴더·체크섬만 확인하고 출력 폴더를 만들지 않는다.
 
 다른 실험용 빌드 스크립트(`build-claude-product-candidate.sh`, `build-claude-portable-dev.sh`)의 같은 기본 경로는 이번 범위가 아니라 유지했다.
+
+## Claude 직접 조회 영구 정지 수정 v0.4.1 (2026-11-04)
+
+v0.4.0 설치본은 08:40 DarkWake 직후의 시도 한 번 이후 `isPaused=true`로 멈췄다. 일시 실패 카운트가 0이라 즉시 정지 계열 오류였고, 정지를 푸는 코드와 원인 기록이 없었다. 결정은 다음과 같다.
+
+- **helper:** status 없는 SDK 예외를 모두 exit 22로 보내던 것을 나눴다. 연결·DNS·fetch 실패·자체 25초 시한·408/5xx는 exit 27(`network`)이다. 401/403/429와 모델 활동 감지는 네트워크 검사보다 먼저 판정하고, cause 체인에 연결 오류가 있어도 그 판정을 덮지 않는다. 429는 Retry-After 초 값만 `{"retry_after_seconds":N}`으로 출력한다. 분류 함수는 export해 Node 테스트로 검증하며, bundled 진입점일 때만 `main()`을 실행한다.
+- **gate:** 무제한 경로에서는 `sdkFailure`·`unavailable`·미분류 오류도 일시 오류로 다룬다. 다만 대기 5분·10분 → 30분 쿨다운 → 쿨다운 세 번째 정지로 횟수와 간격에 상한을 둔다. 제품의 `pauseOnUnknownError`는 이제 "미분류 오류는 바로 쿨다운"을 뜻한다. 요청 제한은 정지가 아닌 시간 대기다. 2회·3회 실험(`maxAttempts`, `stopOnFailure`, 예약 파일)은 기존처럼 실패 시 정지하며 자동·수동 재개하지 않는다.
+- **호환:** schemaVersion은 1로 유지하고 새 필드는 Optional로 둔다. 따라서 v0.4.0 파일을 그대로 읽고, v0.4.0으로 내려가도 새 필드를 무시한다. 원인 없는 정지는 `legacyPause`로 기록하고 한 번만 자동 재시도한다. 오래된 in-flight(10분 초과)는 중단된 시도로 본다.
+- **절전:** `willSleep`~`didWake` 사이에 Claude 타이머가 실행되면(DarkWake) 조회하지 않는다. `didWake` 뒤 20초 지연 타이머 하나로 합친다. 네트워크 경로 감시(NWPathMonitor)는 넣지 않았고, 복귀 직후 실패는 일시 오류 백오프가 처리한다.
+- **UI:** Store가 gate 상태와 마지막 수동 재시도 결과를 게시하고, 팝오버 상태·상세 문구가 상태줄 데이터보다 우선해 중단 사실을 보여 준다.

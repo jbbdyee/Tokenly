@@ -135,9 +135,22 @@ struct ClaudeSubprocessExecutor: ClaudeProcessExecuting {
         case 23: throw ClaudeUsageRunnerError.incompatibleSDK
         case 24: throw ClaudeUsageRunnerError.authenticationRequired
         case 25: throw ClaudeUsageRunnerError.permissionDenied
-        case 26: throw ClaudeUsageRunnerError.rateLimited
+        case 26:
+            if let retryAfter = Self.retryAfter(from: output) { throw ClaudeRateLimitError(retryAfter: retryAfter) }
+            throw ClaudeUsageRunnerError.rateLimited
+        case 27: throw ClaudeUsageRunnerError.network
         default: throw ClaudeUsageRunnerError.transport
         }
+    }
+
+    /// The helper reports a rate limit's Retry-After as `{"retry_after_seconds":N}` and nothing else.
+    static func retryAfter(from output: Data) -> TimeInterval? {
+        guard output.count <= 256,
+              let root = try? JSONSerialization.jsonObject(with: output) as? [String: Any],
+              root.count == 1, let number = root["retry_after_seconds"] as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+        let seconds = number.doubleValue
+        return seconds.isFinite && seconds >= 0 ? seconds : nil
     }
 }
 

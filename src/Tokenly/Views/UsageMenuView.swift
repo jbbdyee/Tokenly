@@ -279,11 +279,22 @@ struct UsageMenuView: View {
     }
 
     private var claudeStatus: String? {
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        UsagePopoverCopy.claudeStatus(externalStore.state(for: .claude), direct: externalStore.claudeDirectStatus)
+#else
         UsagePopoverCopy.claudeStatus(externalStore.state(for: .claude))
+#endif
     }
 
     private var claudeDetails: some View {
         VStack(alignment: .leading, spacing: 9) {
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+            if let direct = externalStore.claudeDirectStatus,
+               let notice = UsagePopoverCopy.claudeDirectDetail(direct, manual: externalStore.claudeManualRetry) {
+                Text(notice).font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+#endif
             switch externalStore.state(for: .claude) {
             case .idle: Text(UsagePopoverCopy.claudeIdleDetail).font(.caption).foregroundStyle(.secondary)
             case .loading: ProgressView(UsagePopoverCopy.claudeLoadingDetail).controlSize(.small).font(.caption)
@@ -325,8 +336,10 @@ struct UsageMenuView: View {
             }
             return receipt
         }
-#endif
+        return "상태줄 데이터 · 마지막 수신 \(CompactDateTime.string(for: snapshot.fetchedAt))"
+#else
         return "마지막 수신 \(CompactDateTime.string(for: snapshot.fetchedAt))"
+#endif
     }
 
     @ViewBuilder
@@ -490,6 +503,61 @@ enum UsagePopoverCopy {
 #else
         return "Codex·AGY는 공식 CLI로 조회하고 Claude는 로컬 상태줄 파일을 다시 읽습니다"
 #endif
+    }
+
+    /// A stopped or waiting direct route outranks the data label, so statusLine data never hides it.
+    static func claudeStatus(_ state: ExternalLoadState, direct: ClaudeDirectRefreshStatus?) -> String? {
+        if let direct, direct.isInterrupted {
+            switch direct.phase {
+            case .paused(.authenticationRequired): return "직접 조회 중지 · 로그인 필요"
+            case .paused(.permissionDenied): return "직접 조회 중지 · 권한 확인 필요"
+            case .paused(.incompatibleSDK): return "직접 조회 중지 · 업데이트 필요"
+            case .paused(.unexpectedModelActivity): return "직접 조회 안전 정지"
+            case .paused: return "직접 조회 중지"
+            case .rateLimited: return "요청 제한 · 직접 조회 대기"
+            case .retryWaiting: return "직접 조회 재시도 대기"
+            case .ready, .inFlight: break
+            }
+        }
+        return claudeStatus(state)
+    }
+
+    /// Explains a direct-route interruption and the manual refresh outcome; nil while the route is healthy.
+    static func claudeDirectDetail(_ status: ClaudeDirectRefreshStatus,
+                                   manual: ClaudeManualRetryDecision? = nil) -> String? {
+        var lines: [String] = []
+        switch status.phase {
+        case .ready, .inFlight: break
+        case .retryWaiting(let until):
+            lines.append("직접 조회가 일시적으로 실패했습니다. \(CompactDateTime.string(for: until)) 이후 자동으로 다시 시도하며, 새로고침으로 바로 재시도할 수 있습니다.")
+        case .rateLimited(let until):
+            lines.append("Claude 요청 제한으로 \(CompactDateTime.string(for: until))까지 직접 조회를 쉽니다.")
+        case .paused(.authenticationRequired):
+            lines.append("Claude CLI 로그인이 필요합니다. 터미널에서 claude에 다시 로그인한 뒤 새로고침하세요.")
+        case .paused(.permissionDenied):
+            lines.append("Claude 계정의 사용량 조회 권한을 확인한 뒤 새로고침하세요.")
+        case .paused(.incompatibleSDK):
+            lines.append("Claude SDK 응답 형식이 맞지 않아 직접 조회를 멈췄습니다. Tokenly 업데이트가 필요할 수 있습니다.")
+        case .paused(.unexpectedModelActivity):
+            lines.append("예상하지 않은 모델 활동이 감지되어 안전을 위해 직접 조회를 멈췄습니다. 새로고침으로는 다시 시작하지 않습니다.")
+        case .paused(.checkpointUnavailable):
+            lines.append("조회 기록 파일을 사용할 수 없어 직접 조회를 멈췄습니다.")
+        case .paused:
+            lines.append("직접 조회가 반복해서 실패해 멈췄습니다. 새로고침으로 다시 시도할 수 있습니다.")
+        }
+        if case .refused(let refusal) = manual {
+            switch refusal {
+            case .inFlight: lines.append("이미 조회 중입니다.")
+            case .tooSoon(let until): lines.append("다시 시도는 \(CompactDateTime.string(for: until)) 이후에 가능합니다.")
+            case .rateLimited, .safetyStop, .limitedTrial, .checkpointUnavailable: break
+            }
+        }
+        guard !lines.isEmpty else { return nil }
+        if status.isInterrupted {
+            lines.append(status.lastSuccessAt.map { "마지막 정상 직접 조회 \(CompactDateTime.string(for: $0))" }
+                         ?? "정상 직접 조회 기록 없음")
+        }
+        return lines.joined(separator: "\n")
     }
 
     static func claudeStatus(_ state: ExternalLoadState) -> String? {

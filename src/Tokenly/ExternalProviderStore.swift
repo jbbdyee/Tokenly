@@ -41,7 +41,16 @@ final class ExternalProviderStore: ObservableObject {
     private var mockStarted = false
 #endif
 #if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+    /// Direct SDK route health (stopped, waiting to retry, rate limited); nil without the SDK route.
+    @Published private(set) var claudeDirectStatus: ClaudeDirectRefreshStatus?
+    /// Result of the last manual refresh request for the direct route.
+    @Published private(set) var claudeManualRetry: ClaudeManualRetryDecision?
     private var claudeTimer: Timer?
+    private var claudeSleepObserver: NSObjectProtocol?
+    /// Set between willSleep and didWake. Timers that fire during a dark wake see it and do nothing.
+    private(set) var isSystemAsleep = false
+    /// After a full wake the network may still be coming up; the first Claude refresh waits this long.
+    let claudeWakeDelay: TimeInterval
     private var directClaudeEnabled: Bool {
         (providers[.claude] as? ClaudeOptionalUsageProvider)?.usesDirectSDK == true
     }
@@ -50,6 +59,7 @@ final class ExternalProviderStore: ObservableObject {
     init(displaySettings: ProviderDisplaySettings,
          now: @escaping () -> Date = Date.init,
          automaticTickInterval: TimeInterval = 300,
+         claudeWakeDelay: TimeInterval = 20,
          providers: [ExternalProviderID: any ExternalUsageProvider] = [
              .claude: ClaudeSubscriptionProvider(),
              .antigravity: AGYCombinedProvider(),
@@ -59,6 +69,9 @@ final class ExternalProviderStore: ObservableObject {
         self.now = now
         self.automaticTickInterval = automaticTickInterval == 60 ? 60 : 300
         self.providers = providers
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        self.claudeWakeDelay = max(0, claudeWakeDelay)
+#endif
     }
 
     func start() {
@@ -105,9 +118,22 @@ final class ExternalProviderStore: ObservableObject {
                 forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+                    self?.handleSystemDidWake()
+#else
                     guard let self, self.displaySettings.showsClaude else { return }
                     _ = self.refresh(.claude) // The provider gate checks eligibility after wake.
+#endif
                 }
+            }
+        }
+#endif
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        if claudeSleepObserver == nil, directClaudeEnabled {
+            claudeSleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.handleSystemWillSleep() }
             }
         }
 #endif
@@ -127,7 +153,15 @@ final class ExternalProviderStore: ObservableObject {
             if refresh(.antigravity) != nil, !force { lastAutomaticAGYAttempt = now() }
         }
 #if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
-        if displaySettings.showsClaude, force || !directClaudeEnabled { _ = refresh(.claude) }
+        if displaySettings.showsClaude, force, directClaudeEnabled,
+           let claude = providers[.claude] as? ClaudeOptionalUsageProvider {
+            Task {
+                claudeManualRetry = await claude.prepareManualRetry()
+                _ = refresh(.claude)
+            }
+        } else if displaySettings.showsClaude, force || !directClaudeEnabled {
+            _ = refresh(.claude)
+        }
 #else
         if displaySettings.showsClaude { _ = refresh(.claude) }
 #endif
@@ -153,7 +187,8 @@ final class ExternalProviderStore: ObservableObject {
             settledStates[id] = settled
 #if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
             if id == .claude, let claude = provider as? ClaudeOptionalUsageProvider, claude.usesDirectSDK {
-                scheduleClaude(at: await claude.nextAutomaticRefresh())
+                claudeDirectStatus = await claude.directStatus()
+                if !isSystemAsleep { scheduleClaude(at: await claude.nextAutomaticRefresh()) }
             }
 #endif
 #if TOKENLY_CLAUDE_DEV
@@ -205,10 +240,24 @@ final class ExternalProviderStore: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.claudeTimer = nil
-                guard self.displaySettings.showsClaude else { return }
+                // A dark wake can run overdue timers before the network is up; wait for didWake instead.
+                guard !self.isSystemAsleep, self.displaySettings.showsClaude else { return }
                 _ = self.refresh(.claude)
             }
         }
+    }
+
+    func handleSystemWillSleep() {
+        isSystemAsleep = true
+        claudeTimer?.invalidate()
+        claudeTimer = nil
+    }
+
+    /// One delayed refresh per wake; repeated wake notifications replace the pending timer.
+    func handleSystemDidWake() {
+        isSystemAsleep = false
+        guard directClaudeEnabled else { return }
+        scheduleClaude(at: now().addingTimeInterval(claudeWakeDelay))
     }
 #endif
 

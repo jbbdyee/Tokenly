@@ -70,6 +70,16 @@ struct ClaudeOptionalUsageProvider: ExternalUsageProvider {
     }
 
     func nextAutomaticRefresh() async -> Date? { await gate.automaticNextEligibleAt }
+
+    /// Direct-route health for the popover; nil when this provider only reads the statusLine feed.
+    func directStatus() async -> ClaudeDirectRefreshStatus? {
+        usesDirectSDK ? await gate.status(at: now()) : nil
+    }
+
+    /// Lets the next fetch retry after a recoverable stop; the gate still enforces single flight.
+    func prepareManualRetry() async -> ClaudeManualRetryDecision? {
+        usesDirectSDK ? await gate.prepareManualRetry(at: now()) : nil
+    }
 }
 
 private actor ClaudeOptionalUsageState {

@@ -1,3 +1,12 @@
+## Claude 직접 조회 복구 v0.4.1 (2026-11-04, `fix/claude-refresh-recovery-v0.4.1`)
+
+- [x] helper 네트워크 오류 분류(exit 27)·Retry-After 전달, gate 백오프·쿨다운·상한·정지 사유 기록, v0.4.0 정지 체크포인트 복구, 수동 재시도 정책, 절전·DarkWake 처리, 팝오버 상태 표시.
+- [x] 전체 XCTest 466개, Node 15개, Debug·Release 빌드 통과(Mock·가짜 subprocess, 실계정 0회).
+- [ ] 실제 SDK 오류 객체 형태(네트워크 끊김·401·429·Retry-After 헤더 위치) 확인.
+- [ ] 실기기에서 절전·DarkWake·완전 복귀 뒤 20초 조회와 Wi-Fi 끊김 복구 확인.
+- [ ] 설치본 v0.4.0 정지 체크포인트(attempts 946)를 v0.4.1 설치 뒤 자동 1회 재시도로 복구하는지 확인.
+- [ ] 릴리즈 때 Info.plist 0.4.1(7)로 올리고 `release.sh --final 0.4.1`, main 병합, 태그·Release는 별도 승인.
+
 - [x] v0.4.0(6) GitHub Release 발행(2026-11-02, 태그 `a59eedd`), 개발자 Mac 설치·설정 유지·Claude 60초 자동 조회 연속 성공·Codex·Claude·AGY 팝오버 화면 확인. M1 실기기 확인과 Developer ID 서명·공증은 알려진 제한/향후 개선으로 남긴다.
 - [ ] v0.4.0 출시 후 남은 검증: 클린 Apple Silicon·Intel Mac, M1 팝오버 전환, 공식 Claude CLI 설치·미설치/로그인·미로그인, statusLine 대체, 장시간 60초 호출의 제한·비용·신선도·안정성, Developer ID 서명·공증·Gatekeeper.
 - [x] 팝오버 공통 조정기의 CPU→RAM→Disk→CPU 전환, 동일 창 재활성, 모의 외부 닫힘·지연 알림 회귀 테스트를 추가한다. 실제 메뉴 막대 이벤트 검증은 별도다.

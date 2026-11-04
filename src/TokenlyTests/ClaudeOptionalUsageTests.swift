@@ -172,26 +172,32 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertTrue(gateValue4)
     }
 
-    func testTransientFailuresBackOffThenPauseWithoutInfiniteRetry() async {
+    func testTransientFailuresBackOffThenCoolDownThenPauseWithoutInfiniteRetry() async {
         let gate = ClaudeDirectRefreshGate()
         var time = Date(timeIntervalSince1970: 1_800_000_000)
-        for minutes in [5, 10] {
-            let gateValue5 = await gate.begin(at: time)
-            XCTAssertTrue(gateValue5)
-            await gate.finish(error: ClaudeUsageRunnerError.timeout, at: time)
-            let gateValue6 = await gate.begin(at: time.addingTimeInterval(TimeInterval(minutes * 60 - 1)))
-            XCTAssertFalse(gateValue6)
-            time = time.addingTimeInterval(TimeInterval(minutes * 60))
+        for cycle in 1...3 {
+            for minutes in [5, 10] {
+                await assertBegin(gate, at: time, expected: true)
+                await gate.finish(error: ClaudeUsageRunnerError.timeout, at: time)
+                await assertBegin(gate, at: time.addingTimeInterval(TimeInterval(minutes * 60 - 1)), expected: false)
+                time = time.addingTimeInterval(TimeInterval(minutes * 60))
+            }
+            await assertBegin(gate, at: time, expected: true)
+            await gate.finish(error: ClaudeUsageRunnerError.transport, at: time)
+            guard cycle < 3 else { break }
+            let waiting = await gate.status(at: time)
+            XCTAssertEqual(waiting.phase, .retryWaiting(until: time.addingTimeInterval(1800)))
+            await assertBegin(gate, at: time.addingTimeInterval(1799), expected: false)
+            time = time.addingTimeInterval(1800)
         }
-        let gateValue7 = await gate.begin(at: time)
-        XCTAssertTrue(gateValue7)
-        await gate.finish(error: ClaudeUsageRunnerError.transport, at: time)
         let paused = await gate.isPaused
         XCTAssertTrue(paused)
-        let denied = await gate.begin(at: time.addingTimeInterval(86_400))
-        XCTAssertFalse(denied)
+        await assertBegin(gate, at: time.addingTimeInterval(86_400), expected: false)
         let next = await gate.nextEligibleAt
         XCTAssertNil(next)
+        let status = await gate.status(at: time.addingTimeInterval(86_400))
+        XCTAssertEqual(status.phase, .paused(.repeatedFailures))
+        XCTAssertEqual(status.lastErrorKind, .transport)
     }
 
     func testSuccessResetsTransientFailureCount() async {
@@ -230,37 +236,64 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertTrue(recovered)
     }
 
-    func testAuthAndUnavailablePauseAutomaticAttempts() async {
-        for error in [ClaudeUsageRunnerError.authenticationRequired, .permissionDenied,
-                      .unavailable, .incompatibleSDK, .sdkFailure] {
+    func testAccountFailuresPauseButTransientSDKFailuresRetry() async {
+        let paused: [(ClaudeUsageRunnerError, ClaudeRefreshPauseReason)] = [
+            (.authenticationRequired, .authenticationRequired), (.permissionDenied, .permissionDenied),
+            (.incompatibleSDK, .incompatibleSDK), (.unexpectedModelActivity, .unexpectedModelActivity)]
+        let time = Date(timeIntervalSince1970: 1_800_000_000)
+        for (error, reason) in paused {
             let gate = ClaudeDirectRefreshGate()
-            let time = Date(timeIntervalSince1970: 1_800_000_000)
-            let gateValue9 = await gate.begin(at: time)
-            XCTAssertTrue(gateValue9)
+            await assertBegin(gate, at: time, expected: true)
             await gate.finish(error: error, at: time)
-            let gateValue10 = await gate.isPaused
-            XCTAssertTrue(gateValue10)
-            let gateValue11 = await gate.begin(at: time.addingTimeInterval(86_400))
-            XCTAssertFalse(gateValue11)
+            let status = await gate.status(at: time.addingTimeInterval(86_400))
+            XCTAssertEqual(status.phase, .paused(reason))
+            await assertBegin(gate, at: time.addingTimeInterval(86_400), expected: false)
+        }
+        for error in [ClaudeUsageRunnerError.network, .unavailable, .sdkFailure, .unsafeOutput] {
+            let gate = ClaudeDirectRefreshGate()
+            await assertBegin(gate, at: time, expected: true)
+            await gate.finish(error: error, at: time)
+            let isPaused = await gate.isPaused
+            XCTAssertFalse(isPaused)
+            await assertBegin(gate, at: time.addingTimeInterval(299), expected: false)
+            await assertBegin(gate, at: time.addingTimeInterval(300), expected: true)
         }
     }
 
-    func testRateLimitPausesAndCancellationWaitsBeforeRetry() async {
-        let gate = ClaudeDirectRefreshGate()
+    func testRateLimitWaitsForRetryAfterThenResumesAndCancellationWaits() async {
+        let gate = ClaudeDirectRefreshGate(successInterval: 60)
         let start = Date(timeIntervalSince1970: 1_800_000_000)
-        let gateValue12 = await gate.begin(at: start)
-        XCTAssertTrue(gateValue12)
+        await assertBegin(gate, at: start, expected: true)
         await gate.finish(error: ClaudeUsageRunnerError.rateLimited, at: start)
-        let gateValue13 = await gate.begin(at: start.addingTimeInterval(86_400))
-        XCTAssertFalse(gateValue13)
+        let limited = await gate.status(at: start)
+        XCTAssertEqual(limited.phase, .rateLimited(until: start.addingTimeInterval(1800)))
+        await assertBegin(gate, at: start.addingTimeInterval(1799), expected: false)
+        let second = start.addingTimeInterval(1800)
+        await assertBegin(gate, at: second, expected: true)
+        await gate.finish(error: ClaudeUsageRunnerError.rateLimited, at: second)
+        await assertBegin(gate, at: second.addingTimeInterval(3599), expected: false)
+        let third = second.addingTimeInterval(3600)
+        await assertBegin(gate, at: third, expected: true)
+        await gate.finish(error: ClaudeRateLimitError(retryAfter: 120), at: third)
+        await assertBegin(gate, at: third.addingTimeInterval(119), expected: false)
+        let fourth = third.addingTimeInterval(120)
+        await assertBegin(gate, at: fourth, expected: true)
+        await gate.finish(error: ClaudeRateLimitError(retryAfter: 10), at: fourth)
+        await assertBegin(gate, at: fourth.addingTimeInterval(59), expected: false)
+        let fifth = fourth.addingTimeInterval(60)
+        await assertBegin(gate, at: fifth, expected: true)
+        await gate.finish(error: ClaudeRateLimitError(retryAfter: 1_000_000), at: fifth)
+        await assertBegin(gate, at: fifth.addingTimeInterval(6 * 3600 - 1), expected: false)
+        await assertBegin(gate, at: fifth.addingTimeInterval(6 * 3600), expected: true)
+        await gate.finish(error: nil, at: fifth.addingTimeInterval(6 * 3600))
+        let isPaused = await gate.isPaused
+        XCTAssertFalse(isPaused)
+
         let cancelGate = ClaudeDirectRefreshGate()
-        let gateValue14 = await cancelGate.begin(at: start)
-        XCTAssertTrue(gateValue14)
+        await assertBegin(cancelGate, at: start, expected: true)
         await cancelGate.finish(error: CancellationError(), at: start)
-        let gateValue15 = await cancelGate.begin(at: start.addingTimeInterval(299))
-        XCTAssertFalse(gateValue15)
-        let gateValue16 = await cancelGate.begin(at: start.addingTimeInterval(300))
-        XCTAssertTrue(gateValue16)
+        await assertBegin(cancelGate, at: start.addingTimeInterval(299), expected: false)
+        await assertBegin(cancelGate, at: start.addingTimeInterval(300), expected: true)
     }
 
     func testWakeEligibilityDoesNotBypassMinimumInterval() async {
@@ -466,7 +499,7 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         await afterWake.finish(error: nil, at: start.addingTimeInterval(3_600))
     }
 
-    func testSixtySecondTransientBackoffAndRateLimitStop() async throws {
+    func testSixtySecondTransientBackoffAndRateLimitResume() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("tokenly-claude-sixty-failures-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -485,10 +518,11 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         await assertBegin(recovered, at: start.addingTimeInterval(359), expected: false)
         await assertBegin(recovered, at: start.addingTimeInterval(360), expected: true)
         await recovered.finish(error: ClaudeUsageRunnerError.rateLimited, at: start.addingTimeInterval(360))
-        let paused = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
-        await assertBegin(paused, at: start.addingTimeInterval(86_400), expected: false)
-        let isPaused = await paused.isPaused
-        XCTAssertTrue(isPaused)
+        let waiting = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        await assertBegin(waiting, at: start.addingTimeInterval(360 + 1799), expected: false)
+        let isPaused = await waiting.isPaused
+        XCTAssertFalse(isPaused)
+        await assertBegin(waiting, at: start.addingTimeInterval(360 + 1800), expected: true)
     }
 
     func testCheckpointPersistsFiniteFailuresAndSuccessReset() async throws {
@@ -511,10 +545,12 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         let thirdAt = secondAt.addingTimeInterval(600)
         await assertBegin(third, at: thirdAt, expected: true)
         await third.finish(error: ExternalProviderError.noData, at: thirdAt)
+        // The third consecutive failure starts a persisted cooldown instead of a permanent pause.
         let restarted = ClaudeDirectRefreshGate(checkpointURL: file)
-        await assertBegin(restarted, at: thirdAt.addingTimeInterval(86_400), expected: false)
+        await assertBegin(restarted, at: thirdAt.addingTimeInterval(1799), expected: false)
         let restartPaused = await restarted.isPaused
-        XCTAssertTrue(restartPaused)
+        XCTAssertFalse(restartPaused)
+        await assertBegin(restarted, at: thirdAt.addingTimeInterval(1800), expected: true)
 
         let resetFile = directory.appendingPathComponent("reset.json")
         let reset = ClaudeDirectRefreshGate(checkpointURL: resetFile)
@@ -549,7 +585,7 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         await assertBegin(missing, at: start, expected: false)
     }
 
-    func testCheckpointCancellationAndUnclassifiedSDKErrorRemainConservative() async throws {
+    func testCheckpointCancellationWaitsAndUnclassifiedSDKErrorBacksOff() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("tokenly-claude-cancel-checkpoint-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -565,9 +601,10 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         await assertBegin(restarted, at: due, expected: true)
         await restarted.finish(error: ClaudeUsageRunnerError.sdkFailure, at: due)
         let next = ClaudeDirectRefreshGate(checkpointURL: file)
-        await assertBegin(next, at: due.addingTimeInterval(86_400), expected: false)
+        await assertBegin(next, at: due.addingTimeInterval(299), expected: false)
         let nextPaused = await next.isPaused
-        XCTAssertTrue(nextPaused)
+        XCTAssertFalse(nextPaused)
+        await assertBegin(next, at: due.addingTimeInterval(300), expected: true)
     }
 
     func testTwoAttemptCheckpointAndReservationsSurviveRestartWithoutThirdSlot() async throws {
@@ -753,7 +790,7 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: calls).split(separator: "\n").count, 2)
     }
 
-    func testProductGateWaitsSixtySecondsAcrossRestartAndPausesUnknownError() async throws {
+    func testProductGateWaitsSixtySecondsAcrossRestartAndBoundsUnknownErrors() async throws {
         let root = URL(fileURLWithPath: "/private/tmp/tokenly-claude-product-gate-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -766,12 +803,21 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         let restarted = ClaudeDirectRefreshGate(pauseOnUnknownError: true, successInterval: 60,
                                                 checkpointURL: file)
         await assertBegin(restarted, at: start.addingTimeInterval(59), expected: false)
-        await assertBegin(restarted, at: start.addingTimeInterval(60), expected: true)
-        await restarted.finish(error: NSError(domain: "unknown", code: 1), at: start.addingTimeInterval(60))
-        await assertBegin(restarted, at: start.addingTimeInterval(86_400), expected: false)
+        var time = start.addingTimeInterval(60)
+        for cycle in 1...3 {
+            await assertBegin(restarted, at: time, expected: true)
+            await restarted.finish(error: NSError(domain: "unknown", code: 1), at: time)
+            guard cycle < 3 else { break }
+            // An unclassified error skips the short backoff and waits a full cooldown.
+            await assertBegin(restarted, at: time.addingTimeInterval(1799), expected: false)
+            time = time.addingTimeInterval(1800)
+        }
         let final = ClaudeDirectRefreshGate(pauseOnUnknownError: true, successInterval: 60,
                                             checkpointURL: file)
-        await assertBegin(final, at: start.addingTimeInterval(86_401), expected: false)
+        await assertBegin(final, at: time.addingTimeInterval(86_400), expected: false)
+        let status = await final.status(at: time.addingTimeInterval(86_400))
+        XCTAssertEqual(status.phase, .paused(.repeatedFailures))
+        XCTAssertEqual(status.lastErrorKind, .unknown)
     }
 
 #if TOKENLY_CLAUDE_DEV
@@ -975,4 +1021,291 @@ final class ClaudeOptionalUsageTests: XCTestCase {
         XCTAssertEqual(fallbackQuotas.map(\.remainingPercent), [73, 58])
     }
 #endif
+}
+
+// MARK: - v0.4.1 recovery policy
+
+extension ClaudeOptionalUsageTests {
+    private func temporaryCheckpoint(_ label: String) throws -> (URL, URL) {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenly-claude-\(label)-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return (directory, directory.appendingPathComponent("refresh.json"))
+    }
+
+    func testNetworkFailureRecoversAutomaticallyAndKeepsSixtySecondCadence() async throws {
+        let (directory, file) = try temporaryCheckpoint("network-recovery")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let gate = ClaudeDirectRefreshGate(pauseOnUnknownError: true, successInterval: 60, checkpointURL: file)
+        await assertBegin(gate, at: start, expected: true)
+        await gate.finish(error: ClaudeUsageRunnerError.network, at: start)
+        let waiting = await gate.status(at: start)
+        XCTAssertEqual(waiting.phase, .retryWaiting(until: start.addingTimeInterval(300)))
+        XCTAssertTrue(waiting.isInterrupted)
+        let retry = start.addingTimeInterval(300)
+        await assertBegin(gate, at: retry, expected: true)
+        await gate.finish(error: nil, at: retry)
+        let healthy = await gate.status(at: retry)
+        XCTAssertEqual(healthy.phase, .ready)
+        XCTAssertNil(healthy.lastErrorKind)
+        XCTAssertEqual(healthy.lastSuccessAt, retry)
+        await assertBegin(gate, at: retry.addingTimeInterval(59), expected: false)
+        await assertBegin(gate, at: retry.addingTimeInterval(60), expected: true)
+    }
+
+    func testCooldownResumesAutomaticallyAndSuccessClearsCounters() async throws {
+        let (directory, file) = try temporaryCheckpoint("cooldown")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var time = Date(timeIntervalSince1970: 1_800_000_000)
+        let gate = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        for minutes in [5, 10, 30] {
+            await assertBegin(gate, at: time, expected: true)
+            await gate.finish(error: ClaudeUsageRunnerError.network, at: time)
+            time = time.addingTimeInterval(TimeInterval(minutes * 60))
+        }
+        let restarted = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: file)
+        await assertBegin(restarted, at: time, expected: true)
+        await restarted.finish(error: nil, at: time)
+        let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        XCTAssertEqual(fields["transientFailures"] as? Int, 0)
+        XCTAssertNil(fields["cooldownCycles"])
+        XCTAssertNil(fields["lastErrorKind"])
+        XCTAssertEqual(fields["isPaused"] as? Bool, false)
+    }
+
+    func testV040PausedCheckpointResumesOnceThenRecordsReason() async throws {
+        let (directory, file) = try temporaryCheckpoint("legacy")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        // Shape written by v0.4.0 after an unrecorded failure; Date values use the reference-date encoding.
+        let lastAttempt = Date(timeIntervalSinceReferenceDate: 815_442_023.764263)
+        try Data(#"{"transientFailures":0,"isPaused":true,"lastSuccessAt":815436476.38997,"isInFlight":false,"attempts":946,"schemaVersion":1,"lastAttemptAt":815442023.764263}"#.utf8)
+            .write(to: file)
+        let gate = ClaudeDirectRefreshGate(pauseOnUnknownError: true, successInterval: 60, checkpointURL: file)
+        let status = await gate.status(at: lastAttempt.addingTimeInterval(60))
+        XCTAssertEqual(status.phase, .retryWaiting(until: lastAttempt.addingTimeInterval(1800)))
+        XCTAssertEqual(status.lastErrorKind, .legacyPause)
+        await assertBegin(gate, at: lastAttempt.addingTimeInterval(1799), expected: false)
+        let resumed = lastAttempt.addingTimeInterval(1800)
+        await assertBegin(gate, at: resumed, expected: true)
+        await gate.finish(error: ClaudeUsageRunnerError.network, at: resumed)
+        // Only one automatic attempt: a further transient failure pauses with a recorded reason.
+        let after = await gate.status(at: resumed.addingTimeInterval(86_400))
+        XCTAssertEqual(after.phase, .paused(.repeatedFailures))
+        XCTAssertEqual(after.lastErrorKind, .network)
+        let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        XCTAssertEqual(fields["attempts"] as? Int, 947)
+        XCTAssertEqual(fields["pauseReason"] as? String, "repeatedFailures")
+        let allowed: Set<String> = ["schemaVersion", "attempts", "lastAttemptAt", "lastSuccessAt", "nextEligibleAt",
+            "transientFailures", "isPaused", "isInFlight", "lastErrorKind", "lastErrorAt", "pauseReason",
+            "cooldownCycles", "rateLimitHits"]
+        XCTAssertTrue(Set(fields.keys).isSubset(of: allowed))
+
+        // A long-past v0.4.0 pause is due immediately; a safety failure then stops for good.
+        let (oldDirectory, oldFile) = try temporaryCheckpoint("legacy-old")
+        defer { try? FileManager.default.removeItem(at: oldDirectory) }
+        try Data(#"{"transientFailures":0,"isPaused":true,"isInFlight":false,"attempts":3,"schemaVersion":1,"lastAttemptAt":815442023.764263}"#.utf8)
+            .write(to: oldFile)
+        let old = ClaudeDirectRefreshGate(successInterval: 60, checkpointURL: oldFile)
+        let later = lastAttempt.addingTimeInterval(86_400)
+        await assertBegin(old, at: later, expected: true)
+        await old.finish(error: ClaudeUsageRunnerError.unexpectedModelActivity, at: later)
+        let stopped = await old.status(at: later.addingTimeInterval(86_400))
+        XCTAssertEqual(stopped.phase, .paused(.unexpectedModelActivity))
+        let manual = await old.prepareManualRetry(at: later.addingTimeInterval(86_400))
+        XCTAssertEqual(manual, .refused(.safetyStop))
+    }
+
+    func testStaleInFlightCheckpointRecoversAsInterruptedFailure() async throws {
+        let (directory, file) = try temporaryCheckpoint("stale-inflight")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let interrupted = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(interrupted, at: start, expected: true)
+        let restarted = ClaudeDirectRefreshGate(checkpointURL: file)
+        await assertBegin(restarted, at: start.addingTimeInterval(599), expected: false)
+        let recoveredAt = start.addingTimeInterval(600)
+        let status = await restarted.status(at: recoveredAt)
+        XCTAssertEqual(status.phase, .retryWaiting(until: recoveredAt.addingTimeInterval(300)))
+        XCTAssertEqual(status.lastErrorKind, .interrupted)
+        await assertBegin(restarted, at: recoveredAt.addingTimeInterval(300), expected: true)
+    }
+
+    func testManualRetryAllowsRecoverableStopsAndRefusesUnsafeOnes() async throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        // Transient wait: refused within a minute of the attempt, then allowed immediately.
+        let transient = ClaudeDirectRefreshGate(successInterval: 60)
+        await assertBegin(transient, at: start, expected: true)
+        let inFlight = await transient.prepareManualRetry(at: start)
+        XCTAssertEqual(inFlight, .refused(.inFlight))
+        await transient.finish(error: ClaudeUsageRunnerError.network, at: start)
+        let tooSoon = await transient.prepareManualRetry(at: start.addingTimeInterval(30))
+        XCTAssertEqual(tooSoon, .refused(.tooSoon(until: start.addingTimeInterval(60))))
+        let allowed = await transient.prepareManualRetry(at: start.addingTimeInterval(60))
+        XCTAssertEqual(allowed, .allowed)
+        await assertBegin(transient, at: start.addingTimeInterval(60), expected: true)
+        await assertBegin(transient, at: start.addingTimeInterval(60), expected: false)
+        await transient.finish(error: nil, at: start.addingTimeInterval(61))
+        let healthy = await transient.prepareManualRetry(at: start.addingTimeInterval(90))
+        XCTAssertEqual(healthy, .notNeeded)
+        await assertBegin(transient, at: start.addingTimeInterval(90), expected: false)
+
+        // Authentication: no automatic retry, a manual retry after login is allowed and re-pauses on failure.
+        let auth = ClaudeDirectRefreshGate(successInterval: 60)
+        await assertBegin(auth, at: start, expected: true)
+        await auth.finish(error: ClaudeUsageRunnerError.authenticationRequired, at: start)
+        await assertBegin(auth, at: start.addingTimeInterval(86_400), expected: false)
+        let authRetry = await auth.prepareManualRetry(at: start.addingTimeInterval(120))
+        XCTAssertEqual(authRetry, .allowed)
+        await assertBegin(auth, at: start.addingTimeInterval(120), expected: true)
+        await auth.finish(error: ClaudeUsageRunnerError.authenticationRequired, at: start.addingTimeInterval(121))
+        let authAgain = await auth.status(at: start.addingTimeInterval(200))
+        XCTAssertEqual(authAgain.phase, .paused(.authenticationRequired))
+
+        // Repeated failures: a manual retry grants one bounded round, then pauses again.
+        let repeated = ClaudeDirectRefreshGate(successInterval: 60)
+        var time = start
+        while !(await repeated.isPaused) {
+            await assertBegin(repeated, at: time, expected: true)
+            await repeated.finish(error: ClaudeUsageRunnerError.network, at: time)
+            time = await repeated.nextEligibleAt ?? time
+        }
+        let resume = await repeated.prepareManualRetry(at: time.addingTimeInterval(60))
+        XCTAssertEqual(resume, .allowed)
+        time = time.addingTimeInterval(60)
+        for _ in 0..<3 {
+            await assertBegin(repeated, at: time, expected: true)
+            await repeated.finish(error: ClaudeUsageRunnerError.timeout, at: time)
+            time = await repeated.nextEligibleAt ?? time
+        }
+        let pausedAgain = await repeated.status(at: time)
+        XCTAssertEqual(pausedAgain.phase, .paused(.repeatedFailures))
+
+        // Rate limit and safety stops are not lifted by a manual refresh.
+        let limited = ClaudeDirectRefreshGate(successInterval: 60)
+        await assertBegin(limited, at: start, expected: true)
+        await limited.finish(error: ClaudeRateLimitError(retryAfter: 900), at: start)
+        let limitedRetry = await limited.prepareManualRetry(at: start.addingTimeInterval(120))
+        XCTAssertEqual(limitedRetry, .refused(.rateLimited(until: start.addingTimeInterval(900))))
+        await assertBegin(limited, at: start.addingTimeInterval(120), expected: false)
+        let safety = ClaudeDirectRefreshGate(successInterval: 60)
+        await assertBegin(safety, at: start, expected: true)
+        await safety.finish(error: ClaudeUsageRunnerError.unexpectedModelActivity, at: start)
+        let safetyRetry = await safety.prepareManualRetry(at: start.addingTimeInterval(3600))
+        XCTAssertEqual(safetyRetry, .refused(.safetyStop))
+        await assertBegin(safety, at: start.addingTimeInterval(3600), expected: false)
+
+        // Limited account trials never resume.
+        let trial = ClaudeDirectRefreshGate(maxAttempts: 2, stopOnFailure: true)
+        let trialRetry = await trial.prepareManualRetry(at: start)
+        XCTAssertEqual(trialRetry, .refused(.limitedTrial))
+    }
+
+    @MainActor
+    func testWakeSchedulesOneDelayedRefreshAndSleepCancelsIt() async throws {
+        let clock = Clock()
+        let runner = SequenceRunner([.success(directJSON), .success(directJSON)])
+        let provider = ClaudeOptionalUsageProvider(
+            statusLine: MockStatusLine(result: .failure(.noData)),
+            route: .experimentalDirect(provider: ClaudeDirectUsageProvider(runner: runner, now: { clock.date }),
+                                       maxAge: 900),
+            now: { clock.date }, gate: ClaudeDirectRefreshGate(successInterval: 60))
+        let name = "tokenly.claude.wake.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = ProviderDisplaySettings(defaults: defaults)
+        settings.showsClaude = true
+        let store = ExternalProviderStore(displaySettings: settings, now: { clock.date },
+                                          claudeWakeDelay: 0.05, providers: [.claude: provider])
+        // Sleep cancels a wake refresh that has not started (dark wake followed by sleep).
+        store.handleSystemDidWake()
+        store.handleSystemWillSleep()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        var calls = await runner.calls
+        XCTAssertEqual(calls, 0)
+        // Repeated wake notifications collapse into one delayed refresh.
+        store.handleSystemDidWake()
+        store.handleSystemDidWake()
+        store.handleSystemDidWake()
+        try await Task.sleep(nanoseconds: 500_000_000)
+        calls = await runner.calls
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(store.claudeDirectStatus?.phase, .ready)
+        XCTAssertFalse(store.isSystemAsleep)
+        store.handleSystemWillSleep()
+    }
+
+    @MainActor
+    func testManualRefreshLiftsTransientWaitThroughStore() async throws {
+        let clock = Clock()
+        let runner = SequenceRunner([.failure(.network), .success(directJSON)])
+        let provider = ClaudeOptionalUsageProvider(
+            statusLine: MockStatusLine(result: .success(status(clock.date))),
+            route: .experimentalDirect(provider: ClaudeDirectUsageProvider(runner: runner, now: { clock.date }),
+                                       maxAge: 900),
+            now: { clock.date }, gate: ClaudeDirectRefreshGate(successInterval: 60))
+        let name = "tokenly.claude.manual.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = ProviderDisplaySettings(defaults: defaults)
+        settings.showsClaude = true
+        let store = ExternalProviderStore(displaySettings: settings, now: { clock.date },
+                                          providers: [.claude: provider])
+        let first = try XCTUnwrap(store.refresh(.claude))
+        await first.value
+        guard case .retryWaiting = store.claudeDirectStatus?.phase else {
+            return XCTFail("network failure should wait for a retry")
+        }
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(store.state(for: .claude), direct: store.claudeDirectStatus),
+                       "직접 조회 재시도 대기")
+        clock.date = clock.date.addingTimeInterval(60)
+        store.refreshSelected(force: true)
+        for _ in 0..<50 where store.claudeDirectStatus?.phase != .ready {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let calls = await runner.calls
+        XCTAssertEqual(calls, 2)
+        XCTAssertEqual(store.claudeManualRetry, .allowed)
+        XCTAssertEqual(store.claudeDirectStatus?.phase, .ready)
+        store.handleSystemWillSleep()
+    }
+
+    func testPopoverShowsDirectStopEvenWithStatusLineData() {
+        let received = Date(timeIntervalSince1970: 1_800_000_000)
+        let feed = ExternalLoadState.success(status(received))
+        let lastSuccess = received.addingTimeInterval(-3600)
+        func direct(_ phase: ClaudeDirectRefreshStatus.Phase) -> ClaudeDirectRefreshStatus {
+            ClaudeDirectRefreshStatus(phase: phase, lastSuccessAt: lastSuccess, lastErrorKind: .network)
+        }
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(feed, direct: nil), "상태줄 데이터")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(feed, direct: direct(.ready)), "상태줄 데이터")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(feed, direct: direct(.paused(.authenticationRequired))),
+                       "직접 조회 중지 · 로그인 필요")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(feed, direct: direct(.paused(.permissionDenied))),
+                       "직접 조회 중지 · 권한 확인 필요")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(feed, direct: direct(.paused(.unexpectedModelActivity))),
+                       "직접 조회 안전 정지")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(feed, direct: direct(.paused(.repeatedFailures))),
+                       "직접 조회 중지")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(feed, direct: direct(.rateLimited(until: received))),
+                       "요청 제한 · 직접 조회 대기")
+        XCTAssertEqual(UsagePopoverCopy.claudeStatus(feed, direct: direct(.retryWaiting(until: received))),
+                       "직접 조회 재시도 대기")
+
+        XCTAssertNil(UsagePopoverCopy.claudeDirectDetail(direct(.ready)))
+        let waiting = try? XCTUnwrap(UsagePopoverCopy.claudeDirectDetail(direct(.retryWaiting(until: received))))
+        XCTAssertTrue(waiting?.contains(CompactDateTime.string(for: received)) == true)
+        XCTAssertTrue(waiting?.contains("마지막 정상 직접 조회 \(CompactDateTime.string(for: lastSuccess))") == true)
+        let safety = UsagePopoverCopy.claudeDirectDetail(direct(.paused(.unexpectedModelActivity))) ?? ""
+        XCTAssertTrue(safety.contains("새로고침으로는 다시 시작하지 않습니다"))
+        let auth = UsagePopoverCopy.claudeDirectDetail(direct(.paused(.authenticationRequired))) ?? ""
+        XCTAssertTrue(auth.contains("로그인"))
+        let never = ClaudeDirectRefreshStatus(phase: .paused(.repeatedFailures), lastSuccessAt: nil, lastErrorKind: nil)
+        XCTAssertTrue(UsagePopoverCopy.claudeDirectDetail(never)?.contains("정상 직접 조회 기록 없음") == true)
+        let refused = UsagePopoverCopy.claudeDirectDetail(direct(.retryWaiting(until: received)),
+            manual: .refused(.tooSoon(until: received)))
+        XCTAssertTrue(refused?.contains("다시 시도는") == true)
+        // AGY wording is unchanged.
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(feed), "갱신 지연")
+    }
 }

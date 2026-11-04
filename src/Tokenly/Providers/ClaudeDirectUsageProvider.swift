@@ -11,6 +11,8 @@ enum ClaudeUsageRunnerError: Error, Equatable {
     case permissionDenied
     case rateLimited
     case timeout
+    /// DNS, connection reset/refused, fetch failure or the helper's own deadline: retried with backoff.
+    case network
     case unavailable
     case incompatibleSDK
     case sdkFailure

@@ -1,3 +1,53 @@
+## v0.4.1 Claude 직접 조회 복구 수정 (2026-11-04)
+
+브랜치 `fix/claude-refresh-recovery-v0.4.1`(main `94fded2`에서 분기). 바로 아래 진단을 바탕으로 수정했다. 정책 표는 `Doc/SPEC.md` 상단, 결정 근거는 `Doc/IMP-PLAN.md` 마지막 절에 있다.
+
+**변경:**
+- helper: 네트워크 계열 오류를 exit 27로 분리하고, 429에서는 Retry-After 초 값만 출력한다. 오류 분류 함수는 export했다.
+- runner: exit 27을 `.network`로, exit 26의 Retry-After를 `ClaudeRateLimitError`로 바꾼다.
+- gate: 백오프·쿨다운·정지 사유·수동 재시도·v0.4.0 정지 복구·오래된 in-flight 정리·상태 조회를 추가했다.
+- Store: 절전 중 조회 금지, 복귀 뒤 20초에 한 번 조회, 수동 새로고침 시 `prepareManualRetry`, `claudeDirectStatus` 게시.
+- 팝오버: 직접 조회 상태 문구와 상세 안내, 상태줄 출처 표시.
+
+2회·3회 실험 gate는 기존처럼 실패 시 정지하는 정책을 유지한다.
+
+**검증:**
+- 전체 XCTest 466개 통과(실패 0). 기존 457개 중 이전 정책을 단정하던 7개는 새 정책으로 고쳤고, 9개를 추가했다.
+- Node 15개 통과(가짜 SDK 모듈로 helper 프로세스 종료 코드·출력 확인 포함).
+- Debug(build-for-testing)·Release 빌드 성공, `git diff --check` 통과.
+- 실계정·모델 요청 0회. 설치본 v0.4.0과 체크포인트는 변경하지 않았다.
+
+**남은 위험:**
+- 실제 SDK 오류 객체의 code·name·status·헤더 위치는 미검증이다. 다른 형태면 미분류 → 쿨다운 경로로 간다.
+- 실기기 DarkWake·`didWake` 타이밍은 미검증이다.
+- 안전 정지(예상 밖 모델 활동)를 푸는 UI가 없다. 체크포인트를 지워야 한다.
+- Info.plist는 아직 0.4.0(6)이다.
+
+main 병합·Push·Release는 하지 않았다. 📸 캡처 추천: 실기기에서 `직접 조회 재시도 대기`와 상세 안내가 보이는 Claude 팝오버(계정 정보 가림).
+
+## v0.4.0 Claude 자동 조회 영구 중단 진단 (2026-11-04, 분석만)
+
+**확인된 사실:**
+- 설치본 체크포인트(`Application Support/io.github.jbbdyee.tokenly/Claude Direct Refresh/refresh-checkpoint.json`): `isPaused=true`, attempts 946, transientFailures 0, lastSuccessAt 11-04 07:07:56, lastAttemptAt 08:40:23.76.
+- `pmset -g log`: 08:40:20 DarkWake(2초) → 08:40:22 Sleep. 마지막 시도는 절전 진입 직후 시작됐다.
+- 코드 동작:
+  - `ClaudeDirectRefreshGate.advance`는 `.unavailable/.sdkFailure/.authenticationRequired/.permissionDenied/.rateLimited/.incompatibleSDK/.unexpectedModelActivity`와 제품의 미분류 오류(`pauseOnUnknownError`)에서 `isPaused=true`가 되고, 이를 해제하는 코드가 없다. `.timeout/.transport`는 transientFailures를 올리므로 이번 경우가 아니다.
+  - 정지 중 `nextAutomaticRefresh`는 nil이라 60초 타이머가 예약되지 않는다. 제품 빌드의 300초 반복 타이머는 직접 조회가 켜져 있으면 Claude를 건너뛴다.
+  - 이후 fetch는 statusLine만 읽고, 직접값이 900초를 넘으면 statusLine값을 골라 `상태줄 데이터`로 표시한다.
+  - 오류 종류는 체크포인트·통합 로그 어디에도 남지 않는다.
+- helper는 HTTP status가 없는 SDK 예외를 모두 exit 22(`sdkFailure`)로 보낸다.
+
+**추정:** DarkWake 중 네트워크가 끊긴 상태에서 SDK 예외가 나서 exit 22 → `sdkFailure` → 영구 정지로 이어진 것으로 보인다. 오류 종류는 기록이 없어 확정할 수 없다.
+
+**수정 후보(v0.4.1):**
+- helper가 네트워크 계열 오류를 별도 exit로 보내 transient로 처리
+- `sdkFailure/unavailable`도 백오프 처리
+- 정지에 쿨다운이나 수동 새로고침 해제 경로 추가
+- 비민감 오류 종류 기록
+- UI에 `자동 조회 중지` 표시
+
+소스는 변경하지 않았다. 실계정 조회 0회.
+
 ## v0.4.0 출시 후 유지보수 (2026-11-02)
 
 **CHANGELOG:** `[0.4.0]` 제목을 `(GitHub Release)`로 바꾸고 태그 대상 `a59eedd`·ZIP SHA-256을 적었다. 검증 범위는 출시 전과 출시 후 결과를 나눴다. 출시 후 결과는 개발자 Mac 설치·설정 유지·Claude 60초 연속 성공·팝오버 화면 확인이며, 한 계정·한 기기의 단기 관찰로 명시했다. 미검증 항목(SDK 장시간 제한·비용·신선도, M1 실기기, 클린 Mac, Gatekeeper)은 그대로다.

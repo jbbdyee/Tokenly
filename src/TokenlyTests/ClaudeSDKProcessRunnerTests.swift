@@ -175,3 +175,24 @@ final class ClaudeSDKProcessRunnerTests: XCTestCase {
         catch { XCTAssertTrue(error is CancellationError) }
     }
 }
+
+extension ClaudeSDKProcessRunnerTests {
+    func testNetworkExitAndRateLimitRetryAfterAreClassified() async throws {
+        let (folder, script) = try fakeScript("exit 27")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        do { _ = try await executor(script).execute(); XCTFail("expected network failure") }
+        catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .network) }
+        try Data("printf '%s\\n' '{\"retry_after_seconds\":120}'\nexit 26\n".utf8).write(to: script)
+        do { _ = try await executor(script).execute(); XCTFail("expected rate limit") }
+        catch { XCTAssertEqual(error as? ClaudeRateLimitError, ClaudeRateLimitError(retryAfter: 120)) }
+        for body in ["printf 'not json\\n'\nexit 26\n", "printf '%s\\n' '{\"retry_after_seconds\":true}'\nexit 26\n",
+                     "printf '%s\\n' '{\"retry_after_seconds\":5,\"detail\":\"x\"}'\nexit 26\n"] {
+            try Data(body.utf8).write(to: script)
+            do { _ = try await executor(script).execute(); XCTFail("expected rate limit") }
+            catch { XCTAssertEqual(error as? ClaudeUsageRunnerError, .rateLimited) }
+        }
+        XCTAssertEqual(ClaudeRefreshErrorKind(ClaudeUsageRunnerError.network), .network)
+        XCTAssertEqual(ClaudeRefreshErrorKind(ClaudeRateLimitError(retryAfter: nil)), .rateLimited)
+        XCTAssertEqual(ClaudeRefreshErrorKind(NSError(domain: "x", code: 1)), .unknown)
+    }
+}

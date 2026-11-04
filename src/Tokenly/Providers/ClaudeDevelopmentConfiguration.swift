@@ -73,6 +73,7 @@ enum ClaudeDevelopmentConfiguration {
         case .permissionDenied: code = "permission_denied"
         case .rateLimited: code = "rate_limited"
         case .timeout: code = "timeout"
+        case .network: code = "network"
         case .unavailable: code = "unavailable"
         case .incompatibleSDK: code = "incompatible_sdk"
         case .sdkFailure: code = "sdk_failure"
