@@ -2,28 +2,28 @@
 
 macOS 메뉴 막대에서 **Codex · Claude Code · Google Antigravity(AGY)** 의 남은 사용 한도를 한눈에 확인하는 SwiftUI 앱입니다. v0.2.0부터 **CPU·RAM·GPU·Disk·배터리** 상태도 메뉴 막대 위젯과 상세 팝오버로 보여 줍니다.
 
-**현재 정식 버전: v0.4.0 (빌드 6)** · 2026-11-02 · [Release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.0) · [변경 기록](CHANGELOG.md)
+**현재 정식 버전: v0.4.1 (빌드 7)** · 2026-11-04 · [Release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.1) · [변경 기록](CHANGELOG.md)
 
 ## 다운로드
 
-**[Tokenly v0.4.0 내려받기](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.0)** (최신 정식 Release)
+**[Tokenly v0.4.1 내려받기](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.1)** (최신 정식 Release)
 
 - macOS 14 Sonoma 이상, **Apple silicon·Intel Mac 공용(universal)** 앱입니다.
-- Release 페이지의 **Assets**에서 `Tokenly-0.4.0-macOS-universal.zip`(과 무결성 확인용 `.sha256`)을 받습니다. 자동으로 붙는 **Source code (zip / tar.gz)** 는 실행할 수 있는 앱이 아닙니다.
+- Release 페이지의 **Assets**에서 `Tokenly-0.4.1-macOS-universal.zip`(과 무결성 확인용 `.sha256`)을 받습니다. 자동으로 붙는 **Source code (zip / tar.gz)** 는 실행할 수 있는 앱이 아닙니다.
 - ZIP을 풀어 나온 `Tokenly.app`을 `/Applications`로 옮긴 뒤 실행합니다. 자세한 절차는 아래 [설치](#설치)에 있습니다.
 - Apple Developer ID 서명과 공증(notarization)을 받지 않은 **ad-hoc 서명** 앱이라, 첫 실행 때 macOS 보안 경고가 나타나고 실행이 막힐 수 있습니다. 시스템 설정에서 이 앱만 허용하면 됩니다.
 - Claude 자동 조회에는 공식 **Claude CLI 설치와 로그인**이 필요합니다([사전 준비](#사전-준비)).
-- 이전 버전: [v0.3.0](https://github.com/jbbdyee/Tokenly/releases/tag/v0.3.0), [v0.2.0 — System Monitor](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0), [v0.1.0 — Developer Preview](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0).
+- 이전 버전: [v0.4.0](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.0), [v0.3.0](https://github.com/jbbdyee/Tokenly/releases/tag/v0.3.0), [v0.2.0 — System Monitor](https://github.com/jbbdyee/Tokenly/releases/tag/v0.2.0), [v0.1.0 — Developer Preview](https://github.com/jbbdyee/Tokenly/releases/tag/v0.1.0).
 
-## v0.4.0 상태
+## v0.4.1 상태
 
 | 구분 | 내용 |
 |---|---|
-| **구현** | Claude 5시간·7일 한도를 공식 Claude Agent SDK로 직접 조회하고, 성공 완료 후 최소 60초 조건으로 자동 갱신. 직접 조회가 불가능하거나 실패하면 statusLine 데이터로 대체. 시스템·AI 팝오버 중첩 방지 |
-| **검증됨** | 개발자 Mac(Apple M4, macOS 27)에 GitHub Release ZIP(SHA-256 일치)으로 v0.3.0(5)에서 업데이트 설치, 설정 유지. 설치된 정식 앱에서 Claude 60초 자동 조회 2회 연속 성공. Codex·Claude·AGY 팝오버 실제 화면 확인. 팝오버 창 조정기 자동 테스트 통과 |
-| **미검증** | 시스템 팝오버 중첩 수정의 **M1 실기기 확인**. Claude SDK 장시간 반복 호출의 안정성·호출 제한·비용·데이터 신선도. 다른 Mac(클린 설치·Intel)의 Claude CLI/SDK 호환성. 다운로드한 ZIP을 새 사용자 계정·다른 Mac에서 처음 여는 Gatekeeper 절차 |
+| **구현** | Claude 직접 조회가 일시 오류·절전 뒤에 스스로 다시 시도하고(대기·쿨다운·상한), 멈춘 이유를 팝오버에 표시. AI 한도 경고 디자인 B(크림 옐로·펄 화이트·별 반짝임, Core Animation). RAM 사용량을 `전체 − 비어 있는 메모리 − 캐시된 파일`로 계산하고 "기타" 항목 표시 |
+| **검증됨** | 가짜 subprocess·가짜 SDK로 복구 정책 자동 테스트. 개발자 Mac(16GiB M4)에서 RAM 원시 카운터와 활성 상태 보기 7쌍이 0.06GiB 안에서 일치. 가짜 사용량 테스트 앱에서 경고 디자인·반짝임·동작 줄이기·RAM 범례 화면과 Release CPU(반짝임 중 평균 0.7%) 확인 |
+| **미검증** | 실제 메뉴 막대 팝오버 안의 최종 화면. **M1 Mac에서의 RAM 계산 결과**. 일부 Claude SDK 오류 형태와 장시간 자동 복구 동작. 다른 Mac(클린 설치·Intel)의 Claude CLI/SDK 호환성. 다운로드한 ZIP을 새 사용자 계정·다른 Mac에서 처음 여는 Gatekeeper 절차 |
 
-Claude 직접 조회는 Anthropic SDK의 **실험적 usage API**를 사용합니다. 공식 최소 호출 간격이 정해져 있지 않으므로, 알 수 없는 오류가 나면 자동 조회를 중단하고 statusLine 데이터로 돌아가도록 만들었습니다. 장시간 운영 결과는 아직 확정하지 않았습니다.
+Claude 직접 조회는 Anthropic SDK의 **실험적 usage API**를 사용합니다. 공식 최소 호출 간격이 정해져 있지 않으므로 v0.4.1은 실패를 종류별로 나눠 일정 횟수까지만 다시 시도하고, 인증·권한·안전 문제는 멈춘 뒤 이유를 보여 줍니다. 장시간 운영 결과는 아직 확정하지 않았습니다.
 
 ## 요구 사항
 
@@ -33,16 +33,16 @@ Claude 직접 조회는 Anthropic SDK의 **실험적 usage API**를 사용합니
 
 ## 설치
 
-[v0.4.0 Release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.0)의 ZIP 기준입니다. 소스에서 직접 만들려면 [빌드와 테스트](#빌드와-테스트)를 참고하세요.
+[v0.4.1 Release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.1)의 ZIP 기준입니다. 소스에서 직접 만들려면 [빌드와 테스트](#빌드와-테스트)를 참고하세요.
 
-1. [v0.4.0 Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.0)의 **Assets**에서 `Tokenly-0.4.0-macOS-universal.zip`과 `Tokenly-0.4.0-macOS-universal.zip.sha256`을 받습니다.
-2. (권장) 무결성 확인: 두 파일이 있는 폴더에서 `shasum -a 256 -c Tokenly-0.4.0-macOS-universal.zip.sha256` → `OK`가 나와야 합니다.
+1. [v0.4.1 Release 페이지](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.1)의 **Assets**에서 `Tokenly-0.4.1-macOS-universal.zip`과 `Tokenly-0.4.1-macOS-universal.zip.sha256`을 받습니다.
+2. (권장) 무결성 확인: 두 파일이 있는 폴더에서 `shasum -a 256 -c Tokenly-0.4.1-macOS-universal.zip.sha256` → `OK`가 나와야 합니다.
 3. ZIP을 열어 나온 `Tokenly.app`을 **응용 프로그램(`/Applications`) 폴더로 옮깁니다.** 다운로드 폴더에서 바로 실행하면 macOS가 임시 위치에서 실행해 자동 실행·CLI 연결이 동작하지 않습니다.
 4. `Tokenly.app`을 엽니다. 처음에는 "확인되지 않은 개발자" 또는 "Apple이 악성 소프트웨어가 없음을 확인할 수 없음" 경고가 나오고 열리지 않습니다. **완료**(또는 취소)를 누릅니다.
 5. **시스템 설정 → 개인정보 보호 및 보안**의 아래쪽 **보안** 항목에 Tokenly가 차단되었다는 안내와 함께 나타나는 **그래도 열기**를 누르고, 암호(또는 Touch ID)로 확인한 뒤 한 번 더 **열기**를 누릅니다. macOS 14에서는 Finder에서 앱을 Control-클릭 → **열기**로도 허용할 수 있습니다.
 6. 메뉴 막대에 Tokenly가 나타납니다. Dock에는 나타나지 않는 메뉴 막대 전용 앱입니다.
 
-**이전 버전에서 업데이트:** Tokenly를 종료한 뒤 `/Applications/Tokenly.app`을 새 앱으로 교체합니다. 같은 위치에 교체하면 설정과 Claude Code·AGY 연결이 그대로 유지됩니다(개발자 Mac의 0.2.0 → 0.3.0 설치에서 설정 22개와 연결 상태, 0.3.0 → 0.4.0 설치에서 설정 24개와 Claude·AGY 수신 파일·연결 기록 유지 확인). v0.4.0은 Claude 직접 조회 기록용 폴더 `~/Library/Application Support/io.github.jbbdyee.tokenly/Claude Direct Refresh/`를 새로 만듭니다.
+**이전 버전에서 업데이트:** Tokenly를 종료한 뒤 `/Applications/Tokenly.app`을 새 앱으로 교체합니다. 같은 위치에 교체하면 설정과 Claude Code·AGY 연결이 그대로 유지됩니다(개발자 Mac의 0.2.0 → 0.3.0 설치에서 설정 22개와 연결 상태, 0.3.0 → 0.4.0 설치에서 설정 24개와 Claude·AGY 수신 파일·연결 기록 유지 확인). v0.4.0은 Claude 직접 조회 기록용 폴더 `~/Library/Application Support/io.github.jbbdyee.tokenly/Claude Direct Refresh/`를 새로 만듭니다. v0.4.1은 이 기록을 그대로 이어 쓰며, v0.4.0이 원인 없이 멈춰 둔 기록은 마지막 시도 30분 뒤 한 번 다시 시도합니다.
 
 이 경고는 Tokenly가 Apple Developer ID로 서명·공증되지 않아 Apple이 앱을 확인할 수 없기 때문에 나옵니다. 위 4–5단계는 macOS의 일반적인 개별 허용 절차이며, 내려받은 이 ZIP으로 새 사용자 계정·다른 Mac에서 직접 확인하지는 않았습니다. macOS 버전과 계정 종류(표준·관리자)에 따라 문구와 인증 단계가 다를 수 있습니다.
 
@@ -116,11 +116,11 @@ T=/Applications/Tokenly.app/Contents/MacOS/Tokenly
 
 ## 알려진 제한
 
-**v0.4.0 Claude 자동 조회:** 공식 Claude Agent SDK의 실험적 usage API를 앱에 들어 있는 Node v24.22.1·SDK 0.3.169 helper로 실행합니다. 한 번에 하나의 조회만 실행하고, 성공한 조회가 끝난 뒤 최소 60초가 지나야 다음 조회를 시작합니다. 앱을 다시 시작해도 이 간격은 체크포인트 파일로 이어집니다. 일시적 실패에는 대기 시간을 늘려 다시 시도하고, 알 수 없는 오류에는 자동 조회를 멈춥니다. 그동안 statusLine 수신값이나 마지막 성공값을 보여 줍니다. 설치된 정식 앱에서 연속 2회 성공을 확인했지만, 장시간 반복 호출의 안정성·호출 제한·비용·데이터 신선도는 아직 확인 중입니다. SDK가 실험적 API라 Claude CLI·SDK 업데이트에 따라 동작이 바뀔 수 있습니다.
+**Claude 자동 조회(v0.4.0~):** 공식 Claude Agent SDK의 실험적 usage API를 앱에 들어 있는 Node v24.22.1·SDK 0.3.169 helper로 실행합니다. 한 번에 하나의 조회만 실행하고, 성공한 조회가 끝난 뒤 최소 60초가 지나야 다음 조회를 시작합니다. 앱을 다시 시작해도 이 간격은 체크포인트 파일로 이어집니다. v0.4.1부터 일시적 실패(네트워크·SDK 일반 오류 등)는 5분·10분 뒤 다시 시도하고 30분 쿨다운을 거치며, 쿨다운이 세 번 이어지면 수동 새로고침 전까지 멈춥니다. 요청 제한은 Retry-After만큼 기다리고, 인증·권한 오류는 다시 로그인한 뒤 새로고침하면 재시도하며, 예상 밖 모델 활동이 감지되면 안전을 위해 멈춥니다. 절전 중 짧은 DarkWake에는 조회하지 않습니다. 그동안 statusLine 수신값이나 마지막 성공값을 보여 주고, 직접 조회가 멈춘 이유를 팝오버에 표시합니다. 장시간 반복 호출의 안정성·호출 제한·비용·데이터 신선도와 실제 SDK 오류 형태는 아직 확인 중입니다. SDK가 실험적 API라 Claude CLI·SDK 업데이트에 따라 동작이 바뀔 수 있습니다.
 
-**v0.4.0 알려진 문제 — Claude 자동 조회 정지:** v0.4.0은 직접 조회가 특정 오류(절전 직후 네트워크 끊김으로 추정)를 한 번 만나면 자동 조회를 영구히 멈춥니다. 이후 팝오버에는 `상태줄 데이터`만 표시되고 Claude Code를 쓸 때만 값이 바뀝니다. 앱을 다시 시작해도 풀리지 않습니다. 오류는 다시 시도하고, 정지 상태와 원인을 팝오버에 보여 주는 수정이 v0.4.1로 준비 중입니다(미배포).
+**v0.4.0에서 고친 문제 — Claude 자동 조회 정지(v0.4.1):** v0.4.0은 직접 조회가 특정 오류(절전 직후 네트워크 끊김으로 추정)를 한 번 만나면 자동 조회를 영구히 멈췄고, 팝오버에는 `상태줄 데이터`만 보였습니다. v0.4.1에서 위 재시도 정책과 상태 표시로 고쳤습니다.
 
-**v0.4.0 알려진 문제 — RAM 사용량:** v0.4.0의 RAM 사용량은 앱+와이어드+압축의 합이라, 활성 상태 보기 "사용된 메모리"보다 16GB Mac에서 약 0.6GB 낮게 보입니다. v0.4.1에서 `전체 − 비어 있는 메모리 − 캐시된 파일` 기준으로 바꾸고, 세 항목에 들지 않는 사용 메모리의 차이를 "기타"로 보여 줍니다(미배포).
+**v0.4.0에서 고친 문제 — RAM 사용량(v0.4.1):** v0.4.0의 RAM 사용량은 앱+와이어드+압축의 합이라 활성 상태 보기 "사용된 메모리"보다 16GB Mac에서 약 0.6GB 낮았습니다. v0.4.1은 `전체 − 비어 있는 메모리 − 캐시된 파일`로 계산하고, 세 항목에 들지 않는 사용 메모리의 차이를 "기타"로 보여 줍니다. Apple은 계산식을 공개하지 않으므로 개발자 Mac에서 재현된 일치이며, M1 Mac에서는 확인하지 않았습니다.
 
 **v0.4.0 팝오버 중첩 방지:** 지인의 M1 Mac에서 CPU·RAM·Disk 팝오버가 겹쳐 열린다는 보고가 있어, 시스템·AI 팝오버 모두에 공통 창 조정기를 넣어 새 팝오버를 열면 이전 팝오버를 닫도록 했습니다. 순차 전환과 닫힘 처리는 자동 테스트로 확인했습니다. 그러나 메뉴 막대의 실제 클릭을 재현한 테스트는 아니며, **M1 실기기 확인은 아직 하지 않았습니다**. 원인이 M1 칩이나 macOS 버전이라고 단정하지 않습니다.
 
@@ -163,12 +163,13 @@ v0.3.0부터 Codex의 `마지막 갱신 시간`은 **Tokenly의 마지막 성공
 
 ## 주요 기능
 
-v0.4.0 정식 버전 기준입니다.
+v0.4.1 정식 버전 기준입니다.
 
 | 기능 | 동작 | 상태 |
 |---|---|---|
 | Codex 사용량 | 공식 `codex app-server`로 5시간·7일 한도와 재설정 권한 조회, 1분 조건 검사(실패 뒤 5분) | v0.3.0부터, 실사용 확인 |
-| Claude 사용량 | 5시간·7일 한도를 Claude Agent SDK로 직접 조회, 성공 후 최소 60초 자동 갱신. **공식 Claude CLI 설치·로그인 필요** | v0.4.0 신규, 정식 앱 2회 연속 성공 확인. 장시간 안정성 미확정 |
+| Claude 사용량 | 5시간·7일 한도를 Claude Agent SDK로 직접 조회, 성공 후 최소 60초 자동 갱신, 일시 오류 뒤 자동 재시도와 정지 사유 표시. **공식 Claude CLI 설치·로그인 필요** | v0.4.0 신규, v0.4.1 복구 정책. 장시간 안정성 미확정 |
+| AI 한도 경고 | 20% 초과~50% 크림 옐로, 20% 이하 펄 화이트와 별 반짝임·`✦ N% 남음 · 부족` | v0.4.1 신규, 실제 메뉴 막대 팝오버 안 화면 미검증 |
 | Claude statusLine 대체 | 직접 조회 불가·실패 시 statusLine 수신값과 마지막 성공값 표시 | v0.1.0부터 유지 |
 | Google Antigravity 사용량 | 공식 AGY CLI `/usage`를 5분 조건으로 직접 조회, 실패 시 statusLine 대체 | v0.3.0부터 |
 | 시스템 모니터 | CPU·RAM·GPU(실험적, 기본 꺼짐)·Disk·Battery 메뉴 막대 위젯과 상세 팝오버 | v0.2.0부터 |

@@ -2,9 +2,9 @@
 
 이 문서는 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 형식을 따르고, 버전은 [Semantic Versioning](https://semver.org/lang/ko/)을 따릅니다.
 
-## [0.4.1] - 미배포 (출시 후보, 브랜치 `fix/claude-refresh-recovery-v0.4.1`)
+## [0.4.1] - 2026-11-04 (GitHub Release)
 
-빌드 7. v0.4.0 설치본의 설정·인증과 Claude 조회 기록 파일을 그대로 이어 씁니다. v0.4.0처럼 Apple 공증을 받지 않은 ad-hoc 서명 배포 예정입니다.
+빌드 7. v0.4.0 설치본의 설정·인증과 Claude 조회 기록 파일을 그대로 이어 씁니다. v0.4.0처럼 Apple 공증을 받지 않은 ad-hoc 서명 배포입니다.
 
 ### 수정
 - **Claude 자동 조회가 오류 한 번으로 영구 정지되던 문제.** v0.4.0은 절전 직후 등 한 번의 실패로 직접 조회를 멈추고 다시 시작하지 않았습니다.
