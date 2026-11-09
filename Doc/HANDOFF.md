@@ -8,6 +8,22 @@
 - `main`을 `test`로 fast-forward하고 `main`·`test`를 Push(`origin/main`·`origin/test` = `7d6fb42`). 로컬 `test`에만 있던 미Push 커밋 6개도 함께 올라갔다.
 - 병합한 `chore/repo-cleanup`는 로컬에서 삭제(원격에는 올린 적 없음). 이 기록은 `docs/handoff-repo-cleanup` 브랜치로 같은 절차를 거쳐 반영했다.
 
+**브랜치 정리(사용자 승인):**
+- `main`에 병합된 로컬 브랜치 9개를 `git branch -d`로 삭제했다(삭제 시점 끝 커밋):
+  - `experiment/claude-usage-refresh` `7b40688`
+  - `feature/agy-direct-usage-refresh` `a76a62e`
+  - `feature/codex-refresh-on-attention` `8048a45`
+  - `feature/ui-color-harmony` `192580f`
+  - `feature/usage-popover-status-copy` `1b3b126`
+  - `feature/usage-refresh-label-and-sources` `85856cc`
+  - `fix/claude-refresh-recovery-v0.4.1` `acaa74b`
+  - `fix/system-popover-exclusivity` `3678c17`
+  - `integration/v0.4.0` `a59eedd`
+- 원격에는 원래 `main`·`test`만 있어 원격 삭제는 없다. 로컬도 `main`·`test`만 남았다. 릴리스 태그 `v0.1.0`~`v0.4.1`은 그대로다.
+- 앞으로 작업 브랜치(`feature/*`·`fix/*`·`docs/*`·`chore/*`)는 `main` 반영 후 바로 지운다(`Doc/BRANCHING.md` 병합 5단계).
+
+**휴지통 영구 삭제(사용자 승인):** 위에서 휴지통으로 옮긴 `~/.Trash/Tokenly-Workspace-cleanup-20261109/`(2.9GB)를 영구 삭제했다. 더는 복구할 수 없다. 휴지통의 다른 항목은 권한상 목록을 볼 수 없어 건드리지 않았다. 정리 후 Workspace는 536MB이며 `Tokenly`, `TokenlyArchive.noindex`, `TokenlyRelease.noindex`만 남았다.
+
 **저장소 안(삭제는 Git 이력 `4fb4a59`에서 복구 가능):**
 - 삭제: `Preview/` 전체(디자인 시안, 곰돌이·하트·아이콘 콘셉트, CPU 측정. README 이미지 생성기 `ReadmeImages/run.sh`도 이미 없는 `Resources/BearGauge`를 참조해 동작하지 않았음), `Doc/screenshots/`(Stage 6 시안 캡처), 미추적 `Doc/logs/`(10-27 GPU 측정 로그), `default.profraw`, `.DS_Store`, 빈 `src/Tokenly/Resources/`(프로젝트 참조 없음).
 - 삭제: 날짜 고정 `/private/tmp` 경로를 쓰는 일회성 실험 스크립트 `scripts/build-claude-{dev,portable-dev,product-candidate,real-once,real-two,real-three,real-sixty}.sh`, `prepare-claude-real-*.sh`, `run-claude-real-*.sh`, `run-mock-ui.sh`, `run-mock-sixty-ui.sh`. 0.1.0용 옛 설정 스크립트 `enable_agy_statusline.py`, `scripts/enable_claude_statusline.py`, `scripts/check_claude_statusline.py`(현재는 `Tokenly --connect`).
