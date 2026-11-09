@@ -4,7 +4,13 @@ import SwiftUI
 
 /// Started by `TokenlyMain` (the process entry point) when no command-line mode was requested.
 struct TokenlyApp: App {
+#if TOKENLY_POPOVER_FIXTURE
+    @StateObject private var store = UsageStore(provider: PopoverFixtureUsageProvider())
+#elseif TOKENLY_CLAUDE_DEV
+    @StateObject private var store = UsageStore(provider: ClaudeDevelopmentConfiguration.DisabledCodexProvider())
+#else
     @StateObject private var store = UsageStore(provider: CodexUsageProvider())
+#endif
     @StateObject private var loginItem = LoginItemManager()
     @StateObject private var displaySettings: ProviderDisplaySettings
     @StateObject private var externalStore: ExternalProviderStore
@@ -19,10 +25,39 @@ struct TokenlyApp: App {
     private let quitMenu = MenuBarQuitMenu()
 
     init() {
+#if TOKENLY_POPOVER_FIXTURE
+        let display = ProviderDisplaySettings(defaultCodexVisible: false, defaultClaudeVisible: false)
+#elseif TOKENLY_CLAUDE_DEV
+        let display = ProviderDisplaySettings(defaultCodexVisible: false, defaultClaudeVisible: true)
+#else
         let display = ProviderDisplaySettings()
+#endif
         _displaySettings = StateObject(wrappedValue: display)
         appearanceApplier = AppAppearanceApplier(settings: display)
+#if TOKENLY_POPOVER_FIXTURE
+        _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display, providers: [:]))
+#elseif TOKENLY_CLAUDE_DEV
+        let claudeInterval = ClaudeDevelopmentConfiguration.refreshInterval(
+            selected: display.claudeRefreshSeconds, bundleID: Bundle.main.bundleIdentifier,
+            environment: ProcessInfo.processInfo.environment)
+        _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display,
+            automaticTickInterval: claudeInterval, providers: [
+            .claude: ClaudeDevelopmentConfiguration.makeProvider(refreshInterval: claudeInterval),
+            .antigravity: AGYCombinedProvider(),
+            .openAIAPI: OpenAIAPIUsageProvider()
+        ]))
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+        let claudeProvider: any ExternalUsageProvider = ClaudeProductConfiguration.makeProvider()
+            ?? ClaudeSubscriptionProvider()
+        _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display,
+            automaticTickInterval: ClaudeProductConfiguration.successInterval, providers: [
+            .claude: claudeProvider,
+            .antigravity: AGYCombinedProvider(),
+            .openAIAPI: OpenAIAPIUsageProvider()
+        ]))
+#else
         _externalStore = StateObject(wrappedValue: ExternalProviderStore(displaySettings: display))
+#endif
         _systemWidgets = StateObject(wrappedValue: SystemWidgetController(store: SystemMonitorStore(),
                                                                           processTop: ProcessTopStore()))
     }
@@ -31,7 +66,7 @@ struct TokenlyApp: App {
         MenuBarExtra {
             UsageMenuView(store: store, externalStore: externalStore,
                           displaySettings: displaySettings, settingsWindow: settingsWindow)
-                .onAppear { store.start(); externalStore.start() }
+                .onAppear { store.start(); store.refreshIfStale(); externalStore.start() }
         } label: {
             let label = MenuBarPresentation.text(style: displaySettings.menuBarStyle,
                                                  snapshot: store.snapshot,
@@ -47,7 +82,22 @@ struct TokenlyApp: App {
                 Text(label)
                     .monospacedDigit()
                     .accessibilityLabel("Tokenly, \(label)")
-                    .onAppear { store.start(); quitMenu.install() }
+                    .onAppear {
+                        store.start()
+#if TOKENLY_CLAUDE_DEV
+                        if displaySettings.showsAGY ||
+                            (ClaudeDevelopmentConfiguration.isEnabled && displaySettings.showsClaude) {
+                            externalStore.start()
+                        }
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+                        if displaySettings.showsAGY || displaySettings.showsClaude {
+                            externalStore.start()
+                        }
+#else
+                        if displaySettings.showsAGY { externalStore.start() }
+#endif
+                        quitMenu.install()
+                    }
             }
         }
         .menuBarExtraStyle(.window)
@@ -68,6 +118,13 @@ struct TokenlyApp: App {
         }
     }
 }
+
+#if TOKENLY_POPOVER_FIXTURE
+private struct PopoverFixtureUsageProvider: UsageProvider {
+    let name = "Popover fixture"
+    func fetch() async throws -> UsageSnapshot { throw UsageProviderError.cliUnavailable }
+}
+#endif
 
 /// SwiftUI's window-style MenuBarExtra owns its status item and offers no right-click menu API.
 /// A local right-button monitor handles only this app's status-bar windows, before SwiftUI can open a popover.

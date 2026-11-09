@@ -81,24 +81,76 @@ struct TokenlySettingsView: View {
                 .font(.caption).foregroundStyle(.secondary)
             Divider()
             Text("Google Antigravity CLI").font(.subheadline.weight(.semibold))
-            Text("CLI 상태줄 수신 파일을 읽습니다. IDE·Gemini API 사용량과 다릅니다.")
+            Text("공식 CLI 직접 조회와 기존 상태줄 수신을 함께 사용합니다. IDE·Gemini API 사용량과 다릅니다.")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Toggle("AGY를 팝오버에 표시", isOn: $displaySettings.showsAGY)
-                    .disabled(!form.agyFeedExists)
+                    .onChange(of: displaySettings.showsAGY) { _, enabled in
+                        if enabled {
+                            externalStore.start()
+                            _ = externalStore.refresh(.antigravity)
+                        }
+                    }
                 Button("연결 확인") {
                     form.agyFeedExists = AGYStatusLineProvider().hasFeed
                     if form.agyFeedExists { _ = externalStore.refresh(.antigravity) }
                 }
             }
+#if TOKENLY_CLAUDE_DEV
+            Text("개발 검증 앱에서는 기존 AGY 연결 설정을 변경하지 않습니다.")
+                .font(.caption).foregroundStyle(.secondary)
+#else
             connectCommandButton(.agy)
+#endif
             externalStatus(.antigravity)
             Divider()
             Text("Claude Code · 구독 한도").font(.subheadline.weight(.semibold))
+#if TOKENLY_CLAUDE_DEV
+            if ClaudeDevelopmentConfiguration.isEnabled {
+                Text(ClaudeDevelopmentConfiguration.isMock
+                     ? "가상 데이터 검증 앱: 실제 Claude 계정에 요청하지 않습니다."
+                     : "개발 검증 앱: SDK 조회와 기존 상태줄 수신을 함께 사용합니다. 실계정 자동 조회는 별도 승인 후 실행하세요.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("공식 상태줄의 5시간·7일 한도만 사용합니다. 설정 연결과 실제 계정 수신은 별도 확인이 필요합니다.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if Bundle.main.bundleIdentifier == ClaudeDevelopmentConfiguration.portableBundleID {
+                Picker("SDK 조회 간격 · 실험", selection: $displaySettings.claudeRefreshSeconds) {
+                    Text("5분 · 기본").tag(300)
+                    Text("1분 · 최대 2회").tag(60)
+                }
+                .pickerStyle(.segmented)
+                Text("현재 실행 조건은 \(Int(externalStore.automaticTickInterval))초입니다. 변경 후 개발 앱을 재실행하세요. 실제 계정 1분 조회는 별도 승인과 실행 플래그가 필요합니다.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+            Text("Claude SDK로 1분 조건부 자동 조회합니다. 실행 환경이 없거나 조회에 실패하면 기존 상태줄 데이터를 사용합니다.")
+                .font(.caption).foregroundStyle(.secondary)
+#else
             Text("공식 상태줄의 5시간·7일 한도만 사용합니다. 설정 연결과 실제 계정 수신은 별도 확인이 필요합니다.")
                 .font(.caption).foregroundStyle(.secondary)
+#endif
             HStack {
+#if TOKENLY_CLAUDE_DEV
                 Toggle("Claude를 팝오버에 표시", isOn: $displaySettings.showsClaude)
+                    .onChange(of: displaySettings.showsClaude) { _, enabled in
+                        if enabled, ClaudeDevelopmentConfiguration.isEnabled {
+                            externalStore.start()
+                        }
+                    }
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+                Toggle("Claude를 팝오버에 표시", isOn: $displaySettings.showsClaude)
+                    .onChange(of: displaySettings.showsClaude) { _, enabled in
+                        if enabled {
+                            externalStore.start()
+                            _ = externalStore.refresh(.claude)
+                        }
+                    }
+#else
+                Toggle("Claude를 팝오버에 표시", isOn: $displaySettings.showsClaude)
+#endif
                 Button("수신 확인") {
                     form.claudeFeedExists = ClaudeSubscriptionProvider().hasFeed
                     _ = externalStore.refresh(.claude)
@@ -106,7 +158,12 @@ struct TokenlySettingsView: View {
             }
             Text(form.claudeFeedExists ? "상태줄 수신 파일 있음" : "상태줄 수신 파일 없음 · Claude Code 설정 필요")
                 .font(.caption).foregroundStyle(.secondary)
+#if TOKENLY_CLAUDE_DEV
+            Text("개발 검증 앱에서는 기존 Claude 연결 설정을 변경하지 않습니다.")
+                .font(.caption).foregroundStyle(.secondary)
+#else
             connectCommandButton(.claude)
+#endif
             externalStatus(.claude)
             Divider()
             Text("Gemini · 연동 검증 예정").font(.subheadline)
@@ -150,7 +207,7 @@ struct TokenlySettingsView: View {
             return usageStore.snapshot == nil ? "조회 실패" : "조회 실패 · 이전 데이터"
         }
         if let snapshot = usageStore.snapshot {
-            return "마지막 성공 \(CompactDateTime.string(for: snapshot.fetchedAt))"
+            return CompactDateTime.lastRefreshText(for: snapshot.fetchedAt)
         }
         return "조회 대기"
     }

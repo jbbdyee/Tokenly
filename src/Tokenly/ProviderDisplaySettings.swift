@@ -42,6 +42,9 @@ final class ProviderDisplaySettings: ObservableObject {
     static let claudeExpandedKey = "provider.claude.expandedInPopover"
     static let menuBarStyleKey = "menuBar.displayStyle"
     static let appearanceKey = "appearance.mode"
+#if TOKENLY_CLAUDE_DEV
+    static let claudeRefreshSecondsKey = "claude.sdkRefreshSeconds.experimental"
+#endif
 
     @Published var showsCodex: Bool {
         didSet { defaults.set(showsCodex, forKey: Self.codexVisibilityKey) }
@@ -70,14 +73,23 @@ final class ProviderDisplaySettings: ObservableObject {
     @Published var appearance: AppAppearance {
         didSet { defaults.set(appearance.rawValue, forKey: Self.appearanceKey) }
     }
+#if TOKENLY_CLAUDE_DEV
+    @Published var claudeRefreshSeconds: Int {
+        didSet {
+            guard claudeRefreshSeconds == 60 || claudeRefreshSeconds == 300 else { return }
+            defaults.set(claudeRefreshSeconds, forKey: Self.claudeRefreshSecondsKey)
+        }
+    }
+#endif
 
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard,
+         defaultCodexVisible: Bool = true, defaultClaudeVisible: Bool = false) {
         self.defaults = defaults
-        showsCodex = defaults.object(forKey: Self.codexVisibilityKey) as? Bool ?? true
+        showsCodex = defaults.object(forKey: Self.codexVisibilityKey) as? Bool ?? defaultCodexVisible
         showsAGY = defaults.bool(forKey: Self.agyVisibilityKey)
-        showsClaude = defaults.bool(forKey: Self.claudeVisibilityKey)
+        showsClaude = defaults.object(forKey: Self.claudeVisibilityKey) as? Bool ?? defaultClaudeVisible
         showsOpenAIAPI = defaults.bool(forKey: Self.openAIVisibilityKey)
         codexExpanded = defaults.object(forKey: Self.codexExpandedKey) as? Bool ?? true
         agyExpanded = defaults.object(forKey: Self.agyExpandedKey) as? Bool ?? false
@@ -90,6 +102,10 @@ final class ProviderDisplaySettings: ObservableObject {
             defaults.set(MenuBarDisplayStyle.numeric.rawValue, forKey: Self.menuBarStyleKey)
         }
         appearance = AppAppearance(rawValue: defaults.string(forKey: Self.appearanceKey) ?? "") ?? .system
+#if TOKENLY_CLAUDE_DEV
+        let savedClaudeInterval = defaults.integer(forKey: Self.claudeRefreshSecondsKey)
+        claudeRefreshSeconds = savedClaudeInterval == 60 ? 60 : 300
+#endif
     }
 
     var visibleSupportedProviders: [String] {

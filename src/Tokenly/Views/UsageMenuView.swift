@@ -2,23 +2,26 @@ import AppKit
 import SwiftUI
 
 struct UsageMenuView: View {
+    @State private var showsRefreshInfo = false
     @ObservedObject var store: UsageStore
     @ObservedObject var externalStore: ExternalProviderStore
     @ObservedObject var displaySettings: ProviderDisplaySettings
     let settingsWindow: SettingsWindowManager
     @Environment(\.openSettings) private var openSettings
     @Environment(\.colorScheme) private var colorScheme
+    /// Whether the popover window is on screen; the low-state sparkle animates only while it is.
+    @State private var isOnScreen = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Tokenly").font(.headline)
                 Spacer()
-                Button { store.refresh(); externalStore.refreshSelected() } label: {
+                Button { store.refresh(); externalStore.refreshSelected(force: true) } label: {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("Codex는 새로 조회하고 AGY·Claude는 로컬 상태줄 파일을 다시 읽습니다")
+                .help(UsagePopoverCopy.refreshHelp)
                 .accessibilityLabel("모든 서비스 새로고침")
                 Button { settingsWindow.show(openSettings: openSettings.callAsFunction) } label: {
                     Image(systemName: "gearshape")
@@ -40,13 +43,75 @@ struct UsageMenuView: View {
 
             Divider()
             HStack {
-                Text("5분마다 갱신 · 상태줄은 로컬 재읽기").font(.caption2).foregroundStyle(.secondary)
+                Text(UsagePopoverCopy.footer)
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button { showsRefreshInfo.toggle() } label: {
+                    Image(systemName: "info.circle")
+                }
+                .buttonStyle(.borderless)
+                .help("갱신 방식 안내")
+                .accessibilityLabel("갱신 방식 안내")
+                .popover(isPresented: $showsRefreshInfo) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("갱신 방식").font(.headline)
+                        Text("Codex는 1분 조건, AGY는 5분 조건으로 자동 조회합니다.")
+#if TOKENLY_CLAUDE_DEV
+                    if ClaudeDevelopmentConfiguration.isEnabled {
+                        Text(ClaudeDevelopmentConfiguration.isMock
+                             ? "가상 데이터 검증: 실제 Claude 계정 조회가 아닙니다. SDK 조회와 상태줄 대체 표시를 시험합니다."
+                             : "Claude 개발 검증 앱: SDK 조회와 Claude Code 상태줄 수신을 구분해 표시합니다. SDK 조회 실패 시 이전 데이터나 상태줄 데이터를 사용할 수 있습니다.")
+                        Text(ClaudeDevelopmentConfiguration.isMock
+                             ? (ClaudeDevelopmentConfiguration.isMockSixty
+                                ? "가상 SDK 조회는 성공 후 60초에 한 번 더, 최대 2회 실행합니다. 실제 계정 조회가 아닙니다."
+                                : "가상 검증은 첫 조회만 실행합니다. 선택한 간격은 실제 SDK 조회가 아닙니다.")
+                             : "Claude SDK 조회 조건: \(Int(externalStore.automaticTickInterval))초 · 화면 표시는 별도로 갱신됩니다.")
+                    } else {
+                        Text("Claude는 Claude Code 사용 중 전달된 한도를 표시합니다. 앱에서 서버에 직접 조회하지 않습니다.")
+                    }
+#elseif TOKENLY_CLAUDE_PRODUCT_CANDIDATE
+                    Text("Claude는 성공한 SDK 조회 완료 후 최소 1분이 지나면 다시 조회합니다. 실패하거나 실행 환경이 없으면 기존 상태줄 데이터를 대신 표시합니다.")
+#else
+                    Text("Claude는 Claude Code 사용 중 전달된 한도를 표시합니다. 앱에서 서버에 직접 조회하지 않습니다.")
+#endif
+                        Text("AGY 직접 조회가 실패하면 상태줄 수신값을 대신 표시할 수 있습니다.")
+                        if let date = externalStore.agySourceTimes[.directCLI] {
+                            Text("AGY 직접 조회 마지막 성공: \(CompactDateTime.string(for: date))")
+                        }
+                        if let date = externalStore.agySourceTimes[.statusLine] {
+                            Text("AGY 상태줄 마지막 수신: \(CompactDateTime.string(for: date))")
+                        }
+                        Text("마지막 갱신은 직접 조회 성공 시각, 마지막 수신은 상태줄 데이터 수신 시각입니다. 다시 읽기만 해서는 시각이 바뀌지 않습니다.")
+                        Text("Claude는 마지막 수신 후 15분이 지나면 이전 데이터로 표시합니다. AGY도 오래된 대체 데이터는 최신 조회로 표시하지 않습니다.")
+                        if !agyInfoQuotas.isEmpty {
+                            Divider()
+                            Text("AGY 원본 한도 항목").font(.caption.weight(.semibold))
+                            ForEach(agyInfoQuotas) { quota in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(quota.name).font(.caption.weight(.medium))
+                                    Text("\(Int(quota.remainingPercent.rounded()))% 남음 · \(resetText(quota.resetsAt))")
+                                        .monospacedDigit()
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            Text("Gemini는 그룹 표시 이름입니다. 두 ID의 정확한 그룹 의미와 개별 모델 사용 가능 여부는 공식적으로 확인되지 않았습니다.")
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .font(.caption)
+                    .frame(width: 280, alignment: .leading)
+                    .padding(14)
+                }
                 Spacer()
                 Button("종료") { NSApp.terminate(nil) }.buttonStyle(.borderless)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
         }
+        .background(WindowVisibilityReporter(handle: nil) { visible in
+            Task { @MainActor in isOnScreen = visible }
+        })
+        .environment(\.remainingSparkleActive, isOnScreen)
         .frame(width: 340)
         .background(.regularMaterial)
     }
@@ -77,7 +142,7 @@ struct UsageMenuView: View {
                 }
                 if displaySettings.showsAGY {
                     if displaySettings.showsCodex || displaySettings.showsClaude { Divider() }
-                    section("Google Antigravity", summary: agySummary, status: agyStatus,
+                    section("Google Antigravity", summary: nil, status: agyStatus,
                             expanded: $displaySettings.agyExpanded) { agyDetails }
                 }
         }
@@ -85,7 +150,7 @@ struct UsageMenuView: View {
     }
 
     private func section<Details: View>(
-        _ title: String, summary: String, status: String?, expanded: Binding<Bool>,
+        _ title: String, summary: String?, status: String?, expanded: Binding<Bool>,
         @ViewBuilder details: () -> Details
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -93,11 +158,13 @@ struct UsageMenuView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                     Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
                     Spacer(minLength: 4)
-                    Text(summary)
-                        .font(.caption.weight(.medium))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    if let summary {
+                        Text(summary)
+                            .font(.caption.weight(.medium))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
                     Image(systemName: expanded.wrappedValue ? "chevron.up" : "chevron.down")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -105,7 +172,8 @@ struct UsageMenuView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(title), \(summary), \(expanded.wrappedValue ? "접기" : "펼치기")")
+            .accessibilityLabel([title, summary, expanded.wrappedValue ? "접기" : "펼치기"]
+                .compactMap { $0 }.joined(separator: ", "))
             if let status {
                 Text(status)
                     .font(.caption2)
@@ -142,7 +210,7 @@ struct UsageMenuView: View {
             if let snapshot = store.snapshot, !snapshot.windows.isEmpty {
                 ForEach(UsageWindowKind.allCases) { kind in codexWindow(kind, snapshot: snapshot) }
                 resetCreditsSection(snapshot.resetCredits)
-                Text("마지막 성공 \(CompactDateTime.string(for: snapshot.fetchedAt))")
+                Text(CompactDateTime.lastRefreshText(for: snapshot.fetchedAt))
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(CompactDateTime.fullString(for: snapshot.fetchedAt))
@@ -179,8 +247,7 @@ struct UsageMenuView: View {
                 Text(kind.title).font(.caption.weight(.medium))
                 Spacer()
                 if let window = snapshot.window(kind) {
-                    Text("\(Int(window.remainingPercent.rounded()))% 남음")
-                        .font(.caption.weight(.semibold)).monospacedDigit()
+                    RemainingPercentLabel(percent: window.remainingPercent)
                 } else {
                     Text("데이터 없음").font(.caption).foregroundStyle(.secondary)
                 }
@@ -188,24 +255,14 @@ struct UsageMenuView: View {
             if let window = snapshot.window(kind) {
                 ProgressView(value: window.remainingPercent, total: 100)
                     .tint(color(for: window.remainingLevel))
-                    .healthyGradientFill(percent: window.remainingPercent, level: window.remainingLevel, dark: colorScheme == .dark)
+                    .remainingLevelFill(percent: window.remainingPercent, level: window.remainingLevel, dark: colorScheme == .dark)
                     .accessibilityLabel("\(kind.title) 남은 한도")
-                    .accessibilityValue("\(String(format: "%.1f", window.remainingPercent))퍼센트")
+                    .accessibilityValue(RemainingLevelCopy.accessibilityValue(window.remainingPercent, decimals: 1))
                 Text("사용 \(String(format: "%.1f%%", window.usedPercent)) · \(resetText(window.resetsAt))")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(window.resetsAt.map(CompactDateTime.fullString) ?? "초기화 시각 미제공")
             }
-        }
-    }
-
-    private var agySummary: String {
-        switch externalStore.state(for: .antigravity) {
-        case .idle: return "조회 대기"
-        case .loading: return "조회 중"
-        case .success(let value): return summary(value)
-        case .failure(.staleData, let previous): return previous.map(summary) ?? "최신 데이터 없음"
-        case .failure(_, let previous): return previous.map(summary) ?? "조회 불가"
         }
     }
 
@@ -226,39 +283,67 @@ struct UsageMenuView: View {
     }
 
     private var claudeStatus: String? {
-        switch externalStore.state(for: .claude) {
-        case .failure(.claudeStaleData, _): return "상태줄 갱신 대기"
-        case .failure(_, let previous): return previous == nil ? "연결 또는 수신 오류" : "조회 실패 · 이전 데이터"
-        case .success(let value):
-            if case .quotas(let quotas) = value.metrics, quotas.contains(where: { $0.remainingPercent <= 0 }) {
-                return "일부 한도 소진"
-            }
-            return nil
-        default: return nil
-        }
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        UsagePopoverCopy.claudeStatus(externalStore.state(for: .claude), direct: externalStore.claudeDirectStatus)
+#else
+        UsagePopoverCopy.claudeStatus(externalStore.state(for: .claude))
+#endif
     }
 
     private var claudeDetails: some View {
         VStack(alignment: .leading, spacing: 9) {
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+            if let direct = externalStore.claudeDirectStatus,
+               let notice = UsagePopoverCopy.claudeDirectDetail(direct, manual: externalStore.claudeManualRetry) {
+                Text(notice).font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+#endif
             switch externalStore.state(for: .claude) {
-            case .idle: Text("수신 대기 중").font(.caption).foregroundStyle(.secondary)
-            case .loading: ProgressView("로컬 수신 파일 확인 중").controlSize(.small).font(.caption)
+            case .idle: Text(UsagePopoverCopy.claudeIdleDetail).font(.caption).foregroundStyle(.secondary)
+            case .loading: ProgressView(UsagePopoverCopy.claudeLoadingDetail).controlSize(.small).font(.caption)
             case .failure(let error, let previous):
-                Text(error.message).font(.caption).foregroundStyle(.orange)
+                Text(UsagePopoverCopy.claudeDetail(error)).font(.caption).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
                 if let previous {
                     claudeMetrics(previous.metrics)
-                    Text("이전 데이터 · 마지막 수신 \(CompactDateTime.string(for: previous.fetchedAt))")
+                    Text("이전 데이터 · \(claudeReceipt(previous))")
                         .font(.caption2).foregroundStyle(.secondary)
                         .help(CompactDateTime.fullString(for: previous.fetchedAt))
                 }
             case .success(let value):
                 claudeMetrics(value.metrics)
-                Text("마지막 수신 \(CompactDateTime.string(for: value.fetchedAt))")
+                Text(claudeReceipt(value))
                     .font(.caption2).foregroundStyle(.secondary)
                     .help(CompactDateTime.fullString(for: value.fetchedAt))
             }
         }
+    }
+
+    private func claudeReceipt(_ snapshot: ExternalUsageSnapshot) -> String {
+#if TOKENLY_CLAUDE_DEV
+        if ClaudeDevelopmentConfiguration.isEnabled,
+           let direct = snapshot.sourceTimes[.directCLI] {
+            let prefix = ClaudeDevelopmentConfiguration.isMock ? "가상 SDK 조회" : "SDK 조회"
+            var pieces = ["\(prefix) 마지막 성공 \(CompactDateTime.string(for: direct))"]
+            if let feed = snapshot.sourceTimes[.statusLine] {
+                pieces.append("상태줄 마지막 수신 \(CompactDateTime.string(for: feed))")
+            }
+            return pieces.joined(separator: " · ")
+        }
+#endif
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        if let direct = snapshot.sourceTimes[.directCLI] {
+            let receipt = "마지막 갱신 \(CompactDateTime.string(for: direct))"
+            if let feed = snapshot.sourceTimes[.statusLine] {
+                return receipt + " · 마지막 수신 \(CompactDateTime.string(for: feed))"
+            }
+            return receipt
+        }
+        return "상태줄 데이터 · 마지막 수신 \(CompactDateTime.string(for: snapshot.fetchedAt))"
+#else
+        return "마지막 수신 \(CompactDateTime.string(for: snapshot.fetchedAt))"
+#endif
     }
 
     @ViewBuilder
@@ -270,14 +355,14 @@ struct UsageMenuView: View {
                         HStack {
                             Text(quota.name).font(.caption.weight(.medium))
                             Spacer()
-                            Text("\(Int(quota.remainingPercent.rounded()))% 남음")
-                                .font(.caption.weight(.semibold)).monospacedDigit()
+                            RemainingPercentLabel(percent: quota.remainingPercent)
                         }
                         ProgressView(value: quota.remainingPercent, total: 100)
                             .tint(color(for: RemainingLevel(percent: quota.remainingPercent)))
-                            .healthyGradientFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
-                                                 dark: colorScheme == .dark)
+                            .remainingLevelFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
+                                                dark: colorScheme == .dark)
                             .accessibilityLabel("Claude \(quota.name) 남은 한도")
+                            .accessibilityValue(RemainingLevelCopy.accessibilityValue(quota.remainingPercent))
                         Text(resetText(quota.resetsAt))
                             .font(.caption2).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -288,42 +373,35 @@ struct UsageMenuView: View {
         }
     }
 
-    private func summary(_ value: ExternalUsageSnapshot) -> String {
-        guard case .quotas(let quotas) = value.metrics else { return "쿼터 데이터 없음" }
-        return AGYQuotaSummary.text(for: quotas)
+    private var agyInfoQuotas: [QuotaMetric] {
+        let state = externalStore.state(for: .antigravity)
+        let snapshot = state.snapshot ?? externalStore.settledState(for: .antigravity).snapshot
+        guard let snapshot, case .quotas(let quotas) = snapshot.metrics else { return [] }
+        return quotas.sorted { AGYPopoverPresentation.infoOrder($0.name) < AGYPopoverPresentation.infoOrder($1.name) }
     }
 
     private var agyStatus: String? {
-        switch externalStore.state(for: .antigravity) {
-        case .failure(.staleData, _): return "상태줄 갱신 대기"
-        case .failure(_, let previous): return previous == nil ? "연결 또는 조회 오류" : "조회 실패 · 이전 데이터"
-        case .success(let value):
-            if case .quotas(let quotas) = value.metrics, AGYQuotaSummary.hasExhaustedBucket(quotas) {
-                return "일부 버킷 소진"
-            }
-            return nil
-        default: return nil
-        }
+        UsagePopoverCopy.agyStatus(externalStore.state(for: .antigravity))
     }
 
     private var agyDetails: some View {
         VStack(alignment: .leading, spacing: 9) {
             switch externalStore.state(for: .antigravity) {
-            case .idle: Text("조회 대기 중").font(.caption).foregroundStyle(.secondary)
-            case .loading: ProgressView("조회 중").controlSize(.small).font(.caption)
+            case .idle: Text("데이터 없음").font(.caption).foregroundStyle(.secondary)
+            case .loading: ProgressView("갱신 중").controlSize(.small).font(.caption)
             case .failure(let error, let previous):
-                Text(error.message).font(.caption).foregroundStyle(.orange)
+                Text(UsagePopoverCopy.agyDetail(error)).font(.caption).foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
                 if let previous {
                     agyMetrics(previous.metrics)
-                    Text("이전 데이터 · 마지막 수신 \(CompactDateTime.string(for: previous.fetchedAt))")
+                    Text("이전 데이터 · \(UsagePopoverCopy.agyTimestamp(previous))")
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .help(CompactDateTime.fullString(for: previous.fetchedAt))
                 }
             case .success(let value):
                 agyMetrics(value.metrics)
-                Text("마지막 수신 \(CompactDateTime.string(for: value.fetchedAt))")
+                Text(UsagePopoverCopy.agyTimestamp(value))
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(CompactDateTime.fullString(for: value.fetchedAt))
@@ -334,15 +412,14 @@ struct UsageMenuView: View {
     @ViewBuilder
     private func agyMetrics(_ metrics: ExternalMetrics) -> some View {
         if case .quotas(let quotas) = metrics {
-            if quotas.count > 2 && !needsBoundedProviderScroll {
-                ScrollView { quotaRows(quotas) }
-                    .frame(height: min(CGFloat(quotas.count) * 76, quotaScrollLimit))
-            } else { quotaRows(quotas) }
+            if let gemini = AGYPopoverPresentation.geminiQuota(in: quotas) {
+                quotaRows([gemini])
+            } else {
+                Text(AGYPopoverPresentation.missingGeminiMessage(for: quotas))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-    }
-
-    private var quotaScrollLimit: CGFloat {
-        max(120, min(230, (NSScreen.main?.visibleFrame.height ?? 700) - 430))
     }
 
     private func quotaRows(_ quotas: [QuotaMetric]) -> some View {
@@ -350,18 +427,18 @@ struct UsageMenuView: View {
             ForEach(quotas) { quota in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text(AGYQuotaLabel.displayName(for: quota.name))
+                        Text("Gemini")
                             .font(.caption.weight(.medium))
                             .lineLimit(1).truncationMode(.middle)
                         Spacer(minLength: 8)
-                        Text("\(Int(quota.remainingPercent.rounded()))% 남음")
-                            .font(.caption.weight(.semibold)).monospacedDigit()
+                        RemainingPercentLabel(percent: quota.remainingPercent)
                     }
                     ProgressView(value: quota.remainingPercent, total: 100)
                         .tint(color(for: RemainingLevel(percent: quota.remainingPercent)))
-                        .healthyGradientFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
-                                             dark: colorScheme == .dark)
-                        .accessibilityLabel("\(quota.name) 남은 한도")
+                        .remainingLevelFill(percent: quota.remainingPercent, level: RemainingLevel(percent: quota.remainingPercent),
+                                            dark: colorScheme == .dark)
+                        .accessibilityLabel("Gemini 그룹 남은 한도")
+                        .accessibilityValue(RemainingLevelCopy.accessibilityValue(quota.remainingPercent))
                     Text(resetText(quota.resetsAt))
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -376,18 +453,208 @@ struct UsageMenuView: View {
         return "초기화 \(CompactDateTime.string(for: date))"
     }
 
-    /// Remaining-limit bar colour. Healthy uses RAM's mint (UI colour harmony, 2026-10-29; was system green; the
-    /// gradient is drawn over it), caution RAM's soft warning amber (was system orange), low keeps the system red.
+    /// Native tint under the drawn fill (`remainingLevelFill` paints over it). Healthy uses RAM's mint (UI colour
+    /// harmony, 2026-10-29); caution and low use the AI-only cream and pearl (v0.4.1), so RAM's amber is untouched.
     private func color(for level: RemainingLevel) -> Color {
+        let dark = colorScheme == .dark
         switch level {
-        case .healthy: HarmonyPalette.mint(dark: colorScheme == .dark).color
-        case .caution: HarmonyPalette.amber(dark: colorScheme == .dark).color
-        case .low: .red
+        case .healthy: return HarmonyPalette.mint(dark: dark).color
+        case .caution: return AIWarningPalette.cream(dark: dark).color
+        case .low: return AIWarningPalette.pearl[0].color
+        }
+    }
+}
+
+enum UsagePopoverCopy {
+    static var claudeIdleDetail: String {
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        return "Claude SDK 자동 조회를 기다립니다. 실행 환경이 없으면 Claude Code 사용 시 갱신됩니다."
+#else
+        return "Claude Code 사용 시 갱신됩니다."
+#endif
+    }
+
+    static var claudeLoadingDetail: String {
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        return "Claude 사용량 확인 중"
+#else
+        return "로컬 수신 파일 확인 중"
+#endif
+    }
+
+    static var footer: String {
+#if TOKENLY_CLAUDE_DEV
+        if ClaudeDevelopmentConfiguration.isEnabled {
+            return ClaudeDevelopmentConfiguration.isMock
+                ? "가상 Claude 데이터 · 실제 계정 조회 없음"
+                : "Codex · AGY 자동 갱신 | Claude SDK 개발 검증 중"
+        }
+#endif
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        return "Codex · AGY · Claude 자동 갱신"
+#else
+        return "Codex · AGY 자동 갱신 | Claude 사용 중 갱신"
+#endif
+    }
+
+    static var refreshHelp: String {
+#if TOKENLY_CLAUDE_DEV
+        if ClaudeDevelopmentConfiguration.isEnabled {
+            return "Codex·AGY를 조회하고 Claude 개발용 SDK 조회 조건을 확인합니다"
+        }
+#endif
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        return "Codex·AGY·Claude의 조회 조건을 확인합니다"
+#else
+        return "Codex·AGY는 공식 CLI로 조회하고 Claude는 로컬 상태줄 파일을 다시 읽습니다"
+#endif
+    }
+
+    /// A stopped or waiting direct route outranks the data label, so statusLine data never hides it.
+    static func claudeStatus(_ state: ExternalLoadState, direct: ClaudeDirectRefreshStatus?) -> String? {
+        if let direct, direct.isInterrupted {
+            switch direct.phase {
+            case .paused(.authenticationRequired): return "직접 조회 중지 · 로그인 필요"
+            case .paused(.permissionDenied): return "직접 조회 중지 · 권한 확인 필요"
+            case .paused(.incompatibleSDK): return "직접 조회 중지 · 업데이트 필요"
+            case .paused(.unexpectedModelActivity): return "직접 조회 안전 정지"
+            case .paused: return "직접 조회 중지"
+            case .rateLimited: return "요청 제한 · 직접 조회 대기"
+            case .retryWaiting: return "직접 조회 재시도 대기"
+            case .ready, .inFlight: break
+            }
+        }
+        return claudeStatus(state)
+    }
+
+    /// Explains a direct-route interruption and the manual refresh outcome; nil while the route is healthy.
+    static func claudeDirectDetail(_ status: ClaudeDirectRefreshStatus,
+                                   manual: ClaudeManualRetryDecision? = nil) -> String? {
+        var lines: [String] = []
+        switch status.phase {
+        case .ready, .inFlight: break
+        case .retryWaiting(let until):
+            lines.append("직접 조회가 일시적으로 실패했습니다. \(CompactDateTime.string(for: until)) 이후 자동으로 다시 시도하며, 새로고침으로 바로 재시도할 수 있습니다.")
+        case .rateLimited(let until):
+            lines.append("Claude 요청 제한으로 \(CompactDateTime.string(for: until))까지 직접 조회를 쉽니다.")
+        case .paused(.authenticationRequired):
+            lines.append("Claude CLI 로그인이 필요합니다. 터미널에서 claude에 다시 로그인한 뒤 새로고침하세요.")
+        case .paused(.permissionDenied):
+            lines.append("Claude 계정의 사용량 조회 권한을 확인한 뒤 새로고침하세요.")
+        case .paused(.incompatibleSDK):
+            lines.append("Claude SDK 응답 형식이 맞지 않아 직접 조회를 멈췄습니다. Tokenly 업데이트가 필요할 수 있습니다.")
+        case .paused(.unexpectedModelActivity):
+            lines.append("예상하지 않은 모델 활동이 감지되어 안전을 위해 직접 조회를 멈췄습니다. 새로고침으로는 다시 시작하지 않습니다.")
+        case .paused(.checkpointUnavailable):
+            lines.append("조회 기록 파일을 사용할 수 없어 직접 조회를 멈췄습니다.")
+        case .paused:
+            lines.append("직접 조회가 반복해서 실패해 멈췄습니다. 새로고침으로 다시 시도할 수 있습니다.")
+        }
+        if case .refused(let refusal) = manual {
+            switch refusal {
+            case .inFlight: lines.append("이미 조회 중입니다.")
+            case .tooSoon(let until): lines.append("다시 시도는 \(CompactDateTime.string(for: until)) 이후에 가능합니다.")
+            case .rateLimited, .safetyStop, .limitedTrial, .checkpointUnavailable: break
+            }
+        }
+        guard !lines.isEmpty else { return nil }
+        if status.isInterrupted {
+            lines.append(status.lastSuccessAt.map { "마지막 정상 직접 조회 \(CompactDateTime.string(for: $0))" }
+                         ?? "정상 직접 조회 기록 없음")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    static func claudeStatus(_ state: ExternalLoadState) -> String? {
+#if TOKENLY_CLAUDE_PRODUCT_CANDIDATE && !TOKENLY_CLAUDE_DEV
+        switch state {
+        case .idle: return "자동 갱신 대기"
+        case .loading: return "갱신 중"
+        case .failure(_, let previous): return previous == nil ? "데이터 없음" : "이전 데이터 · 갱신 지연"
+        case .success(let value):
+            if case .quotas(let quotas) = value.metrics, quotas.contains(where: { $0.remainingPercent <= 0 }) {
+                return "일부 한도 소진"
+            }
+            return value.source == .directCLI ? "자동 갱신" : "상태줄 데이터"
+        }
+#else
+        switch state {
+        case .idle: return "사용 중 갱신"
+        case .loading: return "갱신 중"
+        case .failure(.claudeStaleData, let previous):
+            return previous == nil ? "사용 중 갱신" : "이전 데이터 · 사용 중 갱신"
+        case .failure(.setupRequired, let previous), .failure(.noData, let previous):
+            return previous == nil ? "사용 중 갱신" : "이전 데이터 · 사용 중 갱신"
+        case .failure(_, let previous): return previous == nil ? "데이터 없음" : "이전 데이터 · 사용 중 갱신"
+        case .success(let value):
+            if case .quotas(let quotas) = value.metrics, quotas.contains(where: { $0.remainingPercent <= 0 }) {
+                return "일부 한도 소진"
+            }
+            return nil
+        }
+#endif
+    }
+
+    static func claudeDetail(_ error: ExternalProviderError) -> String {
+        switch error {
+        case .claudeStaleData, .noData: return "Claude Code 사용 시 갱신됩니다."
+        case .setupRequired: return "Claude Code 연결 설정을 확인하세요."
+        default: return error.message
+        }
+    }
+
+    static func agyStatus(_ state: ExternalLoadState) -> String {
+        switch state {
+        case .idle: return "데이터 없음"
+        case .loading: return "갱신 중"
+        case .failure(_, let previous): return previous == nil ? "데이터 없음" : "갱신 지연"
+        case .success(let value):
+            if case .quotas(let quotas) = value.metrics, AGYQuotaSummary.hasExhaustedBucket(quotas) {
+                return "일부 한도 소진"
+            }
+            return value.source == .directCLI ? "자동 갱신" : "갱신 지연"
+        }
+    }
+
+    static func agyDetail(_ error: ExternalProviderError) -> String {
+        switch error {
+        case .staleData: return "최근 갱신이 지연되고 있습니다."
+        case .noData: return "표시할 사용량 데이터가 없습니다."
+        default: return error.message
+        }
+    }
+
+    static func agyTimestamp(_ snapshot: ExternalUsageSnapshot) -> String {
+        let label = snapshot.source == .directCLI ? "마지막 갱신" : "마지막 수신"
+        return "\(label) · \(CompactDateTime.string(for: snapshot.fetchedAt))"
+    }
+}
+
+enum AGYPopoverPresentation {
+    static func geminiQuota(in quotas: [QuotaMetric]) -> QuotaMetric? {
+        quotas.first { $0.name == "gemini-weekly" }
+    }
+
+    static func missingGeminiMessage(for quotas: [QuotaMetric]) -> String {
+        quotas.isEmpty ? "데이터 없음" : "Gemini 한도 정보 없음 · 다른 항목은 정보(i)에서 확인"
+    }
+
+    static func infoOrder(_ name: String) -> Int {
+        switch name {
+        case "gemini-weekly": return 0
+        case "3p-weekly": return 1
+        default: return 2
         }
     }
 }
 
 enum CompactDateTime {
+    /// A successful local retrieval time, not the service's internal accounting time.
+    static func lastRefreshText(for date: Date, now: Date = Date(),
+                                locale: Locale = .current, timeZone: TimeZone = .current) -> String {
+        "마지막 갱신 시간 \(string(for: date, now: now, locale: locale, timeZone: timeZone))"
+    }
+
     static func string(for date: Date, now: Date = Date(),
                        locale: Locale = .current, timeZone: TimeZone = .current) -> String {
         var calendar = Calendar.current
@@ -464,26 +731,322 @@ enum ResetCreditText {
     }
 }
 
-/// The healthy remaining-limit bars get RAM's mint → blue → lavender as a fill (UI colour harmony, 2026-10-29).
-/// The native linear `ProgressView` takes one tint colour only, so the bar itself is kept (size, track, rounding,
-/// position and accessibility unchanged) and the gradient is drawn over its fill: a capsule of the track's height,
-/// vertically centred, whose width is the remaining fraction, starting at the leading edge like the native fill.
-/// Caution uses HarmonyPalette.amber; low retains the system red tint.
+/// Every AI remaining-limit bar gets a drawn fill over the native bar (UI colour harmony, 2026-10-29; v0.4.1). The
+/// native linear `ProgressView` takes one tint colour only, so the bar itself is kept (size, track, rounding, position
+/// and accessibility unchanged) and the fill is drawn over it: a capsule of the track's height, vertically centred,
+/// whose width is the remaining fraction, starting at the leading edge like the native fill.
+/// Healthy: RAM's mint → blue → lavender. Caution: cream yellow. Low: pearl white with sparkles (`PearlSparkles`).
+/// In light mode the cream and pearl fills get a 1 pt edge so they do not disappear into the light track.
 extension View {
-    func healthyGradientFill(percent: Double, level: RemainingLevel, dark: Bool) -> some View {
+    func remainingLevelFill(percent: Double, level: RemainingLevel, dark: Bool) -> some View {
         overlay(alignment: .leading) {
-            if level == .healthy {
-                GeometryReader { geometry in
-                    Capsule()
-                        .fill(LinearGradient(colors: HarmonyPalette.progressGradient(dark: dark), startPoint: .leading, endPoint: .trailing))
-                        .frame(width: geometry.size.width * HealthyGradientFill.fraction(percent),
-                               height: min(HealthyGradientFill.trackHeight, geometry.size.height))
-                        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
+            GeometryReader { geometry in
+                let width = geometry.size.width * HealthyGradientFill.fraction(percent)
+                let height = min(HealthyGradientFill.trackHeight, geometry.size.height)
+                ZStack(alignment: .leading) {
+                    if width > 0 {
+                        Capsule()
+                            .fill(AIWarningPalette.fill(level, dark: dark))
+                            .overlay(Capsule().strokeBorder(AIWarningPalette.edge(level, dark: dark), lineWidth: 1))
+                            .shadow(color: AIWarningPalette.glow(level, dark: dark), radius: 3)
+                            .frame(width: width, height: height)
+                    }
+                    if level == .low {
+                        PearlSparkles(fillWidth: width, trackHeight: height, dark: dark)
+                    }
                 }
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+/// AI remaining-limit warning colours (v0.4.1, design B "반짝이는 펄"). Separate from `HarmonyPalette.amber`, which the
+/// RAM pressure badge shares, so the system monitor's warning colours do not change. Thresholds stay in `RemainingLevel`.
+enum AIWarningPalette {
+    private static func hex(_ value: UInt32) -> AuroraPalette.RGB { HarmonyPalette.hex(value) }
+    /// Caution cream yellow: #FFF0C4 dark, #F6E2A6 light; the fill fades down from #FFFAF0 at the top.
+    static func cream(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xFFF0C4 : 0xF6E2A6) }
+    static let creamHighlight = hex(0xFFFAF0)
+    /// Low pearl white, left to right: white → faint lavender → faint aqua → warm white.
+    static let pearl = [hex(0xFFFFFF), hex(0xF5EFFF), hex(0xEEF8FB), hex(0xFFFDF5)]
+    /// Star and "부족" ink: near-white lavender in dark mode, #5F5490 (about 7:1 on the light popover) in light mode.
+    static func pearlInk(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xF6F2FF : 0x5F5490) }
+    /// Popover sparkles: white in dark mode, #7D6CC4 in light mode so they show against the light track.
+    static func spark(dark: Bool) -> AuroraPalette.RGB { hex(dark ? 0xFFFFFF : 0x7D6CC4) }
+    /// The pearl sheen: a lavender and an aqua band.
+    static func sheen(dark: Bool) -> [Color] {
+        dark ? [hex(0xC4B2FF).color.opacity(0.85), hex(0xAAE8F6).color.opacity(0.8)]
+             : [hex(0xBAA8FF).color.opacity(0.75), hex(0xA0DEEC).color.opacity(0.7)]
+    }
+
+    static func fill(_ level: RemainingLevel, dark: Bool) -> LinearGradient {
+        switch level {
+        case .healthy:
+            return LinearGradient(colors: HarmonyPalette.progressGradient(dark: dark), startPoint: .leading, endPoint: .trailing)
+        case .caution:
+            return LinearGradient(stops: [.init(color: creamHighlight.color, location: 0),
+                                          .init(color: cream(dark: dark).color, location: 0.7)],
+                                  startPoint: .top, endPoint: .bottom)
+        case .low:
+            return LinearGradient(stops: zip(pearl, [0, 0.38, 0.7, 1]).map { .init(color: $0.0.color, location: $0.1) },
+                                  startPoint: .leading, endPoint: .trailing)
+        }
+    }
+
+    /// 1 pt edge in light mode only: gold on cream, lavender grey on pearl. Healthy keeps no edge.
+    static func edge(_ level: RemainingLevel, dark: Bool) -> Color {
+        guard !dark else { return .clear }
+        switch level {
+        case .healthy: return .clear
+        case .caution: return hex(0x966C18).color.opacity(0.6)
+        case .low: return hex(0x5C508C).color.opacity(0.55)
+        }
+    }
+
+    /// A soft glow lifts the pearl off the dark track; nothing elsewhere.
+    static func glow(_ level: RemainingLevel, dark: Bool) -> Color {
+        dark && level == .low ? hex(0xEBE1FF).color.opacity(0.55) : .clear
+    }
+}
+
+private struct RemainingSparkleActiveKey: EnvironmentKey { static let defaultValue = false }
+
+extension EnvironmentValues {
+    /// True while the AI popover is on screen. Off by default, so a sparkle never animates where no one sees it.
+    var remainingSparkleActive: Bool {
+        get { self[RemainingSparkleActiveKey.self] }
+        set { self[RemainingSparkleActiveKey.self] = newValue }
+    }
+}
+
+/// A four-point star, the same outline as the menu bar's low-state star.
+struct SparkleShape: Shape {
+    func path(in rect: CGRect) -> Path { Path(MenuBarNumericImage.starPath(in: rect)) }
+}
+
+/// Low-state decoration at the end of a pearl fill: three small stars and, every cycle, one sheen across the fill.
+/// It animates only while the popover is on screen and Reduce Motion is off. With Reduce Motion, or off screen, the
+/// stars are drawn still at `restingOpacity` and there is no sheen.
+///
+/// The motion is Core Animation keyframes on layers (`SparkleLayerView`), set up once and repeated by Core Animation,
+/// so the app does no per-frame work. The first v0.4.1 build drove the same sequence with SwiftUI state changes and
+/// `withAnimation`; in the Release fixture that cost 5.7–6.1 % CPU on average while visible, against 0.5–0.7 % now
+/// (Doc/IMP-PLAN.md). The look and timing are unchanged (`PearlSparkleTimeline`).
+struct PearlSparkles: View {
+    let fillWidth: CGFloat
+    let trackHeight: CGFloat
+    let dark: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.remainingSparkleActive) private var onScreen
+
+    /// Star centre offsets from the fill's end on the track's midline, and box sizes, as in the approved preview.
+    static let stars: [(dx: CGFloat, dy: CGFloat, size: CGFloat)] = [(-1.5, -7.5, 7), (5.5, 4.5, 5), (-11, 6, 4)]
+    static let restingOpacity = 0.85
+
+    var body: some View {
+        GeometryReader { geometry in
+            PearlSparkleLayers(fillWidth: fillWidth, trackHeight: trackHeight, dark: dark,
+                               animates: onScreen && !reduceMotion, size: geometry.size)
+        }
+    }
+}
+
+/// The approved sequence (design B): the sheen crosses the fill in 1.4 s (ease in-out); star i lights 0.3 + 1.2 i s
+/// into the cycle over 0.45 s (ease-out) and fades over 0.6 s (ease-in); the next cycle starts 3.2 s after the last
+/// star begins to fade, so a cycle is 6.35 s and about half of it is still.
+enum PearlSparkleTimeline {
+    static let sweep = 1.4
+    static let lightUp = 0.45
+    static let fade = 0.6
+    static let rest = 3.2
+    static func star(_ index: Int) -> (on: Double, peak: Double, off: Double) {
+        let on = 0.3 + 1.2 * Double(index)
+        return (on, on + lightUp, on + lightUp + fade)
+    }
+    static let cycle = star(PearlSparkles.stars.count - 1).peak + rest
+}
+
+struct PearlSparkleLayers: NSViewRepresentable {
+    let fillWidth: CGFloat
+    let trackHeight: CGFloat
+    let dark: Bool
+    let animates: Bool
+    let size: CGSize
+
+    func makeNSView(context: Context) -> SparkleLayerView { SparkleLayerView() }
+
+    func updateNSView(_ view: SparkleLayerView, context: Context) {
+        view.configure(fillWidth: fillWidth, trackHeight: trackHeight, dark: dark, animates: animates, size: size)
+    }
+}
+
+/// Layers for `PearlSparkles`: a capsule-clipped gradient for the sheen and three star shape layers. Geometry and
+/// colours change only when their inputs do; the animations are added once when animation starts and removed when it
+/// stops, so nothing runs while the popover is closed.
+final class SparkleLayerView: NSView {
+    let sheenClip = CALayer()
+    let sheen = CAGradientLayer()
+    let stars = PearlSparkles.stars.map { _ in CAShapeLayer() }
+    private let sheenMask = CAShapeLayer()
+    private(set) var isAnimating = false
+    private var geometryKey = ""
+
+    override var isFlipped: Bool { true }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.masksToBounds = false
+        sheenClip.mask = sheenMask
+        sheenClip.masksToBounds = true
+        sheenClip.isHidden = true
+        sheenClip.addSublayer(sheen)
+        layer?.addSublayer(sheenClip)
+        stars.forEach { layer?.addSublayer($0) }
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        let scale = window?.backingScaleFactor ?? 2
+        ([sheenClip, sheenMask, sheen] + stars).forEach { $0.contentsScale = scale }
+    }
+
+    func configure(fillWidth: CGFloat, trackHeight: CGFloat, dark: Bool, animates: Bool, size: CGSize) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        let key = "\(fillWidth)|\(trackHeight)|\(dark)|\(size.width)|\(size.height)"
+        if key != geometryKey {
+            geometryKey = key
+            layout(fillWidth: fillWidth, trackHeight: trackHeight, dark: dark, size: size)
+            if isAnimating { stopAnimating() }
+        }
+        if animates && fillWidth > 0 {
+            if !isAnimating { startAnimating(fillWidth: fillWidth) }
+        } else {
+            if isAnimating { stopAnimating() }
+            stars.forEach { $0.opacity = Float(PearlSparkles.restingOpacity) }
+            sheenClip.isHidden = true
+        }
+    }
+
+    private func layout(fillWidth: CGFloat, trackHeight: CGFloat, dark: Bool, size: CGSize) {
+        let midY = size.height / 2
+        sheenClip.frame = CGRect(x: 0, y: midY - trackHeight / 2, width: fillWidth, height: trackHeight)
+        sheenMask.path = CGPath(roundedRect: sheenClip.bounds, cornerWidth: min(trackHeight, fillWidth) / 2,
+                                cornerHeight: min(trackHeight, fillWidth) / 2, transform: nil)
+        sheen.frame = CGRect(x: -fillWidth * 0.6, y: 0, width: fillWidth * 0.6, height: trackHeight)
+        sheen.startPoint = CGPoint(x: 0, y: 0.5)
+        sheen.endPoint = CGPoint(x: 1, y: 0.5)
+        sheen.colors = Self.sheenColors(dark: dark)
+        let spark = NSColor(AIWarningPalette.spark(dark: dark).color).cgColor
+        for (layer, star) in zip(stars, PearlSparkles.stars) {
+            let x = min(max(fillWidth + star.dx, star.size / 2), size.width - star.size / 2)
+            layer.bounds = CGRect(x: 0, y: 0, width: star.size, height: star.size)
+            layer.position = CGPoint(x: x, y: midY + star.dy)
+            layer.path = MenuBarNumericImage.starPath(in: layer.bounds)
+            layer.fillColor = spark
+            layer.shadowColor = spark
+            layer.shadowOpacity = 0.8
+            layer.shadowRadius = 0.75
+            layer.shadowOffset = .zero
+            layer.shadowPath = layer.path
+        }
+    }
+
+    /// Transparent ends in each band's own colour: `CGColor.clear` is transparent black and leaves a dark fringe.
+    static func sheenColors(dark: Bool) -> [CGColor] {
+        let bands = AIWarningPalette.sheen(dark: dark).map { NSColor($0).cgColor }
+        guard let first = bands.first?.copy(alpha: 0), let last = bands.last?.copy(alpha: 0) else { return bands }
+        return [first] + bands + [last]
+    }
+
+    private func startAnimating(fillWidth: CGFloat) {
+        isAnimating = true
+        sheenClip.isHidden = false
+        let cycle = PearlSparkleTimeline.cycle, begin = CACurrentMediaTime()
+        let sweep = CAKeyframeAnimation(keyPath: "position.x")
+        // From fully left of the fill to fully right (the gradient is 0.6 × the fill wide), then hold off-screen.
+        sweep.values = [-fillWidth * 0.3, fillWidth * 1.5, fillWidth * 1.5]
+        sweep.keyTimes = [0, NSNumber(value: PearlSparkleTimeline.sweep / cycle), 1]
+        sweep.timingFunctions = [CAMediaTimingFunction(name: .easeInEaseOut), CAMediaTimingFunction(name: .linear)]
+        sweep.duration = cycle
+        sweep.repeatCount = .infinity
+        sweep.beginTime = begin
+        sheen.add(sweep, forKey: "sweep")
+        let timing = [CAMediaTimingFunction(name: .linear), CAMediaTimingFunction(name: .easeOut),
+                      CAMediaTimingFunction(name: .easeIn), CAMediaTimingFunction(name: .linear)]
+        for (index, layer) in stars.enumerated() {
+            let t = PearlSparkleTimeline.star(index)
+            let keyTimes = [0, t.on, t.peak, t.off, cycle].map { NSNumber(value: $0 / cycle) }
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            fade.values = [0, 0, 1, 0, 0]
+            fade.keyTimes = keyTimes
+            fade.timingFunctions = timing
+            let grow = CAKeyframeAnimation(keyPath: "transform.scale")
+            grow.values = [0.5, 0.5, 1, 0.5, 0.5]
+            grow.keyTimes = keyTimes
+            grow.timingFunctions = timing
+            let twinkle = CAAnimationGroup()
+            twinkle.animations = [fade, grow]
+            twinkle.duration = cycle
+            twinkle.repeatCount = .infinity
+            twinkle.beginTime = begin
+            layer.opacity = 0
+            layer.add(twinkle, forKey: "twinkle")
+        }
+    }
+
+    private func stopAnimating() {
+        isAnimating = false
+        sheen.removeAllAnimations()
+        stars.forEach { $0.removeAllAnimations() }
+    }
+}
+
+/// "12% 남음", or "✦ 12% 남음 · 부족" at or below 20 %, so the low state is never colour alone. Same caption font.
+struct RemainingPercentLabel: View {
+    let percent: Double
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let ink = AIWarningPalette.pearlInk(dark: colorScheme == .dark).color
+        HStack(spacing: 3) {
+            if RemainingLevelCopy.isLow(percent) {
+                SparkleShape().fill(ink).frame(width: 8, height: 8)
+            }
+            Text(RemainingLevelCopy.percentText(percent))
+                .font(.caption.weight(.semibold)).monospacedDigit()
+            if RemainingLevelCopy.isLow(percent) {
+                Text(RemainingLevelCopy.lowSuffix).font(.caption.weight(.semibold)).foregroundStyle(ink)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(RemainingLevelCopy.spoken(percent))
+    }
+}
+
+enum RemainingLevelCopy {
+    static let lowSuffix = "· 부족"
+    static func isLow(_ percent: Double) -> Bool { RemainingLevel(percent: percent) == .low }
+    static func percentText(_ percent: Double) -> String { "\(Int(percent.rounded()))% 남음" }
+    /// What the popover row reads, with the star written as ✦.
+    static func displayText(_ percent: Double) -> String {
+        isLow(percent) ? "✦ \(percentText(percent)) \(lowSuffix)" : percentText(percent)
+    }
+    static func spoken(_ percent: Double) -> String {
+        isLow(percent) ? "\(percentText(percent)), 한도 부족" : percentText(percent)
+    }
+    static func accessibilityValue(_ percent: Double, decimals: Int = 0) -> String {
+        let value = String(format: "%.\(decimals)f퍼센트", percent)
+        return isLow(percent) ? "\(value), 한도 부족" : value
     }
 }
 

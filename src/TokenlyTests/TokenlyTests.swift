@@ -50,16 +50,23 @@ final class TokenlyTests: XCTestCase {
         XCTAssertFalse(ProviderDisplaySettings(defaults: defaults).agyExpanded)
     }
 
-    func testAGYSummaryShowsRangeInsteadOfMisleadingSingleBucket() {
+    func testAGYPopoverShowsOnlyGeminiAndPreservesOtherBucketForInfo() {
         let quotas = [
             QuotaMetric(name: "3p-weekly", remainingPercent: 100, resetsAt: nil),
             QuotaMetric(name: "gemini-weekly", remainingPercent: 0, resetsAt: nil)
         ]
-        XCTAssertEqual(AGYQuotaSummary.text(for: quotas), "2개 버킷 · 0–100%")
+        XCTAssertEqual(AGYPopoverPresentation.geminiQuota(in: quotas), quotas[1])
+        XCTAssertEqual(AGYPopoverPresentation.infoOrder(quotas[1].name), 0)
+        XCTAssertEqual(AGYPopoverPresentation.infoOrder(quotas[0].name), 1)
         XCTAssertTrue(AGYQuotaSummary.hasExhaustedBucket(quotas))
-        XCTAssertEqual(AGYQuotaLabel.displayName(for: "3p-weekly"), "3p-weekly")
-        XCTAssertEqual(AGYQuotaSummary.text(for: [quotas[1]]), "gemini-weekly 0%")
-        XCTAssertEqual(AGYQuotaSummary.text(for: []), "쿼터 데이터 없음")
+        let exhausted = ExternalUsageSnapshot(metrics: .quotas(quotas), fetchedAt: Date(), source: .directCLI)
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(.success(exhausted)), "일부 한도 소진")
+        XCTAssertNil(AGYPopoverPresentation.geminiQuota(in: [quotas[0]]))
+        XCTAssertEqual(AGYPopoverPresentation.missingGeminiMessage(for: [quotas[0]]),
+                       "Gemini 한도 정보 없음 · 다른 항목은 정보(i)에서 확인")
+        let otherOnly = ExternalUsageSnapshot(metrics: .quotas([quotas[0]]), fetchedAt: Date(), source: .directCLI)
+        XCTAssertEqual(UsagePopoverCopy.agyStatus(.success(otherOnly)), "자동 갱신")
+        XCTAssertEqual(AGYPopoverPresentation.missingGeminiMessage(for: []), "데이터 없음")
     }
 
     @MainActor
@@ -873,6 +880,8 @@ final class TokenlyTests: XCTestCase {
         let later = calendar.date(from: DateComponents(year: 2027, month: 1, day: 3, hour: 9))!
         XCTAssertTrue(CompactDateTime.string(for: tomorrow, now: now, locale: locale, timeZone: zone).contains("내일"))
         XCTAssertTrue(CompactDateTime.string(for: later, now: now, locale: locale, timeZone: zone).contains("2027"))
+        XCTAssertEqual(CompactDateTime.lastRefreshText(for: tomorrow, now: now, locale: locale, timeZone: zone),
+                       "마지막 갱신 시간 \(CompactDateTime.string(for: tomorrow, now: now, locale: locale, timeZone: zone))")
     }
 
     @MainActor
@@ -909,6 +918,124 @@ final class TokenlyTests: XCTestCase {
         XCTAssertNil(store.snapshot)
         XCTAssertTrue(store.errorMessage?.contains("CLI") == true)
     }
+
+    @MainActor
+    func testPopoverAttentionRefreshesAtSixtySecondsButNotBefore() async {
+        let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let first = UsageSnapshot(providerName: "Codex", windows: [UsageWindow(kind: .fiveHours, usedPercent: 97, resetsAt: nil)], fetchedAt: clock.date)
+        let second = UsageSnapshot(providerName: "Codex", windows: [UsageWindow(kind: .fiveHours, usedPercent: 99, resetsAt: nil)], fetchedAt: clock.date.addingTimeInterval(60))
+        let provider = SequenceProvider(responses: [.success(first), .success(second)])
+        let store = UsageStore(provider: provider, now: { clock.date })
+        if let task = store.refresh() { await task.value }
+        clock.date.addTimeInterval(59)
+        XCTAssertNil(store.refreshIfStale())
+        let freshCount = await provider.fetchCount
+        XCTAssertEqual(freshCount, 1)
+        clock.date.addTimeInterval(1)
+        if let task = store.refreshIfStale() { await task.value } else { XCTFail("Expected refresh at 60 seconds") }
+        let staleCount = await provider.fetchCount
+        XCTAssertEqual(staleCount, 2)
+        XCTAssertEqual(store.menuBarText, "5h 1% · 7d —")
+    }
+
+    @MainActor
+    func testAttentionSkipsInFlightAndRepeatedFailureButManualBypassesCooldown() async {
+        let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let first = UsageSnapshot(providerName: "Codex", windows: [UsageWindow(kind: .fiveHours, usedPercent: 97, resetsAt: nil)], fetchedAt: clock.date)
+        let provider = SequenceProvider(responses: [.success(first), .failure(.connection), .success(first)])
+        let store = UsageStore(provider: provider, now: { clock.date })
+        let firstTask = store.refresh()
+        XCTAssertNil(store.refreshIfStale(), "An in-flight CLI request must not be duplicated")
+        await firstTask?.value
+        clock.date.addTimeInterval(60)
+        if let task = store.refreshIfStale() { await task.value } else { XCTFail("Expected stale refresh") }
+        XCTAssertEqual(store.snapshot?.fetchedAt, first.fetchedAt)
+        XCTAssertEqual(store.menuBarText, "이전 · 5h 3% · 7d —")
+        clock.date.addTimeInterval(1)
+        XCTAssertNil(store.refreshIfStale(), "Repeated popover opens after failure must not spawn more CLI processes")
+        let afterFailureCount = await provider.fetchCount
+        XCTAssertEqual(afterFailureCount, 2)
+        if let task = store.refresh() { await task.value } else { XCTFail("Manual refresh should remain immediate") }
+        let afterManualCount = await provider.fetchCount
+        XCTAssertEqual(afterManualCount, 3)
+        XCTAssertNil(store.errorMessage)
+    }
+
+    @MainActor
+    func testWakeNotificationRefreshesOnlyStaleCodexData() async {
+        let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let first = UsageSnapshot(providerName: "Codex", windows: [UsageWindow(kind: .fiveHours, usedPercent: 97, resetsAt: nil)], fetchedAt: clock.date)
+        let second = UsageSnapshot(providerName: "Codex", windows: [UsageWindow(kind: .fiveHours, usedPercent: 99, resetsAt: nil)], fetchedAt: clock.date.addingTimeInterval(60))
+        let provider = SequenceProvider(responses: [.success(first), .success(second)])
+        let notifications = NotificationCenter()
+        let store = UsageStore(provider: provider, now: { clock.date }, wakeNotifications: notifications)
+        store.start()
+        for _ in 0..<100 {
+            if await provider.fetchCount > 0 { break }
+            await Task.yield()
+        }
+        clock.date.addTimeInterval(59)
+        notifications.post(name: NSWorkspace.didWakeNotification, object: nil)
+        for _ in 0..<100 { await Task.yield() }
+        let beforeWakeCount = await provider.fetchCount
+        XCTAssertEqual(beforeWakeCount, 1)
+        clock.date.addTimeInterval(1)
+        notifications.post(name: NSWorkspace.didWakeNotification, object: nil)
+        for _ in 0..<100 {
+            if await provider.fetchCount >= 2 { break }
+            await Task.yield()
+        }
+        let afterWakeCount = await provider.fetchCount
+        XCTAssertEqual(afterWakeCount, 2)
+        XCTAssertEqual(store.snapshot?.fetchedAt, second.fetchedAt)
+    }
+
+    @MainActor
+    func testOneMinuteTimerBacksOffFailuresAndManualBypassesIt() async {
+        let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let provider = SequenceProvider(responses: [.failure(.connection), .failure(.connection), .failure(.connection)])
+        let store = UsageStore(provider: provider, now: { clock.date })
+        if let task = store.refresh() { await task.value }
+        XCTAssertNil(store.refreshIfStale(), "No success must still respect the recent attempt cooldown")
+        clock.date.addTimeInterval(59)
+        XCTAssertNil(store.refreshOnTimer(), "A timer tick near an attention attempt must not duplicate the CLI call")
+        clock.date.addTimeInterval(1)
+        XCTAssertNil(store.refreshOnTimer(), "A failed automatic request waits five minutes")
+        clock.date.addTimeInterval(239)
+        XCTAssertNil(store.refreshOnTimer())
+        clock.date.addTimeInterval(1)
+        if let task = store.refreshOnTimer() { await task.value } else { XCTFail("Periodic refresh must still run") }
+        XCTAssertNil(store.refreshOnTimer(), "A second tick in the same minute must be skipped")
+        let periodicCount = await provider.fetchCount
+        XCTAssertEqual(periodicCount, 2)
+        if let task = store.refresh() { await task.value } else { XCTFail("Manual refresh should bypass cooldown") }
+        let manualCount = await provider.fetchCount
+        XCTAssertEqual(manualCount, 3)
+        XCTAssertEqual(UsageStore.automaticRefreshInterval, 60)
+        XCTAssertEqual(UsageStore.failedAutomaticRetryInterval, 300)
+    }
+
+    @MainActor
+    func testTimerDoesNotRepeatRecentPopoverSuccess() async {
+        let clock = UsageClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let first = UsageSnapshot(providerName: "Codex", windows: [], fetchedAt: clock.date)
+        let second = UsageSnapshot(providerName: "Codex", windows: [], fetchedAt: clock.date.addingTimeInterval(60))
+        let third = UsageSnapshot(providerName: "Codex", windows: [], fetchedAt: clock.date.addingTimeInterval(120))
+        let provider = SequenceProvider(responses: [.success(first), .success(second), .success(third)])
+        let store = UsageStore(provider: provider, now: { clock.date })
+        if let task = store.refresh() { await task.value }
+        clock.date.addTimeInterval(60)
+        if let task = store.refreshIfStale() { await task.value } else { XCTFail("Expected popover refresh") }
+        clock.date.addTimeInterval(1)
+        XCTAssertNil(store.refreshOnTimer())
+        let afterPopover = await provider.fetchCount
+        XCTAssertEqual(afterPopover, 2)
+        clock.date.addTimeInterval(59)
+        if let task = store.refreshOnTimer() { await task.value } else { XCTFail("Expected next periodic refresh") }
+        let afterTimer = await provider.fetchCount
+        XCTAssertEqual(afterTimer, 3)
+    }
+
 }
 
 private final class FakeLoginItemController: LoginItemControlling {
@@ -943,14 +1070,22 @@ private struct StubAdminKeyStore: AdminKeyStoring {
 private actor SequenceProvider: UsageProvider {
     let name = "Codex"
     private var responses: [Result<UsageSnapshot, UsageProviderError>]
+    private(set) var fetchCount = 0
 
     init(responses: [Result<UsageSnapshot, UsageProviderError>]) {
         self.responses = responses
     }
 
     func fetch() async throws -> UsageSnapshot {
-        try responses.removeFirst().get()
+        fetchCount += 1
+        return try responses.removeFirst().get()
     }
+}
+
+@MainActor
+private final class UsageClock {
+    var date: Date
+    init(_ date: Date) { self.date = date }
 }
 
 private actor CountingExternalProvider: ExternalUsageProvider {
@@ -1009,6 +1144,172 @@ enum TestDefaults {
             guard let modified = (try? manager.attributesOfItem(atPath: path))?[.modificationDate] as? Date,
                   Date().timeIntervalSince(modified) > staleAge else { continue }
             try? manager.removeItem(atPath: path)
+        }
+    }
+}
+
+// MARK: - v0.4.1 AI warning design B (cream caution, pearl low with sparkles)
+
+extension TokenlyTests {
+    private func contrast(_ a: AuroraPalette.RGB, _ b: AuroraPalette.RGB) -> Double {
+        func luminance(_ c: AuroraPalette.RGB) -> Double {
+            func channel(_ v: Double) -> Double { v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+            return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
+        }
+        let (l1, l2) = (luminance(a), luminance(b))
+        return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+    }
+
+    func testAIWarningPaletteIsSeparateAndThresholdsUnchanged() {
+        XCTAssertEqual(RemainingLevel(percent: 50.1), .healthy)
+        XCTAssertEqual(RemainingLevel(percent: 50), .caution)
+        XCTAssertEqual(RemainingLevel(percent: 20.1), .caution)
+        XCTAssertEqual(RemainingLevel(percent: 20), .low)
+        XCTAssertEqual(AIWarningPalette.cream(dark: true), HarmonyPalette.hex(0xFFF0C4))
+        XCTAssertEqual(AIWarningPalette.cream(dark: false), HarmonyPalette.hex(0xF6E2A6))
+        XCTAssertEqual(AIWarningPalette.pearl.first, HarmonyPalette.hex(0xFFFFFF))
+        // RAM's amber (shared with the system monitor) is not reused or changed.
+        XCTAssertEqual(HarmonyPalette.amber(dark: true), HarmonyPalette.hex(0xF4D39A))
+        XCTAssertNotEqual(AIWarningPalette.cream(dark: true), HarmonyPalette.amber(dark: true))
+        // Light mode: cream and pearl get a visible edge; dark mode and healthy bars do not.
+        for level in [RemainingLevel.caution, .low] {
+            XCTAssertNotEqual(AIWarningPalette.edge(level, dark: false), .clear)
+            XCTAssertEqual(AIWarningPalette.edge(level, dark: true), .clear)
+        }
+        XCTAssertEqual(AIWarningPalette.edge(.healthy, dark: false), .clear)
+        // The star and "부족" ink reads on the light popover (#ECECEE) and on the dark one (#2A2A2D).
+        XCTAssertGreaterThanOrEqual(contrast(AIWarningPalette.pearlInk(dark: false), HarmonyPalette.hex(0xECECEE)), 4.5)
+        XCTAssertGreaterThanOrEqual(contrast(AIWarningPalette.pearlInk(dark: true), HarmonyPalette.hex(0x2A2A2D)), 4.5)
+        XCTAssertGreaterThanOrEqual(contrast(AIWarningPalette.spark(dark: false), HarmonyPalette.hex(0xE0E0E2)), 3)
+        // Sparkles are off unless the popover reports itself on screen.
+        XCTAssertFalse(EnvironmentValues().remainingSparkleActive)
+        XCTAssertEqual(PearlSparkles.stars.count, 3)
+    }
+
+    func testLowRemainingIsAnnouncedWithStarAndText() {
+        XCTAssertEqual(RemainingLevelCopy.displayText(12), "✦ 12% 남음 · 부족")
+        XCTAssertEqual(RemainingLevelCopy.displayText(20), "✦ 20% 남음 · 부족")
+        XCTAssertEqual(RemainingLevelCopy.displayText(21), "21% 남음")
+        XCTAssertEqual(RemainingLevelCopy.displayText(38), "38% 남음")
+        XCTAssertEqual(RemainingLevelCopy.spoken(8), "8% 남음, 한도 부족")
+        XCTAssertEqual(RemainingLevelCopy.accessibilityValue(12.34, decimals: 1), "12.3퍼센트, 한도 부족")
+        XCTAssertEqual(RemainingLevelCopy.accessibilityValue(72), "72퍼센트")
+        let low = NumericGaugeItem(provider: .claude, primary: 12, secondary: 41, hasSecondarySlot: true, stale: false)
+        XCTAssertTrue(low.isLow)
+        XCTAssertTrue(low.accessibilityText.hasSuffix(", 한도 부족"))
+        let sevenDayLow = NumericGaugeItem(provider: .codex, primary: 80, secondary: 20, hasSecondarySlot: true, stale: false)
+        XCTAssertTrue(sevenDayLow.isLow)
+        let fine = NumericGaugeItem(provider: .antigravity, primary: 21, secondary: nil, hasSecondarySlot: false, stale: false)
+        XCTAssertFalse(fine.isLow)
+        XCTAssertFalse(fine.accessibilityText.contains("부족"))
+    }
+
+    /// The menu bar star sits left of the digits with clear space, inside the 22 pt row, and a column without a
+    /// low value has no star.
+    func testMenuBarLowStarNeverOverlapsDigitsOrName() throws {
+        let layout = MenuBarNumericImage.Layout.standard
+        let cases = [NumericGaugeItem(provider: .codex, primary: 12, secondary: 41, hasSecondarySlot: true, stale: false),
+                     NumericGaugeItem(provider: .claude, primary: 100, secondary: 9, hasSecondarySlot: true, stale: true),
+                     NumericGaugeItem(provider: .antigravity, primary: 8, secondary: nil, hasSecondarySlot: false, stale: false),
+                     NumericGaugeItem(provider: .codex, primary: 0, secondary: 0, hasSecondarySlot: true, stale: false)]
+        for item in cases {
+            let column = MenuBarNumericImage.column(item, layout: layout, color: .black)
+            let star = try XCTUnwrap(column.star, "\(item.name) should show the low star")
+            XCTAssertEqual(star.width, MenuBarNumericImage.starSize)
+            let digits = column.runs.dropLast(), name = try XCTUnwrap(column.runs.last)
+            let digitBoxes = digits.map { r -> CGRect in
+                let i = MenuBarNumericImage.ink(r.line)
+                return CGRect(x: r.x + i.minX, y: r.baseline - i.maxY, width: i.width, height: i.height)
+            }
+            let firstDigit = try XCTUnwrap(digitBoxes.map(\.minX).min())
+            XCTAssertEqual(firstDigit - star.maxX, MenuBarNumericImage.starGap, accuracy: 0.01, "\(item.name) star gap")
+            for box in digitBoxes { XCTAssertFalse(box.intersects(star), "\(item.name) star overlaps digits") }
+            let nameInk = MenuBarNumericImage.ink(name.line)
+            let nameTop = name.baseline - nameInk.maxY
+            XCTAssertLessThan(star.maxY, nameTop, "\(item.name) star reaches the name")
+            XCTAssertGreaterThanOrEqual(star.minX, 0)
+            XCTAssertLessThanOrEqual(star.maxX, column.width)
+            XCTAssertGreaterThan(star.minY, 1)
+            XCTAssertLessThan(star.maxY, MenuBarNumericImage.height - 1)
+        }
+        let plain = NumericGaugeItem(provider: .claude, primary: 43, secondary: 38, hasSecondarySlot: true, stale: false)
+        let plainColumn = MenuBarNumericImage.column(plain, layout: layout, color: .black)
+        XCTAssertNil(plainColumn.star)
+        // The star is drawn: ink appears left of the digits, and the 22 pt height is kept.
+        for dark in [false, true] {
+            let image = try XCTUnwrap(MenuBarNumericImage.render([cases[0]], dark: dark, scale: 2))
+            XCTAssertEqual(image.height, 44)
+            let px = rgba(image), w = image.width
+            let star = try XCTUnwrap(MenuBarNumericImage.column(cases[0], layout: layout, color: .black).star)
+            let cx = Int((MenuBarNumericImage.sidePadding + star.midX) * 2), cy = Int(star.midY * 2)
+            XCTAssertGreaterThan(px[(cy * w + cx) * 4 + 3], 128, "star centre is inked (dark=\(dark))")
+        }
+    }
+}
+
+// MARK: - v0.4.1 sparkle as Core Animation layers (same sequence, no per-frame app work)
+
+extension TokenlyTests {
+    func testSparkleTimelineKeepsTheApprovedSequence() {
+        XCTAssertEqual(PearlSparkleTimeline.sweep, 1.4)
+        let stars = (0..<3).map(PearlSparkleTimeline.star)
+        for (star, on) in zip(stars, [0.3, 1.5, 2.7]) { XCTAssertEqual(star.on, on, accuracy: 1e-9) }
+        for star in stars {
+            XCTAssertEqual(star.peak - star.on, 0.45, accuracy: 1e-9)
+            XCTAssertEqual(star.off - star.peak, 0.6, accuracy: 1e-9)
+        }
+        XCTAssertEqual(PearlSparkleTimeline.cycle, 6.35, accuracy: 1e-9, "3.15 s of motion, 3.2 s still")
+        XCTAssertLessThan(stars[2].off, PearlSparkleTimeline.cycle)
+    }
+
+    @MainActor
+    func testSparkleLayersAnimateOnlyWhenAskedAndRestStill() throws {
+        let view = SparkleLayerView(frame: CGRect(x: 0, y: 0, width: 300, height: 20))
+        let size = CGSize(width: 300, height: 20)
+        view.configure(fillWidth: 36, trackHeight: 8, dark: true, animates: false, size: size)
+        XCTAssertFalse(view.isAnimating)
+        XCTAssertTrue(view.sheenClip.isHidden)
+        XCTAssertEqual(view.stars.map(\.opacity), [0.85, 0.85, 0.85])
+        XCTAssertNil(view.stars[0].animation(forKey: "twinkle"))
+
+        view.configure(fillWidth: 36, trackHeight: 8, dark: true, animates: true, size: size)
+        XCTAssertTrue(view.isAnimating)
+        XCTAssertFalse(view.sheenClip.isHidden)
+        let sweep = try XCTUnwrap(view.sheen.animation(forKey: "sweep") as? CAKeyframeAnimation)
+        XCTAssertEqual(sweep.duration, PearlSparkleTimeline.cycle, accuracy: 1e-9)
+        XCTAssertEqual(sweep.repeatCount, .infinity)
+        XCTAssertEqual(sweep.keyTimes?[1].doubleValue ?? 0, 1.4 / 6.35, accuracy: 1e-9)
+        for (index, layer) in view.stars.enumerated() {
+            let group = try XCTUnwrap(layer.animation(forKey: "twinkle") as? CAAnimationGroup)
+            XCTAssertEqual(group.duration, PearlSparkleTimeline.cycle, accuracy: 1e-9)
+            let fade = try XCTUnwrap(group.animations?.first as? CAKeyframeAnimation)
+            XCTAssertEqual(fade.keyPath, "opacity")
+            XCTAssertEqual(fade.values?.compactMap { ($0 as? NSNumber)?.doubleValue }, [0, 0, 1, 0, 0])
+            XCTAssertEqual(fade.keyTimes?[1].doubleValue ?? 0, PearlSparkleTimeline.star(index).on / 6.35, accuracy: 1e-9)
+        }
+        // Repeated updates while animating (SwiftUI re-renders) do not restart the animation.
+        let started = view.sheen.animation(forKey: "sweep")?.beginTime
+        view.configure(fillWidth: 36, trackHeight: 8, dark: true, animates: true, size: size)
+        XCTAssertEqual(view.sheen.animation(forKey: "sweep")?.beginTime, started)
+
+        // Closing the popover or turning on Reduce Motion stops everything and shows still stars.
+        view.configure(fillWidth: 36, trackHeight: 8, dark: true, animates: false, size: size)
+        XCTAssertFalse(view.isAnimating)
+        XCTAssertNil(view.sheen.animation(forKey: "sweep"))
+        XCTAssertTrue(view.stars.allSatisfy { $0.animation(forKey: "twinkle") == nil && $0.opacity == 0.85 })
+        // An empty fill has nothing to animate.
+        view.configure(fillWidth: 0, trackHeight: 8, dark: true, animates: true, size: size)
+        XCTAssertFalse(view.isAnimating)
+    }
+
+    func testSheenGradientEndsAreTransparentBandColoursNotBlack() throws {
+        for dark in [true, false] {
+            let colors = SparkleLayerView.sheenColors(dark: dark)
+            XCTAssertEqual(colors.count, 4)
+            XCTAssertEqual(colors.first?.alpha, 0)
+            XCTAssertEqual(colors.last?.alpha, 0)
+            let first = try XCTUnwrap(colors.first?.components), band = try XCTUnwrap(colors[1].components)
+            XCTAssertEqual(Array(first.prefix(3)), Array(band.prefix(3)), "same RGB as the first band, not black")
         }
     }
 }

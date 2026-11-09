@@ -5,6 +5,11 @@
 #   scripts/release.sh --final 0.1.0   release mode: clean tree and matching version required
 #   --replace                          disabled: existing output folders cannot be replaced
 #   --print-output                     resolve and check the output folder, print it, change nothing
+#   --print-node-archives              resolve and verify the Claude Node archives, print the folder, change nothing
+#
+# Claude Node archives (node-v24.22.1-darwin-{arm64,x64}.tar.gz, SHA-256 pinned below) are read from
+# TOKENLY_CLAUDE_NODE_ARCHIVES, or by default from <release root>/claude-node-archives/v24.22.1/, where the
+# release root is ~/Developer/Tokenly-Workspace/TokenlyRelease.noindex (not affected by TOKENLY_RELEASE_DIR).
 #
 # Output goes outside the repository (default ~/Developer/Tokenly-Workspace/TokenlyRelease.noindex/<version>[-dev]/,
 # override with TOKENLY_RELEASE_DIR; `~`, relative paths, `..` and symlinks are resolved first).
@@ -16,13 +21,18 @@ set -euo pipefail
 BUNDLE_ID="io.github.jbbdyee.tokenly"
 # Xcode registers every app it builds with LaunchServices, and unregistering or deleting such a copy makes
 # macOS's app list drop every app with that bundle ID, including the installed /Applications/Tokenly.app
-# (Doc/IMP-PLAN.md 52–53, 62). The Xcode product is therefore built under this temporary ID; only the staged
-# copy gets BUNDLE_ID, by replacing that one string in its Info.plist before signing.
+# (Doc/IMP-PLAN.md 52–53, 62). The Xcode product is therefore built under this temporary ID; only a final release's
+# staged copy gets BUNDLE_ID, by replacing that one string in its Info.plist before signing.
 BUILD_ID="$BUNDLE_ID.release-build"
+# Development checks keep the temporary ID even in the staged ZIP, so LaunchServices cannot
+# prefer a throwaway copy over the installed app. Only --final stages the real product ID.
+PACKAGE_ID="$BUILD_ID"
 CATEGORY="public.app-category.utilities"
 MIN_MACOS="14.0"
 REQUIRED_ARCHS="arm64 x86_64"
 LSREGISTER="${TOKENLY_TEST_LSREGISTER:-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister}"
+PRESERVE_LAUNCHSERVICES="${TOKENLY_PRESERVE_LAUNCHSERVICES:-0}"
+case "$PRESERVE_LAUNCHSERVICES" in 0|1) ;; *) echo "TOKENLY_PRESERVE_LAUNCHSERVICES must be 0 or 1" >&2; exit 64 ;; esac
 # Preserve generated intermediates when validating the release path without deleting temporary files.
 KEEP_INTERMEDIATES="${TOKENLY_KEEP_INTERMEDIATES:-0}"
 case "$KEEP_INTERMEDIATES" in 0|1) ;; *) echo "TOKENLY_KEEP_INTERMEDIATES must be 0 or 1" >&2; exit 64 ;; esac
@@ -30,11 +40,21 @@ case "$KEEP_INTERMEDIATES" in 0|1) ;; *) echo "TOKENLY_KEEP_INTERMEDIATES must b
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT_REAL="$(cd -P "$ROOT" && pwd -P)"
 INFO_PLIST="$ROOT/src/Tokenly/Info.plist"
+RELEASE_ROOT_DEFAULT="$HOME/Developer/Tokenly-Workspace/TokenlyRelease.noindex"
+NODE_VERSION='v24.22.1'
+NODE_ARCHIVES_DEFAULT="$RELEASE_ROOT_DEFAULT/claude-node-archives/$NODE_VERSION"
+node_archive_sha256() {
+    case "$1" in
+        arm64) echo '89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7' ;;
+        x64) echo 'd132557e7ee2b85af08b0c8c34338e65c6430f2238d01f727728ef42dc83b035' ;;
+    esac
+}
 
 mode="dev"
 wanted_version=""
 replace=0
 print_only=0
+print_node_archives=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --final)
@@ -43,7 +63,8 @@ while [ $# -gt 0 ]; do
         --dev) mode="dev"; shift ;;
         --replace) replace=1; shift ;;
         --print-output) print_only=1; shift ;;
-        -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+        --print-node-archives) print_node_archives=1; shift ;;
+        -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 64 ;;
     esac
 done
@@ -62,6 +83,7 @@ dirty="$(git -C "$ROOT" status --porcelain)"
 changelog_version="$(sed -nE 's/^## \[?([0-9]+\.[0-9]+\.[0-9]+)\]?.*/\1/p' "$ROOT/CHANGELOG.md" 2>/dev/null | head -1)"
 
 if [ "$mode" = "final" ]; then
+    PACKAGE_ID="$BUNDLE_ID"
     [ -n "$wanted_version" ] || fail "--final needs a version, e.g. --final $version"
     [ "$wanted_version" = "$version" ] || fail "requested $wanted_version but Info.plist says $version"
     [ -z "$dirty" ] || fail "working tree is not clean (commit or stash first)"
@@ -117,6 +139,7 @@ ls_records_under_out() {  # prints "<bundle id>\t<path>" per registered bundle u
         END { flush() }'
 }
 unregister_outputs() {
+    [ "$PRESERVE_LAUNCHSERVICES" = 1 ] && return 0
     [ -x "$LSREGISTER" ] || return 0
     local records id path
     records="$(ls_records_under_out)" || return 0
@@ -129,7 +152,28 @@ unregister_outputs() {
     done <<< "$records"
 }
 
-requested="${TOKENLY_RELEASE_DIR:-$HOME/Developer/Tokenly-Workspace/TokenlyRelease.noindex}"
+# Resolves the Claude Node archive folder and checks both pinned archives before the long build starts.
+# Prints the resolved folder; reasons for a failure go to stderr.
+resolve_node_archives() {
+    local requested="${TOKENLY_CLAUDE_NODE_ARCHIVES:-$NODE_ARCHIVES_DEFAULT}" dir arch archive actual
+    dir="$(resolve_path "$requested")" && [ -d "$dir" ] || {
+        echo "Claude Node archive folder not found: $requested" >&2
+        echo "  put node-$NODE_VERSION-darwin-arm64.tar.gz and -x64.tar.gz in $NODE_ARCHIVES_DEFAULT" >&2
+        echo "  or set TOKENLY_CLAUDE_NODE_ARCHIVES to the folder that holds them" >&2
+        return 1; }
+    for arch in arm64 x64; do
+        archive="$dir/node-$NODE_VERSION-darwin-$arch.tar.gz"
+        [ -f "$archive" ] || { echo "Claude Node archive missing: $archive" >&2; return 1; }
+        actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+        [ "$actual" = "$(node_archive_sha256 "$arch")" ] \
+            || { echo "Claude Node checksum mismatch: $archive" >&2; return 1; }
+    done
+    printf '%s\n' "$dir"
+}
+NODE_ARCHIVES="$(resolve_node_archives)" || fail "Claude Node archives unusable (see above)"
+[ "$print_node_archives" = 1 ] && { echo "node archives: $NODE_ARCHIVES"; exit 0; }
+
+requested="${TOKENLY_RELEASE_DIR:-$RELEASE_ROOT_DEFAULT}"
 base="$(resolve_path "$requested")" || fail "unusable output location: $requested"
 [ "$base" != / ] || fail "unusable output location: $requested"
 OUT="$base/$version$suffix"
@@ -200,12 +244,50 @@ ok "xcodebuild Release"
 mkdir -p "$STAGE"
 ditto --norsrc --noextattr --noacl "$DD/Build/Products/Release/Tokenly.app" "$APP"
 unregister_outputs
-set_release_bundle_id "$APP"
+if [ "$mode" = final ]; then set_release_bundle_id "$APP"; fi
 # The unstripped Release executable keeps a debug map with absolute paths (source folders under the developer's
 # home, DerivedData object files). Strip debug symbols only (`strip -S`; the symbol table stays, so crash
 # reports still name functions): no personal paths ship, and the app no longer depends on the output folder.
 strip -S "$APP/Contents/MacOS/Tokenly" 2>> "$LOG" || fail "strip -S failed"
 ok "executable: debug symbols stripped (strip -S)"
+
+# Bundle the pinned Claude usage helper and official universal Node runtime. No Claude CLI,
+# credentials, or account response is copied, and this step never executes the helper.
+package_claude_runtime() {
+    local node_version="$NODE_VERSION" arch archive actual node resources package_work
+    # Checked again here: the archives may change during the build that follows the early check.
+    for arch in arm64 x64; do
+        archive="$NODE_ARCHIVES/node-$node_version-darwin-$arch.tar.gz"
+        [ -f "$archive" ] || fail "Claude Node archive missing: $archive"
+        actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+        [ "$actual" = "$(node_archive_sha256 "$arch")" ] || fail "Claude Node checksum mismatch: $arch"
+        mkdir -p "$OUT/claude-node-$arch"
+        tar -xzf "$archive" -C "$OUT/claude-node-$arch" --strip-components=2 \
+            "node-$node_version-darwin-$arch/bin/node" || fail "Claude Node extraction failed: $arch"
+    done
+    package_work="$(mktemp -d /private/tmp/tokenly-claude-release-package.XXXXXX)" \
+        || fail "Claude SDK temporary packaging directory unavailable"
+    TOKENLY_CLAUDE_PACKAGE_OUT="$package_work/payload" TOKENLY_CLAUDE_OMIT_OPTIONAL=1 \
+        bash "$ROOT/scripts/package-claude-helper.sh" > "$OUT/claude-package-info.txt" \
+        || fail "Claude SDK packaging failed"
+    node="$APP/Contents/MacOS/TokenlyClaudeNode"
+    resources="$APP/Contents/Resources/ClaudeUsageSDK"
+    lipo -create "$OUT/claude-node-arm64/node" "$OUT/claude-node-x64/node" -output "$node" \
+        || fail "Claude universal Node creation failed"
+    chmod 755 "$node"
+    mkdir -p "$resources"
+    cp "$package_work/payload/claude-usage-helper.mjs" \
+       "$package_work/payload/package.json" "$package_work/payload/package-lock.json" "$resources/"
+    cp -R "$package_work/payload/node_modules" "$resources/node_modules"
+    rm -rf -- "$package_work"
+    "$node" --check "$resources/claude-usage-helper.mjs" >/dev/null || fail "Claude helper syntax invalid"
+    "$node" --input-type=module -e 'import(process.argv[1]).then(m=>{if(typeof m.query!=="function")process.exit(23)})' \
+        "$resources/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs" \
+        || fail "Claude SDK import failed"
+    ok "Claude Node archives: $NODE_ARCHIVES (SHA-256 pinned)"
+    ok "Claude Node $node_version arm64/x64 and SDK 0.3.169 bundled; CLI and account excluded"
+}
+package_claude_runtime
 
 # ---------------------------------------------------------------- 3. bundle checks (staged and unzipped)
 verify_app() {
@@ -228,25 +310,40 @@ verify_app() {
     paths="$(LC_ALL=C grep -a -c -F -e "$HOME/" -e "$ROOT/" -e "/DerivedData/" "$exe" || true)"
     [ "$paths" = 0 ] || fail "$label: executable contains $paths absolute build path(s) (home, repository or DerivedData)"
     ok "$label: no absolute build paths in the executable"
-    [ "$(plist "$info" CFBundleIdentifier)" = "$BUNDLE_ID" ] || fail "$label: bundle id is $(plist "$info" CFBundleIdentifier)"
+    [ "$(plist "$info" CFBundleIdentifier)" = "$PACKAGE_ID" ] || fail "$label: bundle id is $(plist "$info" CFBundleIdentifier)"
     [ "$(plist "$info" CFBundleShortVersionString)" = "$version" ] || fail "$label: version mismatch"
     [ "$(plist "$info" LSUIElement)" = "true" ] || fail "$label: LSUIElement is not true"
     [ "$(plist "$info" LSApplicationCategoryType)" = "$CATEGORY" ] || fail "$label: category is not $CATEGORY"
     [ "$(plist "$info" LSMinimumSystemVersion)" = "$MIN_MACOS" ] || fail "$label: minimum macOS is not $MIN_MACOS"
     [ "$(plist "$info" CFBundleIconName)" = "AppIcon" ] || fail "$label: CFBundleIconName is not AppIcon"
     plutil -lint -s "$info" || fail "$label: Info.plist does not lint"
-    ok "$label: Info.plist ($BUNDLE_ID $version, LSUIElement, utilities, macOS $MIN_MACOS+, AppIcon)"
+    ok "$label: Info.plist ($PACKAGE_ID $version, LSUIElement, utilities, macOS $MIN_MACOS+, AppIcon)"
     [ -s "$app/Contents/Resources/AppIcon.icns" ] && [ -s "$app/Contents/Resources/Assets.car" ] || fail "$label: AppIcon resources missing"
     for r in ClaudeStatusLineBridge.py AGYStatusLineBridge.py; do
         [ -s "$app/Contents/Resources/$r" ] || fail "$label: resource $r missing"
     done
     ok "$label: AppIcon.icns, Assets.car, compatibility bridges"
+    local node="$app/Contents/MacOS/TokenlyClaudeNode"
+    local sdk="$app/Contents/Resources/ClaudeUsageSDK"
+    [ -x "$node" ] && [ -r "$sdk/claude-usage-helper.mjs" ] || fail "$label: Claude runtime missing"
+    [ -r "$sdk/node_modules/@anthropic-ai/claude-agent-sdk/package.json" ] \
+        || fail "$label: Claude SDK missing"
+    [ "$(/usr/bin/plutil -extract version raw -o - "$sdk/node_modules/@anthropic-ai/claude-agent-sdk/package.json" 2>/dev/null)" = '0.3.169' ] \
+        || fail "$label: Claude SDK version mismatch"
+    archs="$(lipo -archs "$node")"
+    for a in $REQUIRED_ARCHS; do
+        case " $archs " in *" $a "*) ;; *) fail "$label: Claude Node missing $a" ;; esac
+    done
+    if otool -L "$node" | grep -Eq '/opt/homebrew|/usr/local|@rpath'; then
+        fail "$label: Claude Node has external library dependency"
+    fi
+    ok "$label: Claude runtime and SDK bundle validated"
     if [ "$label" != "built" ]; then
         codesign --verify --deep --strict "$app" 2>> "$LOG" || fail "$label: codesign --verify failed"
         local sig; sig="$(codesign -dv "$app" 2>&1)" || fail "$label: codesign -dv failed"
-        case $'\n'"$sig"$'\n' in *$'\n'"Identifier=$BUNDLE_ID"$'\n'*) ;; *) fail "$label: signing identifier is not $BUNDLE_ID" ;; esac
+        case $'\n'"$sig"$'\n' in *$'\n'"Identifier=$PACKAGE_ID"$'\n'*) ;; *) fail "$label: signing identifier is not $PACKAGE_ID" ;; esac
         case $'\n'"$sig"$'\n' in *$'\n'"Signature=adhoc"$'\n'*) ;; *) fail "$label: not ad-hoc signed" ;; esac
-        ok "$label: ad-hoc signature valid, identifier $BUNDLE_ID"
+        ok "$label: ad-hoc signature valid, identifier $PACKAGE_ID"
     fi
 }
 
@@ -273,12 +370,14 @@ smoke_test() {
     ok "$label: --help, --status, --connect --dry-run, --statusline (temporary home)"
 }
 
+smoke_test "$DD/Build/Products/Release/Tokenly.app" "temporary-id"
 verify_app "$APP" "built"
 
 # ---------------------------------------------------------------- 4. ad-hoc signing
-codesign --force --deep --sign - --identifier "$BUNDLE_ID" --timestamp=none "$APP" 2>> "$LOG"
+codesign --force --sign - --identifier "$PACKAGE_ID.node" --timestamp=none \
+    "$APP/Contents/MacOS/TokenlyClaudeNode" 2>> "$LOG" || fail "Claude Node signing failed"
+codesign --force --deep --sign - --identifier "$PACKAGE_ID" --timestamp=none "$APP" 2>> "$LOG"
 verify_app "$APP" "signed"
-smoke_test "$APP" "signed"
 
 # ---------------------------------------------------------------- 5. ZIP (fixed timestamps for reproducibility)
 epoch="$(git -C "$ROOT" log -1 --format=%ct HEAD)"
@@ -293,7 +392,6 @@ ditto -x -k "$OUT/$ZIP_NAME" "$CHECK"
 [ "$(ls "$CHECK")" = "Tokenly.app" ] || fail "zip root is not just Tokenly.app: $(ls "$CHECK" | tr '\n' ' ')"
 unregister_outputs
 verify_app "$CHECK/Tokenly.app" "unzipped"
-smoke_test "$CHECK/Tokenly.app" "unzipped"
 tree_hash() { (cd "$1" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256 | cut -d' ' -f1); }
 [ "$(tree_hash "$APP")" = "$(tree_hash "$CHECK/Tokenly.app")" ] || fail "unzipped app differs from the signed app"
 ok "unzipped app is byte-identical to the signed app (content $(tree_hash "$APP"))"
@@ -313,14 +411,19 @@ notes="$OUT/RELEASE-NOTES.md"
 {
     echo "# Tokenly $version (개발자 미리보기)"
     echo
-    [ "$mode" = dev ] && { echo "> **초안:** 미커밋 변경이 있는 작업 트리의 개발 빌드입니다. 게시 전에 \`scripts/release.sh --final $version\`으로 다시 만드세요."; echo; }
-    echo "**Apple 공증을 받지 않은 ad-hoc 서명 빌드입니다.** 첫 실행 때 macOS가 실행을 막습니다."
-    echo "\`Tokenly.app\`을 응용 프로그램 폴더로 옮긴 뒤 한 번 열고, 시스템 설정 → 개인정보 보호 및 보안 → **그래도 열기**로 이 앱만 허용하세요(README의 \"설치\")."
-    echo "Gatekeeper를 끄는 등 시스템 보안 설정을 바꿀 필요는 없습니다."
+    if [ "$mode" = dev ]; then
+        echo "> **개발 점검 전용:** 임시 번들 ID의 미커밋 빌드입니다. 설치·게시하지 마세요."
+    else
+        echo "**Apple 공증을 받지 않은 ad-hoc 서명 빌드입니다.** 첫 실행 때 macOS가 실행을 막습니다."
+        echo "\`Tokenly.app\`을 응용 프로그램 폴더로 옮긴 뒤 한 번 열고, 시스템 설정 → 개인정보 보호 및 보안 → **그래도 열기**로 이 앱만 허용하세요(README의 \"설치\")."
+        echo "Gatekeeper를 끄는 등 시스템 보안 설정을 바꿀 필요는 없습니다."
+    fi
     echo
     echo "- macOS $MIN_MACOS 이상, Apple silicon·Intel 공용(universal)"
-    echo "- 번들 ID \`$BUNDLE_ID\`"
-    echo "- Claude Code·AGY는 설치 후 \`/Applications/Tokenly.app/Contents/MacOS/Tokenly --connect claude\`(또는 \`agy\`)로 연결합니다."
+    echo "- 번들 ID \`$PACKAGE_ID\`"
+    if [ "$mode" = final ]; then
+        echo "- Claude 자동 조회에는 공식 Claude CLI 설치·로그인이 필요합니다. 상태줄 대체 경로는 기존 Claude 연결을 유지하며, AGY 상태줄은 필요할 때 \`Tokenly --connect agy\`로 연결합니다."
+    fi
     echo
     echo "## 변경 내용"
     awk -v v="$version" '
@@ -349,6 +452,7 @@ ok "release notes draft $(basename "$notes")"
     echo "app content:     $(tree_hash "$APP")"
     echo "finished:        $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "not verified here: Gatekeeper first launch of the downloaded zip, real Claude Code / AGY calls"
+    echo "command-line smoke used only the temporary build ID, never the staged release bundle ID"
 } >> "$LOG"
 echo
 echo "done: $OUT/$ZIP_NAME"

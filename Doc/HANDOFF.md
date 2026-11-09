@@ -1,8 +1,784 @@
+## 작업 폴더·저장소 정리 (2026-11-09, 미커밋)
+
+사용자 요청: 앱 구성 외 파일(시안 등) 삭제, 폴더 구조 정리. 기능 코드는 변경하지 않았다.
+
+**저장소 안(삭제는 Git 이력 `4fb4a59`에서 복구 가능):**
+- 삭제: `Preview/` 전체(디자인 시안, 곰돌이·하트·아이콘 콘셉트, CPU 측정. README 이미지 생성기 `ReadmeImages/run.sh`도 이미 없는 `Resources/BearGauge`를 참조해 동작하지 않았음), `Doc/screenshots/`(Stage 6 시안 캡처), 미추적 `Doc/logs/`(10-27 GPU 측정 로그), `default.profraw`, `.DS_Store`, 빈 `src/Tokenly/Resources/`(프로젝트 참조 없음).
+- 삭제: 날짜 고정 `/private/tmp` 경로를 쓰는 일회성 실험 스크립트 `scripts/build-claude-{dev,portable-dev,product-candidate,real-once,real-two,real-three,real-sixty}.sh`, `prepare-claude-real-*.sh`, `run-claude-real-*.sh`, `run-mock-ui.sh`, `run-mock-sixty-ui.sh`. 0.1.0용 옛 설정 스크립트 `enable_agy_statusline.py`, `scripts/enable_claude_statusline.py`, `scripts/check_claude_statusline.py`(현재는 `Tokenly --connect`).
+- 구조: 앱 번들에 들어가는 helper가 `experiments/claude-usage-refresh/`에 있던 것을 `src/ClaudeUsageHelper/`로 옮겼다. `package-claude-helper-dev.sh` → `package-claude-helper.sh`. 참조 수정: `release.sh`, 패키징 스크립트, `ClaudeOptionalUsageTests.swift`의 fixture 경로, README·AGENTS.md.
+- 유지: 0.1.0 Python 브리지 `src/Tokenly/*StatusLineBridge.py`(앱 리소스·해제 복원용), `scripts/build-popover-fixture.sh`.
+- 과거 기록 문서(IMP-PLAN·SPEC·TODO·이 문서 아래 절)의 옛 경로는 당시 기록이라 고치지 않았다.
+
+**바깥 Workspace(휴지통 `~/.Trash/Tokenly-Workspace-cleanup-20261109/`, 2.9GB, 비우기 전까지 복구 가능):**
+- 이동: `Tokenly-backup`·`TokenlyAppListExperiment`·`TokenlyBridgeProbe`·`TokenlyDesignArchive`·`TokenlyResearchArchive`·`TokenlyStage2`(.noindex), `.migration-records`, `TokenlyRelease.noindex`의 0.1~0.4.0 dev·RC·install-staging·옛 백업·`preserved-from-tmp-20261102`·`ui-check-v041-20261104`·`ram02-measurements`, `0.4.1/`의 stage·unzipped·Node 추출본·xcodebuild.log.
+- 남김: `TokenlyArchive.noindex`(블로그 원문), `TokenlyRelease.noindex/{claude-node-archives, 0.4.1(ZIP·sha256·노트·build-info), backup-0.4.0-before-0.4.1-20261104, blog-tokenly-04}`. 0.4.1 ZIP 체크섬 OK.
+- 실행 중 앱(`/Applications`)과 Claude·AGY 상태줄 설정은 이 폴더들을 참조하지 않음을 확인했다.
+
+**검증:** helper `node --test` 15개 통과, `package-claude-helper.sh` 패키징(SDK 0.3.169) 성공, `release.sh` 문법·`--print-node-archives` 정상. Debug 전체 XCTest 478개 통과(실패 0), Release 빌드 성공(`/private/tmp/tokenly-cleanup-20261109`).
+- 경로를 바꾼 `testMockUIFixtureMatchesSDKContractAndStatusLineFallback`은 `#if TOKENLY_CLAUDE_DEV` 안에 있어 일반 테스트에서는 컴파일되지 않는다. fixture 파일이 새 경로에서 열리는 것만 확인했다.
+- **기존 문제(정리와 무관):** `TOKENLY_CLAUDE_DEV` 플래그로 테스트를 빌드하면 `ClaudeOptionalUsageTests.swift:1221` 부근의 `handleSystemDidWake`/`handleSystemWillSleep`가 없다는 컴파일 오류가 난다(해당 메서드가 dev 플래그에서 빠짐). 이 플래그를 쓰던 개발 스크립트는 이번에 삭제했다.
+
+## Claude 직접 조회 장애 기록 (사건 A·B, 2026-11-04~06)
+
+Claude 직접 조회 장애는 이 절에만 모아 기록한다. v0.4.0 원인 분석은 아래 "v0.4.0 Claude 자동 조회 영구 중단 진단", 복구 정책은 "v0.4.1 Claude 직접 조회 복구 수정"과 `Doc/SPEC.md` 상단에 있다. 시각은 KST.
+
+### 사건 A — v0.4.0 정지와 v0.4.1 복구, 11-05 `unknown` (2026-11-04~05)
+
+**확인된 사실(기록 근거):**
+- 11-04 v0.4.0: 07:07:56 마지막 성공 → 08:40:20 DarkWake → 08:40:22 절전 → 08:40:23 시도 → `isPaused=true`(attempts 946). 근거는 설치 전 백업 체크포인트와 `pmset -g log`. 오류 종류는 v0.4.0 구조상 남지 않았다.
+- 11-04 17:42:33 v0.4.1 설치 직후 legacyPause 복구 시도 → 17:42:36 성공, 이후 60초 간격으로 성공. 17:53:56이 밤 전 마지막 성공이다.
+- 11-05 09:00:19 완전 복귀. 09:02:39 시도(Codex·AGY 갱신과 같은 시각이라 수동 새로고침으로 판단) → 09:02:40 `lastErrorKind: "unknown"`, cooldownCycles 2, 다음 시도 09:32:40(09:06 체크포인트).
+  - cooldownCycles 2는 밤사이 미분류 실패가 한 번 더 있었다는 뜻이지만, 시각은 기록에 없다.
+- `unknown`은 helper가 정상 종료했지만 쓸 수 있는 사용량 데이터가 없었다는 뜻이다(`rate_limits_available`이 true 아님, 한도 정보 없음, JSON 아님). 네트워크·시간 초과·SDK 오류·429·401·403이 아니다.
+- 09:05:49 Claude Code에서 `/login` → "Login successful". 자격 증명 키체인 항목의 수정 시각 09:05:38(메타데이터만 확인).
+- 09:32:40 이후 절전 기록 없음. 12:09 체크포인트는 오류 필드 없이 12:09:20 성공, attempts 1116이다.
+  - 09:32 이후 약 157분 동안 156회 시도해 60초 연속 성공과 산술적으로 맞는다.
+
+**기록과 다른 점:** "`/login` 직후 수동 재시도 실패"는 기록으로 확인되지 않는다.
+- 확인된 수동 재시도 실패는 `/login` **이전**인 09:02:39 한 번이다. 09:06까지 그 뒤의 시도는 없었다.
+- `/login` 뒤 다시 실패했다면 쿨다운 3회째로 `repeatedFailures` 정지가 됐어야 하는데, 12:09까지의 시도 수는 그런 정지와 맞지 않는다.
+- 다만 화면 조작 기록은 없어 완전히 배제하지는 않는다.
+
+**추정(미확정):**
+- 08:40 실패는 DarkWake 중 네트워크 문제였을 가능성이 크다.
+- 09:02 `unknown` 원인 후보는 둘이다.
+  - ① CLI 로그인 만료
+  - ② CLI의 usage 엔드포인트 조회 실패가 이어지면서 저장 스냅샷이 1시간을 넘겨 `rate_limits: null`을 돌려받은 경우(사건 B에서 확인한 CLI 동작)
+- SDK 응답은 설계상 저장하지 않아 둘 중 무엇인지, 또는 `/login`과 복구가 인과관계인지 확정할 수 없다.
+
+### 사건 B — 5시간 사용량 0%·초기화 시각 미제공 (2026-11-06)
+
+**확인된 사실:**
+- 09:43~44: 공식 앱은 5시간 약 5%·14:30 초기화, Tokenly는 0.0% 사용·`초기화 시각 미제공`·마지막 갱신 09:43. 7일은 약 60%와 59%(사용자 관찰).
+- 같은 시간 Tokenly 체크포인트는 오류 없이 60초마다 성공했다(09:53 attempts 1499).
+- Claude CLI 설정 파일(`~/.claude.json`)의 `cachedUsageUtilization`(시각과 5시간·7일 필드만 읽음):
+  - 09:30:19 저장분: five_hour `utilization 0, resets_at null`, seven_day 59. Tokenly 표시와 같고, 09:54까지 바뀌지 않았다.
+- CLI 2.1.292 실행 파일 안의 코드:
+  - usage 엔드포인트 응답이 실패·429·빈 본문이면, 1시간 이내 저장 스냅샷을 대신 돌려준다(내부 상태 `seeded`).
+  - 스냅샷은 조회가 성공했을 때만 새로 쓴다.
+  - 저장된 지 60초 안이면 엔드포인트를 묻지 않고 스냅샷으로 답한다.
+  - SDK get_usage 응답에는 이 신선도·출처 정보와 429 여부가 **없다**.
+- Tokenly 변환: `utilization 0` → 100% 남음, `resets_at null` → "초기화 시각 미제공"(`ClaudeDirectUsageProvider.swift:76–85`). 받은 값을 그대로 변환했다.
+- 같은 시각 Claude Code 상태줄 피드(09:53)는 5시간 12%·14:30이었지만, 직접값이 900초 이내면 직접값이 우선이라(`ClaudeDirectUsageProvider.swift:138`) 쓰이지 않았다.
+- 복귀: 사용자 관찰로는 10:13 Tokenly 5시간 21%·14:30 초기화. 10:19 확인 기록:
+  - CLI 스냅샷 10:18:50 저장, five_hour 23%·`2026-11-06T05:30:00Z`(14:30)
+  - 체크포인트 오류 없음(attempts 1524)
+  - 코드 변경은 없었다.
+
+**원인 판단:**
+- Tokenly 변환 오류는 아니다(확인).
+- 09:30:19 스냅샷이 계속 전달된 것도 확인됐다.
+- 그 스냅샷이 계속 쓰인 이유는 미확정이다. 엔드포인트 실패·429·집계 지연 중 무엇인지는 CLI 로그가 없어 구분할 수 없다.
+- 09:30:19 값 자체(0%·초기화 없음)는 새 5시간 창(14:30 초기화 = 09:30 시작) 직전이나 직후의 값으로 보인다(추정).
+- 엔드포인트가 언제 회복됐는지(09:54~10:13 사이)는 기록이 없다.
+
+**참고:** 같은 시점에도 출처별 5시간 값이 몇 %씩 다르다(공식 앱 09:44 약 5%, 상태줄 09:53 12%, 스냅샷 10:18 23%, 상태줄 10:19 19%). 출처 간 몇 % 차이는 정상 범위로 보고, "0%·초기화 없음"처럼 창 자체가 비는 경우만 이상으로 본다.
+
+**개선 후보(보류, 기능 추가 중단 기간이라 미구현):**
+- 5시간 창이 "0%·초기화 없음"이고 15분 이내 상태줄 값에 앞으로의 초기화 시각이 있으면 상태줄 값을 표시한다.
+- `unknown`을 "데이터 없음"과 "형식 오류"로 나눠 기록한다.
+- "마지막 갱신"을 "마지막 조회"로 바꾸고, 수동 재시도가 실패하면 화면에 표시한다.
+- 조회 간격을 60초에서 늘리는 것을 검토한다.
+
+### 재발 시 확인할 증거와 순서 (모두 읽기 전용, 조회 실행 없음)
+
+1. **Tokenly 체크포인트** `~/Library/Application Support/io.github.jbbdyee.tokenly/Claude Direct Refresh/refresh-checkpoint.json`: `lastErrorKind`·`cooldownCycles`·`isPaused`·`pauseReason`·각 시각.
+   - 날짜는 2001-01-01 UTC 기준 초다: `date -r $((값 + 978307200))`.
+2. **CLI 스냅샷:** `~/.claude.json`의 `cachedUsageUtilization`에서 `fetchedAtMs`와 `five_hour`·`seven_day`의 `utilization`·`resets_at`**만** 출력한다. 계정 ID와 다른 필드는 출력하지 않는다.
+   - 저장 시각이 오래돼 있고 Tokenly 값과 같으면 CLI 저장값 전달(사건 B 유형)이다.
+   - 1시간을 넘으면 `unknown`(사건 A 유형 후보)이 이어진다.
+3. **상태줄 피드** `~/Library/Application Support/Tokenly/claude-quota.json`의 `captured_at`과 5시간 값을 함께 비교한다.
+4. **절전 기록:** `pmset -g log | grep -E "Sleep  |Wake  |DarkWake"`로 실패 시각 전후를 본다.
+5. **로그인:** 문제 시각 전후의 `/login` 실행 여부와 자격 증명 항목 수정 시각(`security find-generic-password -s "Claude Code-credentials"`의 속성만, `-w` 금지).
+6. 위 기록만으로 엔드포인트 실패 종류(429 등)는 알 수 없다. 확정하려면 별도 승인 후 개발용 빌드에서 CLI 디버그 로그의 "Failed to load usage data"·"answered from a snapshot" 줄만 남겨 관찰해야 한다.
+
+## 블로그 #4 자료 수집 (2026-11-05, 자료 전용)
+
+- `TokenlyRelease.noindex/blog-tokenly-04/`에 정리했다. 구성: PNG 16장(추천 8장), 코드 원문 스니펫 16개(v0.4.0 `a59eedd`·v0.4.1 `acaa74b` 태그에서 추출, 원문과 동일함 확인), `BLOG-MATERIALS.md`, `sources/`.
+- ZIP `tokenly-blog-04-materials.zip`(36항목, SHA-256 `a39f8043…26f9`): 무결성 OK, 민감 패턴 0건.
+- 11-05 Claude 직접 조회 진단은 위 "Claude 직접 조회 장애 기록"의 사건 A로 옮겼다.
+- 소스·설치 앱·체크포인트·설정 변경 없음. 실제 SDK 조회 0회, 커밋·Push 없음.
+
+## v0.4.1(7) 정식 릴리즈 (2026-11-04)
+
+**Git·Release:**
+- 릴리즈 입력 커밋 `acaa74b`(CHANGELOG 출시일, README 현재 버전). `fix/claude-refresh-recovery-v0.4.1` → main fast-forward(충돌 없음).
+- 주석 태그 `v0.4.1` → `acaa74b`. main·태그를 Push했고, [GitHub Release v0.4.1](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.1)을 Latest로 게시했다.
+- v0.4.0 태그(`a59eedd`)·Release(자산 2개)는 그대로다.
+
+**빌드:**
+- 깨끗한 복제본 `/private/tmp/tokenly-v041-release-source-20261104`에서 `TOKENLY_PRESERVE_LAUNCHSERVICES=1 release.sh --final 0.4.1`로 빌드했다.
+- Node는 영구 보관 경로 `claude-node-archives/v24.22.1`, 출력은 `TokenlyRelease.noindex/0.4.1/`이다.
+- `Tokenly-0.4.1-macOS-universal.zip`, SHA-256 `c93f72a19c1e059dc1615286cb2f11a9fa09e3c90884d7a473586c2d58e386e2`.
+- 독립 확인: 앱·Node x86_64+arm64, ad-hoc 서명, SDK 0.3.169, helper = 저장소 v0.4.1, 번들 안 `/Users/` 경로 0건. 공개 자산을 내려받아 체크섬·로컬 빌드와 동일함을 확인했다.
+- 출력 폴더의 stage 사본이 정식 ID로 LaunchServices에 등록된 경고는 그대로 두었다(v0.4.0과 같음).
+
+**설치:**
+- v0.4.0(6) 앱·설정·Application Support 2곳을 `TokenlyRelease.noindex/backup-0.4.0-before-0.4.1-20261104/`(700)에 백업하고 동일함을 확인한 뒤 진행했다.
+- v0.4.0을 정상 종료하고, 공개 ZIP 해제본으로 `/Applications/Tokenly.app`을 교체했다(해제본과 동일, 서명 OK, 설정 파일 그대로).
+- 실행 직후 v0.4.0 정지 체크포인트가 복구됐다: 17:42:33 시도, 17:42:36 성공, 이후 60초 간격(attempts 949까지, 오류 없음).
+
+**실화면(개발자 Mac, 다크):**
+- 메뉴 막대: `✦86/11`(Codex 7일 11%)·`✦9`(AGY), 겹침 없음.
+- 실제 AI 팝오버: 펄·크림·`· 부족`·Claude "자동 갱신", 24프레임 중 14개가 달라 반짝임 동작.
+- 실제 RAM 팝오버: 80% = 메뉴 막대 80%, `기타 ⓘ 627.8 MB` 잘림 없음. AI 팝오버는 RAM을 열자 닫혔다.
+- 팝오버는 합성 클릭으로 열고 닫았다. RAM을 닫는 첫 클릭은 반영되지 않아 한 번 더 눌렀다.
+- 화면은 `ui-check-v041-20261104/installed-0.4.1/`에 있다. 터미널이 찍힌 캡처 1장은 삭제했다.
+
+**참고:** 설치본 팝오버를 닫은 뒤 앱 CPU 2.7~4.0%(실제 Codex·AGY 조회, Claude Node 60초, 시스템 위젯 4개 포함). v0.4.0 동일 조건 값이 없어 비교하지 못했다.
+
+**복구 방법:** Tokenly 종료 → `/Applications/Tokenly.app` 삭제 → 백업 폴더의 `Tokenly.app` ditto. 필요하면 settings.plist와 Application Support도 복원한다.
+
+## v0.4.1 반짝임 CPU 최적화 (2026-11-04)
+
+**커밋:** `b07f4ca`(코드·테스트)와 문서 커밋. 요청 메시지가 "[4. UI 검증] 기…"에서 잘려, 이후 항목은 직전 단계의 UI 확인 방식(프레임 비교, 동작 줄이기, 닫힘 중단)과 금지 사항(병합·Push·Release·실계정 금지)을 그대로 적용했다.
+
+**원인:** 광택·별 그림자는 잡음 범위였고 `drawingGroup`은 두 배로 늘었다. 비용은 SwiftUI 상태 전환(`withAnimation`)으로 앱이 매 프레임 계산하는 데 있었다. 이 Mac은 60Hz다.
+
+**변경:** 같은 순서(`PearlSparkleTimeline`: 1.4초 광택, 0.3/1.5/2.7초 별, 0.45초 켜짐, 0.6초 사라짐, 6.35초 주기)를 `SparkleLayerView`의 Core Animation 키프레임으로 옮겼다. 정지 상태 0.85, 닫힘·동작 줄이기 시 제거는 그대로다. 광택 끝을 투명 검정 대신 띠 색 알파 0으로 바꿔 어두운 테두리를 없앴다.
+
+**측정(Release 테스트 앱, 2초×15회, 전후 교대):**
+
+| 상태 | 이전 평균(최대) | 이후 평균(최대) |
+|---|---|---|
+| AI + 반짝임 | 5.8/5.5% (9.7/9.1) | 0.7/0.7% (1.5/2.6) |
+| 동작 줄이기 | 0.9% | 0.5% |
+| 닫힘 | 0.6% | 0.5% |
+| AI+RAM | 7.2% (11.9) | 2.1% (3.1) |
+
+WindowServer는 16~36%로 흔들려 판정하지 못했다. 원자료는 `TokenlyRelease.noindex/ui-check-v041-20261104/sparkle-opt/`에 있다.
+
+**검증:**
+- 관련 4개 클래스 XCTest 135개 통과(새 3개, Claude 복구 테스트 포함). Debug·Release 빌드 성공.
+- 이전/이후 프레임 시트로 순서·색·광택이 같은지 확인. 라이트·다크 화면은 B안 그대로다.
+
+**미확인:** 실제 메뉴 막대 팝오버(이전과 같은 이유), 다른 기기·120Hz 화면에서의 CPU.
+
+## v0.4.1 출시 전 UI 마무리 (2026-11-04)
+
+**커밋:** `1f71ff1`(RAM 범례 UI 수정)과 버전·문서 커밋. 앞의 세 커밋 `8f9989d`·`23769b4`·`59b3d85`는 그대로다.
+
+**RAM 범례:**
+- "기타 시스템" → "기타". 도움말·VoiceOver에 "앱·와이어드·압축으로 분류되지 않는 사용 메모리의 차이, Tokenly가 계산한 나머지(Apple 정의 종류 아님)"를 적었다.
+- 색을 `#8C9BC0`으로 바꿨다. 사용 가능 회색과의 CIELAB ΔE는 라이트 범례 6.4→16.4, 다크 28~36이다.
+- 계산식·수치·막대 비율은 변경하지 않았다.
+- RAM 관련 3개 클래스 XCTest 59개 통과(새 3개: 실제 글꼴 폭, 문구·접근성, ΔE).
+- Release 테스트 앱 캡처에서 "기타 ⓘ 735.6 MB"가 잘리지 않고, 라이트·다크 모두 구분됐다.
+- 처음 쓴 RGB 거리 검사는 지각 차이를 반영하지 못해 ΔE로 바꿨다(IMP-PLAN 기록).
+
+**Release CPU:** 같은 테스트 앱(`uifixture-rel`, 번들 ID `…uifixture.20261104`, 가짜 사용량, 부족 막대 2개)을 `top`으로 2초×15회 측정했다.
+
+| 상태 | 평균 | 최대 |
+|---|---|---|
+| AI 창만 열고 애니메이션 | 5.1% | 9.1% |
+| AI 창만 열고 동작 줄이기 | 0.5% | — |
+| 창 닫힘 | 0.4% | — |
+| AI+RAM 열림 | 6.7% | — |
+| RAM만 | 1.8% | — |
+
+Debug(1.4~9.3%)와 비슷하다. 애니메이션은 줄이지 않았고 최적화 후보는 IMP-PLAN에 있다.
+
+**실제 팝오버:** 최소형·RAM 항목 숨김(테스트 앱 도메인만)으로 공간을 만들어 봤지만 AI 항목(x 825~914)이 « (x 896~913)에 걸려 숨겨졌다. 1회 시도 후 미검증으로 남겼다. 테스트 앱 설정은 원래대로 되돌렸다.
+
+**버전:** Info.plist 0.4.1(7). CHANGELOG 0.4.1을 실제 내용으로 정리했다. 화면은 `TokenlyRelease.noindex/ui-check-v041-20261104/release/`에 있다.
+
+**남은 일:** 실제 메뉴 막대 팝오버 1회 육안 확인, `release.sh --final 0.4.1`·main 병합·태그·Release(별도 승인).
+
+## v0.4.1 최종 UI 실화면 확인 (2026-11-04, 제품 코드 변경 없음)
+
+**자료 보존:**
+- RAM 측정 원본: `TokenlyRelease.noindex/ram02-measurements-20261104/`(4개 파일 SHA-256 동일, README 포함). 개인·인증 정보 없음.
+- 화면·로그·fixture 패치: `TokenlyRelease.noindex/ui-check-v041-20261104/`
+
+**테스트 앱:**
+- `59b3d85`의 `src`를 저장소 밖으로 복사하고 `TOKENLY_POPOVER_FIXTURE`를 확장했다. 가짜 Codex 72/38·Claude 12/41·AGY 8, CLI·SDK·네트워크 없음, 번들 ID `io.github.jbbdyee.tokenly.uifixture.20261104`.
+- 메뉴 막대 AI 항목은 메뉴 막대 공간이 부족해 macOS "가려진 메뉴 막대 항목"으로 숨겨졌고, AX로 펼치거나 누를 수 없었다. 그래서 같은 `UsageMenuView`·`RAMPopoverView`를 fixture 창에 띄워 `screencapture -l`로 창만 찍었다.
+
+**확인:**
+- B안 색·`✦ N% 남음 · 부족`·라이트 테두리가 미리보기와 같다(다크·라이트).
+- 별 반짝임: 10프레임 중 4개만 달라 약 7초 주기 동작을 확인했다.
+- 창을 닫으면 `loop stop` 2건이 기록된다.
+- Reduce Motion 모의 주입(환경 변수, 시스템 설정은 바꾸지 않음): 루프 미시작, 8프레임 동일, 정지 별 표시.
+- 메뉴 막대 RAM %와 RAM 창 %: 8회 중 7회 같고, 1회는 81.5% 경계에서 서로 다른 순간에 읽혀 1 차이.
+- CPU(Debug): AI 창 열림 1.4~9.3%, 닫힘 1.6~3.2%(RAM 창·TOP 5 포함).
+
+**문제:**
+- (1) RAM 범례 "기타 시스템"이 "기타 시…"로 잘린다(142pt 칸).
+- (2) 라이트 모드에서 기타 시스템·사용 가능 범례 색이 비슷하다.
+- (3) 애니메이션 전환 중 CPU가 최대 약 9%까지 오른다(Debug, Release 미측정).
+
+**미확인:** 실제 MenuBarExtra 팝오버 안의 동작, 실제 메뉴 막대 AI 숫자형의 별 겹침(이전 렌더 PNG로만 확인).
+
+수정은 승인 대기다. fixture 설정 도메인 `io.github.jbbdyee.tokenly.uifixture.20261104`는 남아 있다.
+
+## v0.4.1 RAM-02 수정 (2026-11-04)
+
+브랜치 `fix/claude-refresh-recovery-v0.4.1`, `23769b4` 위. 10-29 "원인 미확정·보류"를 기존 기록과 한 번의 짧은 측정으로 재검토했다. 지인에게 새 자료를 요청하지 않았다. 10-29 원시 로그는 `/private/tmp` 자동 정리로 사라져 BLOG-NOTES 보관본 §9.3 표를 썼다.
+
+**추가 측정:**
+- 이 Mac(16GiB M4, macOS 27.0.1)에서 활성 상태 보기 메모리 탭 요약을 접근성으로 읽기 전용 수집하고, 그 앞뒤로 `HOST_VM_INFO64`를 읽어 10쌍을 얻었다.
+- 측정 도구와 원본은 저장소 밖 작업 공간 `ramprobe/`에 있고 커밋하지 않았다. 활성 상태 보기는 측정을 위해 열었다가 닫았다.
+- 결과: `total − free − external`이 갱신된 7쌍에서 −0.06~+0.02GiB로 일치했다. 이전 세부 합은 0.56~0.66GiB 낮았다.
+
+**변경:**
+- `SystemMetrics.swift`: `VMPageCounters.free` 추가. used = max(total − free − external, 앱+와이어드+압축). Cached Files = external. `otherBytes` 추가.
+- `MachSystemSampler.swift`: `free_count`를 전달한다.
+- `SystemWidgetPresentation.swift`, `RAMPopoverView.swift`: 구성 막대·범례에 "기타 시스템"(0이면 숨김, 색 `#9EA3B5`, 정보 버튼)을 추가하고 도움말 문구를 고쳤다.
+- 메뉴 막대·사용률·그래프는 같은 usedFraction을 쓴다. 메모리 압박, CPU·GPU·Disk·배터리 계산은 변경하지 않았다.
+
+**검증:**
+- 시스템 모니터 15개 클래스 XCTest 215개 통과, Debug build-for-testing 성공.
+- 회귀 테스트: 기록 7쌍 일치(±0.07GiB), 10-29 3회의 새−이전 = 잔차+purgeable 바이트 일치, 24GiB 구성 예시, 0~100%, 비원자 읽기 보호, 메뉴 막대=팝오버 퍼센트.
+- 전체 테스트는 반복하지 않았다. Claude 복구·경고 디자인 코드 변경 없음, 실계정 조회 0회.
+
+**미확정:**
+- Apple 실제 산식과 기타 시스템의 커널상 정체
+- 지인 24GB(1.41GB 차이)·16GB M1에서의 일치
+- RAM 팝오버 5번째 범례 줄의 실제 화면
+
+📸 캡처 추천: v0.4.1 설치 뒤 활성 상태 보기와 Tokenly RAM 팝오버를 나란히 둔 화면(전체·기타 시스템·사용 가능), 프로세스 목록과 사용자 이름은 가림.
+
+## v0.4.1 AI 경고 색 B안 적용 (2026-11-04)
+
+브랜치 `fix/claude-refresh-recovery-v0.4.1`, 복구 커밋 `8f9989d` 위. 사용자가 A/B 미리보기(Artifact)에서 B안을 골랐다.
+
+**변경:**
+- `UsageMenuView.swift`:
+  - 막대 채움: `healthyGradientFill`을 `remainingLevelFill`로 바꿨다. 정상은 그라데이션, 주의는 크림, 부족은 펄 + `PearlSparkles`.
+  - 색: `AIWarningPalette`를 추가했다.
+  - 수치·접근성: `RemainingPercentLabel`("✦ N% 남음 · 부족")과 `RemainingLevelCopy`(VoiceOver "한도 부족")를 추가했다.
+  - 애니메이션 조건: 팝오버 창 가시성을 `remainingSparkleActive` 환경값으로 넘겨, 화면에 보일 때만 움직인다.
+- `MenuBarNumericRow.swift`, `NumericGauge.swift`: 부족 서비스에만 정적인 5pt 별을 숫자 앞에 그린다(`column(...).star`, `isLow`, 접근성 문구).
+- Claude 복구 로직, 임계값, `HarmonyPalette.amber`(RAM)는 그대로다.
+
+**검증:**
+- 관련 XCTest 169개 통과(새 3개, CPUPopoverTests 주석 수정, ClaudeOptionalUsageTests 포함). Debug build-for-testing 성공. 전체 466개는 반복하지 않았다.
+- 임시 렌더 테스트로 팝오버 막대와 메뉴 막대 PNG를 만들어 다크·라이트를 확인한 뒤 그 테스트는 삭제했다.
+
+**미확인:** 실제 메뉴 막대·팝오버에서의 반짝임과 동작 줄이기 전환, 팝오버를 연 동안의 CPU 사용량. 실계정 조회 0회. 설치본·GPU 로그 변경 없음.
+
+📸 캡처 추천: 부족 상태(예: Claude 12%)의 팝오버에서 별이 반짝이는 순간과 동작 줄이기 정지 화면, 다크·라이트 각각(계정 정보 가림).
+
+## v0.4.1 Claude 직접 조회 복구 수정 (2026-11-04)
+
+브랜치 `fix/claude-refresh-recovery-v0.4.1`(main `94fded2`에서 분기). 바로 아래 진단을 바탕으로 수정했다. 정책 표는 `Doc/SPEC.md` 상단, 결정 근거는 `Doc/IMP-PLAN.md` 마지막 절에 있다.
+
+**변경:**
+- helper: 네트워크 계열 오류를 exit 27로 분리하고, 429에서는 Retry-After 초 값만 출력한다. 오류 분류 함수는 export했다.
+- runner: exit 27을 `.network`로, exit 26의 Retry-After를 `ClaudeRateLimitError`로 바꾼다.
+- gate: 백오프·쿨다운·정지 사유·수동 재시도·v0.4.0 정지 복구·오래된 in-flight 정리·상태 조회를 추가했다.
+- Store: 절전 중 조회 금지, 복귀 뒤 20초에 한 번 조회, 수동 새로고침 시 `prepareManualRetry`, `claudeDirectStatus` 게시.
+- 팝오버: 직접 조회 상태 문구와 상세 안내, 상태줄 출처 표시.
+
+2회·3회 실험 gate는 기존처럼 실패 시 정지하는 정책을 유지한다.
+
+**검증:**
+- 전체 XCTest 466개 통과(실패 0). 기존 457개 중 이전 정책을 단정하던 7개는 새 정책으로 고쳤고, 9개를 추가했다.
+- Node 15개 통과(가짜 SDK 모듈로 helper 프로세스 종료 코드·출력 확인 포함).
+- Debug(build-for-testing)·Release 빌드 성공, `git diff --check` 통과.
+- 실계정·모델 요청 0회. 설치본 v0.4.0과 체크포인트는 변경하지 않았다.
+
+**남은 위험:**
+- 실제 SDK 오류 객체의 code·name·status·헤더 위치는 미검증이다. 다른 형태면 미분류 → 쿨다운 경로로 간다.
+- 실기기 DarkWake·`didWake` 타이밍은 미검증이다.
+- 안전 정지(예상 밖 모델 활동)를 푸는 UI가 없다. 체크포인트를 지워야 한다.
+- Info.plist는 아직 0.4.0(6)이다.
+
+main 병합·Push·Release는 하지 않았다. 📸 캡처 추천: 실기기에서 `직접 조회 재시도 대기`와 상세 안내가 보이는 Claude 팝오버(계정 정보 가림).
+
+## v0.4.0 Claude 자동 조회 영구 중단 진단 (2026-11-04, 분석만)
+
+**확인된 사실:**
+- 설치본 체크포인트(`Application Support/io.github.jbbdyee.tokenly/Claude Direct Refresh/refresh-checkpoint.json`): `isPaused=true`, attempts 946, transientFailures 0, lastSuccessAt 11-04 07:07:56, lastAttemptAt 08:40:23.76.
+- `pmset -g log`: 08:40:20 DarkWake(2초) → 08:40:22 Sleep. 마지막 시도는 절전 진입 직후 시작됐다.
+- 코드 동작:
+  - `ClaudeDirectRefreshGate.advance`는 `.unavailable/.sdkFailure/.authenticationRequired/.permissionDenied/.rateLimited/.incompatibleSDK/.unexpectedModelActivity`와 제품의 미분류 오류(`pauseOnUnknownError`)에서 `isPaused=true`가 되고, 이를 해제하는 코드가 없다. `.timeout/.transport`는 transientFailures를 올리므로 이번 경우가 아니다.
+  - 정지 중 `nextAutomaticRefresh`는 nil이라 60초 타이머가 예약되지 않는다. 제품 빌드의 300초 반복 타이머는 직접 조회가 켜져 있으면 Claude를 건너뛴다.
+  - 이후 fetch는 statusLine만 읽고, 직접값이 900초를 넘으면 statusLine값을 골라 `상태줄 데이터`로 표시한다.
+  - 오류 종류는 체크포인트·통합 로그 어디에도 남지 않는다.
+- helper는 HTTP status가 없는 SDK 예외를 모두 exit 22(`sdkFailure`)로 보낸다.
+
+**추정:** DarkWake 중 네트워크가 끊긴 상태에서 SDK 예외가 나서 exit 22 → `sdkFailure` → 영구 정지로 이어진 것으로 보인다. 오류 종류는 기록이 없어 확정할 수 없다.
+
+**수정 후보(v0.4.1):**
+- helper가 네트워크 계열 오류를 별도 exit로 보내 transient로 처리
+- `sdkFailure/unavailable`도 백오프 처리
+- 정지에 쿨다운이나 수동 새로고침 해제 경로 추가
+- 비민감 오류 종류 기록
+- UI에 `자동 조회 중지` 표시
+
+소스는 변경하지 않았다. 실계정 조회 0회.
+
+## v0.4.0 출시 후 유지보수 (2026-11-02)
+
+**CHANGELOG:** `[0.4.0]` 제목을 `(GitHub Release)`로 바꾸고 태그 대상 `a59eedd`·ZIP SHA-256을 적었다. 검증 범위는 출시 전과 출시 후 결과를 나눴다. 출시 후 결과는 개발자 Mac 설치·설정 유지·Claude 60초 연속 성공·팝오버 화면 확인이며, 한 계정·한 기기의 단기 관찰로 명시했다. 미검증 항목(SDK 장시간 제한·비용·신선도, M1 실기기, 클린 Mac, Gatekeeper)은 그대로다.
+
+**`scripts/release.sh`:** Node 압축 파일 기본 경로를 `/private/tmp/...`에서 `$HOME/Developer/Tokenly-Workspace/TokenlyRelease.noindex/claude-node-archives/v24.22.1`로 바꿨다. 동작은 다음과 같다.
+- `TOKENLY_CLAUDE_NODE_ARCHIVES`가 우선하며, 지정하면 기본 경로로 대체하지 않는다. `~`·symlink는 기존 `resolve_path`로 해석한다.
+- SHA-256 고정값을 Xcode 빌드 전에 한 번, 번들 직전에 한 번 다시 검사한다.
+- 읽기 전용 옵션 `--print-node-archives`를 추가했다. `--help` 범위도 갱신했다.
+- `/tmp` 대체 경로는 두지 않는다.
+
+이 기본 위치에 공식 압축 파일 2개를 보존 사본에서 복사했고(읽기 전용, 고정 SHA 일치), `/tmp` 원본과 `preserved-from-tmp-20261102` 사본은 그대로 둔다.
+
+**검증:** `bash -n` 통과(shellcheck 미설치). `--print-node-archives`로 10가지 경우를 시험했다.
+- 성공: 기본, 환경 변수(보존 폴더·옛 `/tmp`·`~` 경로), 다른 HOME에 압축 파일이 있는 경우
+- 실패(exit 1과 안내): 폴더 없음, 압축 파일 하나 누락, 체크섬 불일치, 빈 HOME, 환경 변수가 잘못돼도 기본 경로로 대체하지 않음
+
+`--print-output`과 `--help`가 정상이었고, 릴리즈 루트에 새 폴더가 생기지 않았다. 전체 XCTest·앱 빌드·ZIP 생성·실계정 조회는 하지 않았다.
+
+**문서:** README 빌드 절, TODO, SPEC 상단, IMP-PLAN 결정 기록을 동기화했다.
+
+**남은 일:** 실험용 `build-claude-product-candidate.sh`·`build-claude-portable-dev.sh`는 아직 `/tmp` 기본 경로를 쓴다. 실제 `release.sh` 전체 실행으로 새 기본 경로를 확인하는 일은 다음 릴리즈 때 한다. 📸 캡처 추천: 없음.
+
+## 디스크 정리 1단계 (2026-11-02)
+
+여유 공간이 15 GB에서 66 GB로 늘었다(`df -H`, GiB 기준 14.11 → 61.48).
+
+보존한 것:
+- Node 압축 파일, M1 fixture, v0.4.0 release output 세 폴더를 `TokenlyRelease.noindex/preserved-from-tmp-20261102/`에 ditto로 복사했다. `diff -r`가 동일했고, SHA-256도 일치했다. Node 압축 파일은 `release.sh` 고정값과, 두 ZIP은 각 `.sha256`과 같았다.
+- `release.sh`의 `TOKENLY_CLAUDE_NODE_ARCHIVES` 기본값이 `/private/tmp/tokenly-claude-portable-node-v24.22.1`이라 `/tmp` 원본도 남겼다. 소스는 변경하지 않았다.
+
+삭제한 것:
+- `/private/tmp/tokenly*` 중 333개(46.74 GB)를 정확한 경로로 하나씩 삭제했다. 실패 0. DerivedData 222개, xcresult, 빌드·검증·release 출력 사본, helper 패키지, clang 캐시, 임시 HOME이 해당한다.
+- Homebrew·pip·Notion updater 캐시, Xcode DerivedData의 Tokenly 2개, 이번 세션 작업 공간의 다운로드·압축 해제 사본을 삭제해 1.8 GB를 더 확보했다.
+
+남긴 것(약 0.7 GB):
+- 소스 사본 14개. 이 중 `tokenly-rc-v0.2.0-src`에는 미커밋 수정 7파일이 있고, 커밋은 모두 메인 저장소에 있다.
+- 작은 로그·스크립트·patch, npm 캐시 2개, ram02 측정 데이터, codex sqlite 사본
+- 실행 중인 Discord의 ShipIt 캐시, Xcode의 공용 SDK 모듈 캐시, 다른 세션 작업 공간
+
+정리 후 v0.4.0은 계속 실행 중이었고, Claude 직접 조회 attempts 39회, transientFailures 0이었다. Docker 사용량·컨테이너, 다른 프로젝트, `.codex/sessions`, GPU 로그는 변경 없음. 삭제된 임시 앱 사본의 LaunchServices 등록은 해제하지 않았다.
+
+후속 제안이던 `release.sh`의 Node 기본 경로 변경은 아래 "v0.4.0 출시 후 유지보수"에서 완료했다.
+
+## README v0.4.0 정식 상태 반영 (2026-11-02)
+
+README만 수정해 커밋·Push했다. 반영한 내용은 다음과 같다.
+- 상단에 현재 버전 v0.4.0(6), 다운로드·설치 안내, 구현·검증됨·미검증 표를 넣었다.
+- 주요 기능 표와 Claude 직접 조회·statusLine 대체·CLI 경로(`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`)를 추가했다.
+- 팝오버 중첩 방지 설명, 구조도·연동 표, `release.sh` Node·SDK 입력, v0.4.0 설치 검증 행, 향후 계획을 갱신했다.
+
+M1 실기기와 Claude 장시간 안정성은 미검증으로 표기했다. 기존 v0.3.0 Codex 기록은 "개발 기록"으로 구분해 보존했다. CHANGELOG의 `[0.4.0] (배포 파일 준비)` 제목과 "통합 후보의 실제 계정 조회·설치…실행하지 않았습니다" 문장은 출시 전 기준이다. README는 이를 출시 후 설치 결과로 구분해 적었고, CHANGELOG는 이번 범위가 아니라 수정하지 않았다. 테스트·빌드는 문서 변경이라 실행하지 않았고, `git diff --check`는 통과했다. 📸 캡처 추천: 없음.
+
+## 디스크 사용량 분석 (2026-11-02, 분석만·삭제 0회)
+
+Data 볼륨 245 GB 중 사용 230 GB, 여유 15 GB(6%). `/private/tmp/tokenly*` 626개 항목이 47.4 GB이고, 이 중 DerivedData가 222개 44.5 GB, `Tokenly*.app` 사본이 242개다. 날짜별로 10-29~10-31분이 20.1 GB, 11-01~11-02분이 27.4 GB다. 보존할 항목은 다음과 같다.
+- `tokenly-claude-portable-node-v24.22.1`: `release.sh`의 기본 `TOKENLY_CLAUDE_NODE_ARCHIVES` 경로다. `/tmp`에 있어 유실될 위험이 있다.
+- M1 fixture final
+- v0.4.0 release output(GitHub 자산과 SHA 동일)
+
+v0.4.0 ZIP 사본 3개는 모두 같은 SHA다. 임시 `.app` 사본 다수가 제품 번들 ID로 LaunchServices에 등록돼 있을 수 있다. 삭제해도 일괄 해제(`lsregister -kill`)는 하지 않는다. 그 밖의 항목은 Docker 이미지 13.7 GB(9.9 GB 회수 가능), 볼륨 7.3 GB(미사용 6.0 GB), iOS 시뮬레이터 런타임 27.0·27.1 14.8 GB다. 분석 중 `xcrun simctl runtime list`를 실행하자 Xcode 구성요소 설치("Install Started…Succeeded")가 자동으로 실행됐다. 삭제 결정은 사용자 승인 대기다. 📸 캡처 추천: 없음.
+
+## v0.4.0(6) 정식 릴리즈 로컬 설치 (2026-11-02)
+
+`main` / HEAD `a59eedd`, 소스·GitHub 변경 0회. 백업 `TokenlyRelease.noindex/backup-0.3.0-before-0.4.0-20261102/`의 앱은 설치본 v0.3.0(5)과 `diff -rq` 동일, 설정 plist는 바이트 동일, statusline·backups 폴더 동일(quota 캐시 두 개만 런타임 갱신으로 달랐음). GitHub Release ZIP SHA-256 `73ce37bcdb9cbdb81ae1a7fec11d40709d43d6880c5685853e1be61aa7aa814b`가 `.sha256` 자산과 GitHub digest 모두와 일치. 설치본 v0.3.0은 실행 중이 아니어서 종료할 필요가 없었다. 별도 개발 앱 `…clauderealone.20261101`(/private/tmp, 11-01부터 실행)은 범위 밖이라 유지했다. ZIP 해제본을 `/Applications/Tokenly.app`에 ditto로 설치. 해제본과 동일, `io.github.jbbdyee.tokenly` 0.4.0(6), universal, ad-hoc 서명 `codesign --verify --deep --strict` 통과, quarantine 없음(`spctl` rejected는 ad-hoc이라 예상된 결과). LaunchServices 수동 변경 0회. 실행 후 설정 24키가 백업과 동일했다. v0.4.0이 `~/Library/Application Support/io.github.jbbdyee.tokenly/Claude Direct Refresh/` 체크포인트를 새로 만들었다. 제품 60초 자동 조회 첫 시도는 성공했다(attempts 1, transientFailures 0). 이 외에 수동 모델·API 호출은 0회. 접근성으로 읽은 메뉴 막대 항목: AI(`Claude 5시간·7일` 표시), CPU, RAM, Disk, 배터리. 메뉴 막대가 가득 차서 AI 항목이 `«` 오버플로에 숨어 있었고, AXPress로 팝오버가 열리지 않았다. 따라서 팝오버 내부의 Codex·Claude·AGY 행은 미확인이다. AI 제목에 Codex 수치가 보이지 않는 원인도 미확인이다. GPU 로그 2개 보존. 📸 캡처 추천: 사용자가 메뉴 막대 공간을 확보한 뒤 v0.4.0 AI 팝오버 전체 화면. 계정·개인 경로는 가린다.
+
+## v0.4.0 배포 파일 준비 정책 (2026-11-02)
+
+사용자는 v0.3.0과 같은 ad-hoc 서명 배포를 결정했다. Claude 60초 상시 조회의 호출 제한·비용·장기 안정성은 운영 중 관찰하며, M1 팝오버 수정은 실기기 미검증으로 릴리즈 노트에 명시한다. `release.sh --final`은 `TOKENLY_PRESERVE_LAUNCHSERVICES=1`로 수동 등록 해제를 건너뛰어 이번 요청의 LaunchServices 변경 금지를 지킨다. 공식 Claude CLI 설치·로그인이 직접 조회의 외부 조건이며 statusLine 대체는 유지한다. 기존 설치 v0.3.0(5)은 교체하지 않는다. 산출물·체크섬·검증 결과는 이번 작업 완료 후 기록한다. 📸 캡처 추천: 없음. 설치·실사용 화면을 이번 단계에서 만들지 않는다.
+
+## v0.4.0 통합 후보 (2026-11-02)
+
+`integration/v0.4.0`을 팝오버 브랜치 `3678c17`에서 생성했다. Claude 브랜치 `7b40688`은 조상이라 중복 적용·충돌이 없었다. Info.plist는 0.4.0(6) 후보, CHANGELOG는 미배포 초안이다. 제품 기본 Claude 성공 후 60초 조건, statusLine 대체, single-flight·재시작 체크포인트·백오프·자동 중단과 Tokenly 팝오버 단일 창 조정기를 정적 확인했다. Mock 및 실계정 2회/3회 예약 제한은 개발 플래그 경로에만 있다. 이번 실계정·모델 요청, 설치·LaunchServices 변경, main 병합·Push·Release는 0회다. 통합 후보 전체 XCTest 457개와 Node 정책 테스트 11개는 통과했다. Debug·Release 별도 빌드는 일반 권한에서 SwiftUI 매크로 서버 응답 오류로 실패했다. 이후 한 번의 승인된 승격 실행에서 같은 소스의 Debug·Release 빌드가 모두 성공해 환경 제한으로 판정했다. 미추적 GPU 로그 2개 보존. 📸 캡처 추천: 통합 앱을 별도 승인 범위에서 UI 검증할 때 CPU→RAM→Disk 전환의 단일 팝오버. 현재는 캡처를 위해 실행하지 않는다.
+
+## 시스템 팝오버 중첩 회귀 보강 (2026-11-02)
+
+`fix/system-popover-exclusivity` / 시작 HEAD `085e2d6`. 공통 창 조정기는 유지하고 제품 동작은 변경하지 않았다. CPU→RAM→Disk→CPU 창 전환에서 이전 창이 각각 보이지 않는지, 같은 창의 재활성은 조정기가 강제로 닫지 않는지, SwiftUI가 창을 닫은 상황을 모의한 `orderOut`/`closed` 뒤 active 상태가 비워지고 지연된 닫힘 알림이 새 창을 지우지 않는지 XCTest 두 개를 추가해 이번 세션에서 2/2 통과했다. 기존 22개와 Debug·Release 전체 빌드는 반복하지 않았다. 시스템 5개와 AI 화면 모두 `WindowVisibilityReporter`로 같은 조정기에 연결돼 있음을 정적 확인했다. 이는 macOS 메뉴 막대의 실제 재클릭·외부 클릭 이벤트를 재현한 테스트가 아니다. M4/macOS 27.0.1의 이번 수정 GUI 확인과 지인 M1 실기기 검증은 모두 보류한다. M1 칩/OS가 원인이라고 단정하지 않는다. 설치 앱·Claude 코드·GPU 로그는 변경하지 않았다. 📸 캡처 추천: M1 실기기 확인이 가능해지면 CPU→RAM→Disk 전환 후 팝오버 한 개만 보이는 화면. 현재는 캡처 재실행하지 않는다.
+
+## 시스템 메뉴 막대 팝오버 중첩 수정 후보 (2026-11-02)
+
+Claude 실험 HEAD `7b40688`에서 `fix/system-popover-exclusivity` 브랜치를 만들었다. M4에서는 기존 전환이 정상이지만 지인 M1에서 CPU·RAM·Disk 팝오버 중첩이 보고됐다. 각 SwiftUI 창 사이에 배타 상태가 없는 경로를 확인해 `PopoverWindowCoordinator`를 추가하고, AI와 시스템 팝오버에 공통 적용했다. 그래프·측정·Claude SDK·인증·갱신 로직은 변경하지 않았다. 별도 `TOKENLY_POPOVER_FIXTURE` 앱은 외부 Provider를 비워 실계정 요청 없이 UI만 시험한다. 관련 CPUPopover XCTest 22개와 일반 Debug·Release 빌드가 통과했다. 실제 GUI 조작은 이번 세션에서 하지 않았다. fixture ZIP은 `/private/tmp/tokenly-popover-fixture-m1-final-20261102/`에 생성했고 arm64/x86_64 빌드·ad-hoc 서명과 macOS 최소 14.0을 확인했다. M1 실기기 전환·재클릭·외부 클릭과 Intel 실행은 미검증이며 지인의 macOS와 기존 Tokenly 버전을 함께 확인해야 한다. GPU 로그 두 개와 설치본은 보존한다. 📸 캡처 추천: M1에서 CPU→RAM→Disk를 순서대로 연 뒤 Disk 팝오버 하나만 보이는 메뉴 막대 전체 화면. 버전·계정·개인 경로는 가린다.
+
+## Claude 60초 배포 입력·등록·서명 점검 (2026-11-02)
+
+브랜치 `experiment/claude-usage-refresh` / 시작 HEAD `862717d`. 제품 코드·설치 앱·설정·인증은 변경하지 않았고 실계정/모델 요청 및 LaunchServices 등록 변경은 0회다. 설치 앱 v0.3.0(5)은 제품 ID로 정상 등록돼 있다. 같은 ID의 오래된 임시 사본 등록이 다수 남아 있어 임의 일괄 해제는 금지한다. Node v24.22.1 arm64/x64 현지 아카이브 SHA-256은 스크립트 고정값과 일치하고 SDK 0.3.169는 lockfile에 고정됐다. 호스트 npm·패키지 캐시/접근·외부 Claude CLI는 여전히 필요하다. Developer ID Application 인증서 0개, 현재 스크립트는 ad-hoc 서명만 한다. 다음 버전 v0.4.0(6) 및 CHANGELOG 문안은 제안 단계다. 상세 근거·클린 Mac 체크리스트·남은 릴리즈 게이트는 [배포 준비 점검](CLAUDE-RELEASE-PREP.md)을 따른다. 이전 XCTest 454개/Node 11개/Debug·Release 결과는 재실행하지 않았다. `git diff --check`만 이번 변경에 실행한다. GPU 로그 2개 보존. 📸 캡처 추천: 없음. 이번 단계는 읽기 전용 등록/빌드 입력 확인이며 공개할 화면이 없다.
+
+## Claude 일반 빌드 60초 경로 적용 준비 (2026-11-02)
+
+**검증 결과:** 일반 전체 XCTest 454개, 개발 플래그 관련 XCTest 44개, Node 정책 11개 통과. 일반 Debug·Release 빌드, 릴리즈 스크립트 `--dev`의 임시 ID ZIP·앱/Node 서명·압축 해제 동일성·체크섬, `git diff --check` 통과. 실계정 사용량/모델 호출과 앱 설치는 0회.
+
+시작 브랜치 `experiment/claude-usage-refresh` / `ee55d6f`, 미추적 GPU 로그 2개만 있었다. 일반 Debug·Release와 테스트 빌드에 제품 컴파일 경로를 연결했고, 개발용 Mock·실계정 2회/3회 제한은 제품 경로에 포함하지 않았다. `scripts/release.sh`에 공식 Node 24.22.1 양쪽 아키텍처의 SHA-256 검사, SDK 0.3.169 lockfile 패키징, helper·실행권한·버전/아키텍처 검증을 추가했다. 정식 v0.3.0 설치 앱/설정/인증에는 손대지 않았다. 첫 릴리즈 점검은 Xcode 설정 편집에서 `GENERATE_INFOPLIST_FILE=NO`·`INFOPLIST_FILE`이 빠져 버전 없는 Info.plist가 생성되어 실패했고 즉시 복구했다. 개발 점검 ZIP은 임시 번들 ID를 유지하고 임시 HOME의 Mock 명령만 실행하도록 수정했다. 최종 개발 점검에서 Node 양쪽 아키텍처, SDK 버전, 앱/Node ad-hoc 서명, ZIP/압축 해제 동일성·SHA-256과 출력 폴더의 제품 ID 미등록을 확인했다. 이전 개발 점검 두 번은 실번들 ID의 임시 사본이 LaunchServices에 등록됐고 자동 해제는 설치 앱 기록에 영향을 줄 수 있어 수행하지 않았다. 설치 앱 파일·설정은 변경되지 않았다. 테스트는 가짜 Node 실행 파일만 사용하며 실제 Claude 계정·모델 조회 0회다. 문서 하단의 이전 후보 플래그 보류 기록은 해당 당시 단계 이력이다. 남은 배포 조건은 버전·CHANGELOG, Developer ID/Hardened Runtime/공증, 클린 arm64/Intel Mac과 외부 CLI, 반복 60초 조회 위험 검증이다. 빌드 머신에는 SHA-256이 고정된 공식 Node 양쪽 압축 파일(`TOKENLY_CLAUDE_NODE_ARCHIVES`)과 npm 패키지 캐시/접근이 필요하다. 정식 `--final` 모드는 새 버전·깨끗한 작업 트리·태그 관계를 요구하며 아직 실행하지 않았다.
+
+## Claude 1분 정식 통합 후보 (2026-11-02)
+
+**이번 검증:** Node 정책 11개와 기본 XCTest 453개 통과, 후보 Debug·Release 빌드 성공, `git diff --check` 통과. 후보 Debug 앱은 별도 ID `io.github.jbbdyee.tokenly.claudecandidate.20261102`로 공식 Node arm64/x64와 SDK 0.3.169를 포함해 ad-hoc 서명했지만 실행하지 않았다. 기존 개발 플래그 전용 6개 테스트는 기본 전체 테스트 집계에 포함되지 않는다.
+
+실험 브랜치 `dcc26a7`에서 시작했다. 제품 후보 플래그는 공식 SDK/번들 Node/외부 Claude CLI가 검증될 때 60초 기본 독립 조회를 사용하며 개발용 번들 ID와 2회/3회 예약 제한을 사용하지 않으며 후보 체크포인트는 해당 번들 ID별 경로에 격리한다. 완료 기준 단발 타이머, 재시작 체크포인트, 실패 백오프 및 불명확한 오류 자동 중단, 상태줄 대체를 연결했다. 후보는 실행·설치하거나 실제 계정을 조회하지 않았다. 설치된 v0.3.0, 설정, 인증, GPU 로그 2개는 보존한다. 아래의 300초 보류 설명은 이전 실험의 기록이다. 릴리즈 전에 클린 Mac/Intel, 외부 CLI 호환성, Developer ID/Hardened Runtime/공증, 반복 60초 호출의 제한·비용·신선도·장기 안정성을 확인해야 한다.
+
+## Claude SDK 이식형 개발 앱 준비 (2026-11-01)
+
+시작 `experiment/claude-usage-refresh` HEAD `e1a04c4`, 미추적 GPU 로그 2개 외 깨끗했다. 공식 Node 24.22.1 arm64/x64 tarball을 공개 SHA-256으로 확인했다. 공식 Node는 macOS 시스템 라이브러리만 참조했고 Homebrew Node의 동적 라이브러리 의존성을 제거했다. `lipo` 범용 Node, SDK 0.3.169 lockfile 기반 패키지와 helper를 별도 개발 앱에 포함했다. SDK 내장 선택적 CLI는 제외하고 SDK import만 확인했으며 실제 사용량/모델 요청은 없었다. 번들 ID `io.github.jbbdyee.tokenly.claudebundle.20261101`, 앱 경로 `/private/tmp/tokenly-claude-portable-app-final-20261101/DerivedData/Build/Products/Debug/Tokenly.app`, 크기 약 310 MB. 앱은 실행하지 않았다.
+
+개발 옵션은 기본 비활성이며 해당 ID·명시적 활성화 변수·외부 Claude CLI 경로가 모두 있어야 번들 resolver가 동작한다. 파일/권한/SDK 버전/CLI 누락은 기존 statusLine으로 안전하게 돌아간다. 가상 shell/Node 응답으로 경로와 번들 Node 실행을 시험했으며 SDK helper 자체는 실행하지 않았다. ad-hoc 코드 서명과 `codesign --verify --strict`만 확인했다. Developer ID, Hardened Runtime, notarization, Gatekeeper, 최소 macOS 및 다른 Mac의 arm64/x64 실행은 미검증이다. 기존 300초 정책 유지, 60초 상시 조회 미활성. 화면 표시 갱신과 SDK 네트워크 조회를 분리한다. 검증: Node 정책 테스트 11개, Claude 관련 XCTest 7개, 전체 XCTest 447개, Debug·Release 및 분리 개발 앱 빌드 성공, `git diff --check` 통과. 첫 Mock XCTest는 복사한 `/bin/sh` 바이너리가 macOS에서 종료돼 실패했으며 서명 대상이 아닌 가상 shell 스크립트로 수정해 관련/전체 XCTest를 재실행해 통과했다. 코드 서명 검증은 ad-hoc 범위다. 📸 캡처 추천: 번들 내부 Node·SDK 경로와 `codesign --verify` 결과(사용자 경로를 가린 뒤); 계정 화면 캡처는 필요 없다.
+
+## Claude 60초 제한 실계정 실험 (2026-11-01)
+
+시작 `experiment/claude-usage-refresh` HEAD `da7f7e2`, 미추적 GPU 로그 2개 외 변경 없음. 기존 300초 예약/체크포인트는 건드리지 않았다. 기존 단발성 개발 앱 1개가 실행 중이었고, 새 앱은 별도 번들 ID `io.github.jbbdyee.tokenly.claudereal60.20261101`, 별도 설정 도메인과 `/private/tmp/tokenly-claude-real-sixty-20261101` 예약 폴더를 사용했다. Mock은 60초 전 거부, 재시작/절전·재열기 대응, 최대 2회, 세 번째 거부를 확인했다. Node 11개, 전체 XCTest 446개, Debug·Release 및 별도 개발 앱 빌드, `git diff --check` 통과.
+
+실제 SDK 계정 조회는 정확히 2회: 둘 다 성공, 5시간·7일 필드 유효, 오류 없음, Swift Store의 직접 조회 출처/마지막 성공 시각 존재가 두 번 기록됐다. 실행 시간 2.309초·1.761초, 첫 성공 완료부터 두 번째 시작까지 60.014초(단조 증가 uptime 기준). 예약 파일 2개·체크포인트는 남겼고 새 앱/helper 프로세스는 종료됐다. 모델 메시지·양의 세션 비용 감지 안전장치는 발동하지 않았지만 무과금 보증은 아니다. 실제 사용률·초기화 시각·인증/계정 자료·원본 응답은 기록하지 않았다. 두 번째 성공의 화면 반영은 Store 기록만 확인했으며 화면은 미검증. 기존 300초 기본 후보 정책·정식 v0.3.0·인증/설정·GPU 로그는 변경하지 않았다. 1분 상시 조회는 공식 제한·비용·서버 신선도·호환성 확인 전 보류. 📸 캡처 추천: 없음. 실제 값이 표시되는 팝오버는 이번 단계에서 캡처하지 않았다.
+
+## Claude helper 배포 준비 (2026-11-01)
+
+시작 브랜치 `experiment/claude-usage-refresh`, HEAD `272716c`, 기존 변경은 미추적 GPU 로그 2개뿐이었다. SDK 0.3.169 lockfile을 생성하고 개발용 helper payload 제작 스크립트를 추가했다. `/private/tmp/tokenly-claude-helper-package-272716c`에 SDK 의존성 105개, helper, 잠금 파일과 SHA-256 목록을 생성했다. 이 산출물은 Node/Claude CLI 미포함이며 정식 앱 Resources에도 연결되지 않아 다른 Mac 실행은 미검증이다. Homebrew Node는 다수의 Homebrew dylib를 참조해 단독 복사 대상이 아니다. Swift 실행 전 권한 검사를 보강하고 Mock으로 누락/권한 오류를 검증한다. 실계정 조회, 모델 요청, 자동 폴링, 설치본 변경은 없었다. 5분은 SDK 네트워크 조회 후보 간격이며 화면 표시 갱신과 구분한다. 1분 네트워크 조회는 보류한다. 다음 단계는 공식 Node 배포물·다중 아키텍처·서명/notarization·클린 Mac·CLI 호환성 확인이다. 📸 캡처 추천: 없음. 이번 단계는 화면을 실행하지 않았다.
+
 # Tokenly 작업 인수인계
+
+## Claude 제한적 실계정 자동 갱신 2회 (2026-11-01)
+
+- 새 개발 앱 ID `io.github.jbbdyee.tokenly.claudereal2.20261101`의 별도 임시 Debug 앱으로 공식 SDK 조회를 정확히 2회 실행했다. 모두 5시간·7일 유효·오류 없음, Swift Store의 직접 출처·두 창·성공 시각 존재를 비민감 기록으로 확인했다. 각 소요 2.267초/2.330초, 첫 성공 완료→둘째 시작 300.014초, 완료 간 302.344초. 화면상 두 번째 성공 시각 변화는 직접 확인하지 않았다. helper의 모델 메시지/양의 세션 비용 감지 코드 21은 없었지만 과금 0은 보증하지 않는다.
+- 새 영속 체크포인트에서 재시작한 앱이 남은 두 번째 슬롯을 사용하지 못하도록 제한했다. 첫 성공 뒤 같은 앱 실행에서만 반복하지 않는 300초 타이머가 두 번째 조회를 예약한다. 두 번째 성공 후 새 개발 앱만 종료했고 프로세스·helper는 남지 않았다. 예약 2개와 체크포인트 `attempts=2`를 보존해 재조회 차단 상태를 유지한다. 정식 설치 v0.3.0과 이전 개발 앱, 사용자 설정·인증, GPU 로그 2개는 변경하지 않았다.
+- Node 정책 9개, Claude 관련 XCTest 40개, 전체 XCTest 446개, 일반 Debug·Release 및 분리 개발 Debug 빌드, `git diff --check` 통과. 실제 인증 오류/429/타임아웃, 서버 신선도·다른 Mac 배포·장시간 비용은 미검증이다. 상세는 `CLAUDE-USAGE-EXPERIMENT.md` 상단을 따른다.
+
+## Claude 재시작 안전 체크포인트 (2026-11-01)
+
+- 실험 브랜치에서 선택적 JSON 체크포인트를 `ClaudeDirectRefreshGate`에 추가하고 기존 단발/2회 개발 경로에만 연결했다. 마지막 시도/성공 시각, 다음 허용 시각, 시도·일시 실패 횟수, 중단/진행 중 상태만 기록한다. 파일 잠금으로 동시 프로세스를 직렬화하며 손상·쓰기 실패·중단된 진행 중 상태는 자동 조회를 차단한다. 기존 예약 파일은 유지한다. 체크포인트는 개발 앱 번들 ID별 Application Support에 둘 설계이며 이번에는 앱을 실행하지 않아 실제 설정 파일을 만들지 않았다. 정식 앱 statusLine과 실제 사용자 설정은 변경하지 않았다.
+- Mock Clock/Executor는 재시작·동시 요청·복귀 이벤트·유한 백오프·성공 초기화·취소/미완료·손상 상태·statusLine 대체를 시험한다. 실제 SDK 오류 형식·네트워크 복구 이벤트·일반 자동 폴링의 다중 앱 수명, 전원 손실/시계 조정은 미검증이다. 무제한 실제 SDK 폴링은 연결하지 않았고 실계정 조회도 실행하지 않았다. 자세한 정책은 `CLAUDE-USAGE-EXPERIMENT.md` 상단 참조. GPU 로그 2개 보존.
+- 검증: Node 정책 9개, 관련 XCTest 25개, 전체 macOS XCTest 445개, 일반 Debug·Release와 개발 플래그 Debug 빌드, `git diff --check` 통과. iOS Simulator 버전 경고는 macOS 결과에 영향이 없었다.
+
+## Claude 자동 갱신 게이트 보강 (2026-11-01)
+
+- 이전 단발 개발 앱의 5시간·7일 잔여율과 SDK 마지막 성공 시각, 5시간 리셋 시각 null 때 사용률 표시를 사용자가 화면에서 확인했다. 단발 성공이므로 자동 폴링 검증으로 확대하지 않는다. 이번 단계에는 실제 SDK/계정 요청·모델 호출·자동 폴링 실행이 없다.
+- 기존 개발 앱의 300초 타이머, 절전 트리거, 단일 실행 게이트와 Provider/Adapter를 재사용했다. `ClaudeDirectRefreshGate`에서 일시 실패를 첫 5분·둘째 10분 백오프 후 셋째 실패에 중단하도록 제한했다. 성공 시 횟수 초기화, 401/403/429 등 분류 가능한 중단 오류는 기존 정책을 유지한다. 공식 호출 최소 간격은 미확정이며 5분은 실험 후보일 뿐이다.
+- Mock Clock/Executor 테스트에 빠른 화면·복구 트리거, 유한 재시도, 성공 뒤 초기화가 반영됐다. 실제 네트워크 변경 감시자, 종료/재시작 경계의 일반 자동 폴링 중복, 실제 SDK 오류 형태와 장시간 비용은 미검증이다. 정식 v0.3.0과 GPU 로그 2개는 보존한다. 자세한 상태는 `CLAUDE-USAGE-EXPERIMENT.md` 상단에 기록했다.
+- 검증: Node 정책 9개, Claude 관련 XCTest 33개, 전체 macOS XCTest 440개, Debug·Release 빌드, `git diff --check` 통과. macOS 결과와 무관한 iOS Simulator 버전 경고 및 `exit code 0` 진단 문구가 Xcode 로그에 있었다. 앱·실계정 조회는 실행하지 않았다.
+
+## Claude 별도 개발 앱 단발 SDK 조회 (2026-11-01)
+
+- 시작 HEAD `caa89d4`. 기존 단발 개발 앱이 실행 중이어서 새 ID `io.github.jbbdyee.tokenly.clauderealone.20261101`와 임시 경로를 사용했다. 앱 재시작에도 `O_EXCL` 예약 파일 1개가 재조회 시도를 막고, 반복 타이머·절전 조회는 없다. 정식 설치 앱과 기존 개발 앱은 그대로다.
+- 승인된 공식 SDK 조회가 **1회** 성공했다. 비민감 기록에서 5시간·7일 유효, Store 직접 출처·두 창·성공 시각 존재, 오류 없음, 소요 2.275초를 확인했다. 모델 메시지/양의 세션 비용 감지 종료 코드 21은 없었으나 비용 부재를 확정하지 않는다. 실제 팝오버 화면은 사용자 확인 대기다. 실사용 수치·초기화 시각·원본 응답·인증값은 기록하지 않았다.
+- 검증: 개발 플래그 XCTest 440개, 일반 XCTest 438개, Node 정책 9개, 분리 Debug·일반 Release 빌드, `git diff --check` 통과. 초기화 시각 null/오형식의 잔여율 유지와 statusLine 대체는 Mock 근거다. 실제 SDK 오류 형식, 화면 확인, 타 Mac 배포 및 장시간 안정성은 미검증이다. GPU 로그 2개 보존.
+
+## Claude SDK Adapter 배포 경계 점검 (2026-11-01)
+
+
+검증: Node 정책/사전검사 11개 통과, 전체 XCTest 446개 통과, Debug·Release 빌드 성공, `git diff --check` 통과. 빌드의 CoreSimulator 버전 경고는 macOS 타깃 빌드 성공에 영향을 주지 않았다. 개발용 payload 크기는 약 280 MB로 측정됐으며 런타임 포함 전 수치다.
+
+- `experiment/claude-usage-refresh`의 기존 Swift Provider → 자식 프로세스 Adapter → Node helper → 공식 SDK 실험 usage 메서드 → Swift 파서를 정적 검토했다. 일반 앱의 Claude statusLine 경로는 그대로다. 실제 SDK/계정 요청과 자동 폴링은 하지 않았다.
+- 개발 환경은 SDK 0.3.169를 선언하지만 lockfile이 없고 임시 `node_modules` 링크 및 이 Mac의 Node/Claude CLI 절대 경로를 쓴다. `release.sh`에는 helper/Node/SDK 묶음이 없다. 다른 Mac 배포는 미준비다. Node·helper 누락 시 시작 전 실패, SDK 누락 시 종료 코드 20으로 분류한다. 인증·원본 응답은 출력하지 않고 두 자식 환경에서 비필수 트래픽 차단 변수를 제거한다. 자세한 배포안과 승인 경계는 `CLAUDE-USAGE-EXPERIMENT.md` 상단을 참고한다.
+- 후속: 잠금 파일과 지원 아키텍처별 런타임/SDK/helper 번들링, 서명·Gatekeeper·클린 Mac 호환성, 사용자 설치 CLI 인증 재사용, 실제 SDK 오류 형식·비용 징후를 별도 승인 범위에서 확인한다. 정식 v0.3.0, GPU 로그 2개, 설치 앱 설정은 그대로 둔다.
+- 검증: Node 정책 9개, helper 문법, 전체 macOS XCTest 438개(누락 경로 테스트 포함), 일반 Debug·Release, `git diff --check` 통과. iOS CoreSimulator 버전 경고는 macOS 검증 성공에 영향을 주지 않았다.
+
+## Claude Adapter 재확인과 실험 브랜치 정리 (2026-11-01)
+
+- 사용자가 제시한 `1ed6b0c`는 과거 Adapter 커밋이다. 현재 브랜치의 시작 HEAD는 `1b3daea`였고, SDK 자식 프로세스 Adapter·최소 JSON helper·환경 변수 제거·타임아웃/중복/취소·오류 코드와 Mock 테스트는 이미 구현돼 있었다. 따라서 Adapter를 다시 만들거나 실계정 조회를 추가하지 않았다.
+- 이번 세션에서 Node 정책 테스트 9개, 전체 XCTest **436개**, 일반 Debug·Release 빌드, helper `node --check`, `git diff --check`가 통과했다. Xcode의 iOS Simulator 버전 경고는 있었으나 macOS 검증 종료 코드는 0이었다. 공식 SDK helper, Claude 모델, 실제 계정은 실행하지 않았다.
+- 앞선 2회 실계정 검증에서 남은 변경은 재실행 시 실패로 닫는 Gate·Mock 테스트와 실험/인수인계 기록이다. 다른 Mac의 Node·SDK 번들링, 실제 401/403/429 오류 형태, 서버 데이터 신선도, 장시간 갱신 안정성은 여전히 미검증이다. 설치 v0.3.0 및 GPU 로그 2개는 보존한다.
+
+
+## Claude 2회 실계정 자동 갱신 검증 (2026-11-01)
+
+- 자동 승인 검토의 크레딧 부족 오류는 첫 실행을 막았고 실제 조회는 0회였다. 사용자 확인 후 동일한 승격 경로를 다시 시도하자 실행이 허용됐다. 샌드박스 보호를 해제하거나 다른 실행 경로로 우회하지 않았다.
+- 별도 앱 `Tokenly Claude 2회 검증` (`io.github.jbbdyee.tokenly.claudereal2.20261031`)에서 공식 SDK helper를 통한 직접 조회가 **정확히 2회** 성공했다. 두 번 모두 5시간·7일 창 유효, Swift Store에 직접 조회 출처·두 창·직접 성공 시각 존재, 오류 없음. 실행 시간은 2.610초와 2.354초였다. 단조 시계 기준 첫 성공 완료부터 두 번째 시작까지 **300.014초**, 두 성공 완료 간 **302.368초**였다. 30초 후에도 예약 파일 2개와 진단 결과 2건만 있었다.
+- helper가 관찰한 사용자/assistant 메시지 또는 양의 세션 비용은 성공 차단 조건에 걸리지 않았다. 숨은 서버 비용까지 0이라고 입증한 것은 아니다. 실제 사용률·초기화 시각·원본 SDK 응답·계정·인증 정보는 기록하지 않았다. 실제 Claude 팝오버의 두 번째 시각 변경은 아직 사용자가 확인하지 않았다. 개발 앱은 화면 확인을 위해 실행 상태로 유지하며 두 슬롯이 모두 예약돼 추가 SDK 조회는 Gate에서 거부된다.
+- `ClaudeDirectRefreshGate` 예약은 첫 슬롯이 이미 있으면 재실행을 실패로 닫도록 보강했다. 첫 실패 후 재실행도 두 번째를 진행하지 않는다. 개발 전용 Mock XCTest 21개와 분리 앱 Debug 빌드가 실행 전에 통과했고 `git diff --check`도 통과했다. 이 안전장치, 테스트, 문서 변경은 아직 미커밋이다. GPU 로그 2개와 설치 v0.3.0은 그대로 둔다. 📸 캡처 추천: 실계정 앱의 Claude 영역에서 5시간·7일 항목과 `SDK 조회 마지막 성공` 문구만 보이도록 하고 실제 수치·시각·계정 정보는 가린다.
+
+## Claude 2회 실계정 검증의 최초 승인 검토 실패 (2026-11-01)
+
+- 브랜치 `experiment/claude-usage-refresh`, 시작 HEAD `1b3daea`. 첫 조회가 실패한 뒤 앱을 재실행해도 두 번째를 실행하지 못하도록 예약을 보수적으로 변경했다. 동일 프로세스의 첫 성공 뒤 300초가 지나야 두 번째 예약을 만들며, 재실행은 첫 슬롯이 이미 존재하면 실패로 닫는다. 이 변경은 `ClaudeDirectRefreshGate.swift`와 Mock XCTest에 **미커밋** 상태로 보존했다.
+- 개발 플래그 관련 XCTest 21개와 별도 2회 검증 앱 Debug 빌드가 통과했다. Node 24.22.1, SDK 0.3.169, Claude CLI 2.1.292, helper 경로, 별도 번들 ID 및 빈 예약·진단 파일을 확인했다. 실제 계정 조회는 **0회**다.
+- 앱 실행을 위한 첫 승격 명령은 자동 승인 검토가 워크스페이스 크레딧 부족이라고 보고해 **실행되지 않았다**. 이 시점에는 조회 0회였고 우회 실행도 없었다. 이후 동일 승인 경로의 재시도가 통과해 위의 2회 검증을 완료했다. GPU 로그 2개는 보존했다.
+
+
+## Claude 자동 갱신 제한 시험 준비 (2026-10-31)
+
+- 브랜치 `experiment/claude-usage-refresh`, 시작 HEAD `96a961e`. 기존 5분 조건·중복 거부·백오프·절전 기한과 statusLine 대체를 Mock으로 재검증했다. 실제 SDK/계정 요청이나 모델 메시지는 이번 단계에 없었다.
+- 다음 시험용 별도 Debug 앱은 `/private/tmp/tokenly-claude-real-two-20261031/DerivedData/Build/Products/Debug/Tokenly.app`, ID `io.github.jbbdyee.tokenly.claudereal2.20261031`이다. 빌드·정적 준비만 완료하고 실행하지 않았다. `TOKENLY_CLAUDE_DEV_ENABLE=1` 및 `TOKENLY_CLAUDE_DEV_REAL_TWO=1`과 정확한 ID/Node/helper/CLI 경로가 있어야 직접 조회가 연결된다. 성공 완료 후 300초에 두 번째를 한 번 예약하며 첫 실패·데이터 부재는 중단한다. Gate와 `O_EXCL` 임시 예약 파일로 재실행을 포함해 최대 2회로 막는다. 예약 파일을 삭제하지 말 것.
+- 다음 실계정 시험은 **새 사용자 승인 필요**. 시험 시 `attempt.txt`/`store.txt`의 비민감 상태·단조 시계로 조회 횟수/간격/소요 시간만 확인한다. helper의 메시지·양의 세션 비용 감지 시 종료 코드 21로 중단한다. 숨은 서버 비용 부재는 단정하지 않는다. 자동 재시도·반복 타이머·절전 트리거를 이 시험 앱에 넣지 않았다.
+- Node 24.22.1, SDK 0.3.169(`node >=18`), CLI 2.1.292, helper 문법/해시와 SDK 임시 모듈 링크를 확인했다. Node/SDK는 앱에 번들되지 않아 다른 Mac 배포는 미준비다. 실제 오류 객체 형태, 제한 정책, 서버 신선도, 실시간 두 번째 조회는 남았다.
+- 최종 검증: Node 9개, 전체 XCTest 436개, 개발 전용 관련 XCTest 25개 통과; 일반 Debug·Release 및 분리 개발 Debug 빌드 통과; `git diff --check` 통과. 새 테스트 컴파일 오류와 상태줄 stale 조건의 시험 오류를 고친 후 최종 재검증했다. 정식 v0.3.0, 기존 개발 앱·설정·인증, GPU 로그 2개는 보존했다. 📸 캡처 추천: 공개 자료에는 비민감 예약/진단 파일 형식과 테스트 결과만 사용하고 실계정 수치 화면은 제외한다.
+
+# Claude 별도 개발 앱 실계정 단발 검증 (2026-10-31)
+
+- `experiment/claude-usage-refresh`에서 기존 Mock UI 준비 변경을 `462c278`로 보존했다. 사용자 확인 Mock 화면은 가상 5시간 80%·7일 65%, 메뉴 막대/팝오버 일치, 초기화 및 가상 성공 시각, 가상 데이터 안내, 겹침 없음이다.
+- 별도 ID `io.github.jbbdyee.tokenly.clauderealone.20261031`와 별도 임시 DerivedData의 개발 앱을 빌드했다. 실계정 모드에 최대 1회 게이트, 반복 타이머·절전 감시 비활성, 비민감 진단을 추가했다. 관련 XCTest 13개 및 개발 Debug 빌드 통과. 일반 샌드박스의 SwiftUI 매크로 오류는 승격 Xcode에서 재검증했다.
+- 승인된 공식 SDK 조회는 지속 실행 세션에서 1회 성공했다. 5시간·7일 필드 유효, Swift Store의 직접 조회 출처·두 창·성공 시각 존재, 오류 없음, 약 2.085초. 원본 응답·수치·시각·인증 정보는 기록하지 않았다. 최초 셸 백그라운드 시작은 프로세스 종료 및 진단 0바이트여서 조회로 세지 않았다. 모델 메시지/비용의 이번 실행 직접 계측, 실제 UI 표시, 서버 신선도, 반복 호출 안전성은 미검증이다. 개발 앱은 사용자 화면 확인을 위해 실행 상태로 둔다.
+- 설치 v0.3.0, 기존 Mock 앱, 설정/인증, GPU 로그 2개는 변경하지 않았다. 정식 앱의 Claude statusLine 경로는 유지된다. 현재 단발 검증 코드는 실험 브랜치에만 있으며 정식 자동 폴링/배포로 간주하지 않는다. 다음 단계는 사용자가 실계정 Claude 화면에서 두 창과 `SDK 조회 마지막 성공` 문구의 존재만 확인하고 실제 값은 공유하지 않는 것이다. 📸 캡처 추천: 공개용 실계정 화면 캡처는 피하고 민감 값 없는 진단 상태만 사용한다.
+
+## Claude 개발 앱 Mock 화면 검증 준비 (2026-10-31)
+
+- 별도 번들 ID 개발 앱을 Mock 전용 설정으로 빌드·실행했다. Node·SDK·Claude CLI 파일/버전은 확인했으나 실제 helper·계정 조회는 실행하지 않았다. Codex는 개발 빌드에서 가짜 실패 Provider로 막고 AGY는 기본 숨김, Claude 상태줄은 임시 파일로 분리했다. 개발 앱 기존 연결 변경 UI는 숨겼다.
+- 개발 앱 프로세스 실행 후 팝오버 미개봉 상태의 가짜 helper 호출은 0회. 화면 자동화 native pipe는 실패했으나 사용자 캡처로 가상 5시간·7일 값, 메뉴 막대/팝오버 일치, 초기화·성공 시각, 가상 데이터 안내와 배치 이상 없음을 확인했다. 실제 SDK 조회 증거는 아니다. 직접값·실패 보존은 Mock Store 통합 테스트로 확인했다. 개발 조건 XCTest 13개, 일반 전체 XCTest 430개, 개발 Debug·일반 Release 빌드 통과. 최신 helper와 임시 SDK 링크의 모듈 경로 확인만 했으며 SDK는 실행하지 않았다. 상세 경로·제약은 `CLAUDE-USAGE-EXPERIMENT.md`를 따른다. 설치 v0.3.0과 설정, GPU 로그 2개는 보존한다.
+
+
+## Claude 개발 앱 전용 자동 조회 연결 (2026-10-31)
+
+- 계획 문서 6개를 별도 로컬 커밋한 뒤 개발 빌드 전용 연결을 구현했다. 일반 빌드는 기존 Claude statusLine Provider를 그대로 사용한다. 개발 빌드는 별도 번들 ID·표시명·저장소 밖 경로로 빌드하며, 런타임 활성화 변수와 Node/helper/CLI 절대 경로가 모두 명시돼야 SDK route가 만들어진다. 앱 실행이나 실계정 조회는 이번 단계에 하지 않았다.
+- 개발 앱에서만 기존 5분 Store 타이머와 절전 복귀 기한 검사에 `ClaudeDirectRefreshGate`를 연결했다. 진행 중 중복 거부, 성공 5분, 일시적 실패 5/10/20/40/60분, 401/403/미지 SDK 오류·SDK 부재·비호환 중지, 429 자동 중지. 공식 호출 간격이나 실제 SDK 오류 계약으로 확정하지 않는다. 상태줄 폴백·마지막 성공값 유지, 개발 UI의 두 출처 시각을 구분한다.
+- 검증: Node 정책 9개, 전체 XCTest 429개 통과, 일반 Debug·Release와 개발 앱 Debug 빌드 성공. Xcode 프로젝트 plist 및 `git diff --check` 통과. 개발 앱 번들 ID/표시명 확인. 설정 UI의 Claude·AGY 연결 변경 버튼은 개발 빌드에서 숨겼다.
+- 실제 SDK/계정/모델 요청과 자동 폴링은 실행하지 않았다. 다음 단계는 별도 승인을 받아 격리 앱을 실제로 실행하고 첫 조회부터 횟수 제한·오류 분류·출처 표시를 관찰하는 것이다. Node/SDK/helper 번들링, 다른 Mac, 장시간 비용과 인증 영향은 미검증이다. GPU 로그와 설치 v0.3.0은 보존한다.
+
+
+## Claude 개발 앱 중심 출시 전략 (2026-10-31)
+
+- `experiment/claude-usage-refresh` / 시작 HEAD `838f113`, 작업 트리는 미추적 GPU 로그 2개 외 깨끗했다. 기존 Provider·Adapter·helper와 단발성 성공 기록을 보존했다. 이번 단계는 실계정/모델 조회·자동 폴링·설치 앱 변경 없이 계획과 게이트만 정리했다.
+- 정식 앱의 비활성 실험 옵션을 우선 포함하지 않는다. 별도 번들 ID·설정·쓰기 경로의 개발 앱에서 Mock 연결 → 별도 승인 실계정/장시간 검증 → 다른 Mac 배포 검증을 순서대로 진행한다. 현행 v0.3.0 및 statusLine은 유지한다. 제안된 5분 최소 간격과 실패 백오프는 공식 호출 제한이 아니며 활성화 전 검증이 필요하다.
+- 구현/Mock/통합/실계정/배포의 통과 기준, 401·403·429·절전·중복·출처/시각 정책은 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md) 상단에 정리했다. 현재 helper는 오류 원문을 숨겨 실제 HTTP 상태를 분류하지 못하고 Node/SDK/helper는 번들되지 않았다. 다음 단계는 인증 접근 없이 Mock 기반 개발 앱 통합과 스케줄러·UI 테스트다. RAM-02와 GPU 로그는 건드리지 않는다.
+
+
+## Claude 선택적 직접 조회 연결 준비 (2026-10-31)
+
+- 시작 상태: `experiment/claude-usage-refresh` / `1f0783a`, 미커밋 실험 문서 2개와 미추적 GPU 로그 2개를 보존했다. 이전 승인 단발성 SDK 조회 결과는 문서에 유지한다. 이번 단계는 실계정·SDK helper·모델 요청을 실행하지 않았다.
+- `ClaudeOptionalUsageProvider`는 기본 statusLine 전용이며, 개발자가 명시적으로 주입할 때만 기존 비활성 직접 Provider를 호출한다. 실패 시 마지막 성공값과 statusLine을 창별로 선택하고 출처별 시각을 분리한다. 앱 진입점·기본 Store·타이머·설정에는 연결하지 않아 자동 SDK 조회가 없다.
+- 검증: 정책 테스트 9개, 새 선택 경로 XCTest 5개, 전체 XCTest 423개 통과. Debug·Release 빌드와 `git diff --check` 통과. 모두 Mock/가짜 데이터이며 실계정 조회는 없다.
+- 제품 적용 전 과제: Node/SDK/helper 재현 가능한 배포와 서명, 다른 Mac 검증, 사용자 선택·출처 UI, 신선도·호출 주기·백오프, 실제 401/403/429 형태와 인증 영향 확인. 설치본 v0.3.0은 변경하지 않았다.
+
+
+## Claude 격리 래퍼 단발성 실계정 조회 (2026-10-31)
+
+- 브랜치 `experiment/claude-usage-refresh`, 시작 HEAD `1f0783a`. 승인된 임시 래퍼를 사전 해시·문법·SDK 경로 점검 후 **1회만** 실행했고 재시도하지 않았다. 성공, 오류 없음, 약 1,998 ms. `rate_limits_available=true`, 컨테이너와 5시간·7일 창이 모두 객체이며 두 `utilization`은 0–100 범위의 숫자, 두 `resets_at`은 ISO 8601 형식 검사에 통과한 문자열이었다. 실제 수치·시각·원본 JSON·계정·토큰은 출력·저장하지 않았다.
+- helper는 프롬프트 없는 `get_usage` 제어 요청을 호출하며 사용자/assistant 메시지나 양의 세션 비용이 감지되면 성공 출력하지 않는다. 이번 성공에서 해당 징후는 관찰되지 않았으나 숨은 서버 작업·최종 과금 보증은 아니다. 기존 Claude 로그인 상태의 공식 SDK/CLI 재사용 외에 별도 로그인·인증 추출은 없었다. 정상 CLI의 인증 캐시/상태 쓰기 여부는 측정하지 않았다.
+- 실계정에서 두 창의 표시 가능한 형태가 확인됐지만 실험 API의 안정성, 서버 신선도, 401/403/429 오류 계약, 반복 호출 제한, Node/SDK 배포·서명, 장시간 비용과 제3자 사용 조건이 남았다. 제품 Provider/Store/UI 및 statusLine은 변경하지 않았고 자동 폴링은 활성화하지 않았다. GPU 로그 2개 보존. 상세 비교와 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 있다.
+
+## Claude 독립 조회 실계정 검증 사전 준비 (2026-10-31)
+
+- `experiment/claude-usage-refresh` `1f0783a`에서 시작, 미추적 GPU 로그 2개만 있었다. 공식 SDK `0.3.169`의 타입·패키지 구현과 Anthropic 변경 기록에서 실험적 `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()` → CLI `get_usage` 제어 요청을 확인했다. helper는 사용자 메시지를 생성하지 않지만 공식적인 무과금·안정 사용 계약은 확인되지 않았다. 이전 3회 실험에서 모델 메시지·양의 세션 비용이 관찰되지 않은 것과 구분한다.
+- 저장소 밖 `/private/tmp/tokenly-claude-usage-preflight-20261031/`에 helper/패키지 선언 사본과 기존 SDK 설치본으로 향하는 `node_modules` 링크를 준비했다. Node `v24.22.1`, CLI `2.1.292`, SDK `0.3.169`; helper 해시·문법·모듈 경로만 확인했다. 비민감 분류만 출력하는 단발성 `verify-once.mjs`도 문법 검사만 했다. **실제 SDK import·계정 조회·인증 접근·모델 요청·자동 폴링은 없었다.** 부모 환경의 관련 변수는 존재 여부만 검사했다. 제품 코드·설치 앱·설정은 변경하지 않았다.
+- 실제 실행에는 별도 사용자 승인이 필요하다. 승인 시 임시 래퍼 1회만 실행하고 원본 사용량·시각·계정·토큰·stderr는 저장하지 않는다. 공식 CLI의 정상 네트워크 통신·인증 캐시/상태 쓰기 가능성, SDK 실험 API 변경, 숨은 모델 비용·401/403/429 오류 형태 및 제3자 제품 이용 조건은 미확정이다. 문제 발생 시 재시도하지 않는다. 상세 계획과 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)를 참조한다. GPU 로그 2개를 보존했고 RAM-02는 재개하지 않았다.
+
+## Claude SDK 자식 프로세스 Adapter 실험 (2026-10-31)
+
+- 시작 브랜치 `experiment/claude-usage-refresh`, HEAD `1ed6b0c`, 미추적 GPU 로그 2개 외 변경 없음. 기존 Swift Provider·실험 정책·공식 SDK 0.3.169 타입을 읽고, Swift `ClaudeSDKProcessRunner`/`ClaudeSubprocessExecutor`, 개발용 Node helper와 정확 버전 `package.json`, Mock/가짜 셸 테스트를 추가했다. 새 Swift 파일 2개는 Xcode 파일 참조·그룹·Sources에 등록했다.
+- 앱은 Adapter를 생성하지 않는다. 기본 runner는 비활성이고 기존 Claude statusLine·Codex·AGY·타이머·설정은 그대로다. helper 역시 번들에 포함되지 않으며 Node/SDK 의존성 설치나 실제 CLI 실행도 하지 않았다. 자식 환경에서 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`와 인증 override/Node 주입 변수만 제거하고 부모 환경은 건드리지 않는다. stdout에는 두 창의 최소 데이터만 허용하며 stderr는 버린다. 자식 프로세스 그룹은 취소·타임아웃 시 종료된다.
+- Node 정책 테스트 9개, 새 Adapter XCTest 5개 포함 전체 XCTest **419개 통과**, Debug·Release 빌드 성공, helper `node --check`·Xcode 프로젝트 plist·`git diff --check` 통과. 테스트는 Mock·가짜 셸 helper만 사용했고 실제 계정 조회, 모델 요청, SDK helper 실행, 자동 폴링은 없었다.
+- **남은 제약:** 401/403/429의 실제 SDK 오류 형태가 확인되지 않아 helper는 원문 없이 일반 실패로만 반환한다. helper 배포·번들링·서명, Node/SDK/CLI 버전·위치, 실제 인증 재사용, stdout의 실데이터 처리, 신선도/호출 제한 및 프로세스 비용은 미검증. 단일 runner 인스턴스 안에서만 중복 차단한다. 제품 통합과 실조회는 별도 승인 필요. 자세한 설계와 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 기록했다. 설치 v0.3.0과 GPU 로그 2개는 보존했다.
+
+## Claude 독립 조회 Swift Provider 실험 구조 (2026-10-30)
+
+- 시작 상태 `experiment/claude-usage-refresh` `176e381`, 미커밋 실험 문서·Node 정책 파일을 보존했다. `ClaudeDirectUsageProvider.swift`와 `ClaudeDirectUsageTests.swift`를 Xcode 앱·테스트 타깃에 등록했다. 기본 runner는 비활성이며 SDK 실행 코드, 계정 조회, 모델 요청, 자동 폴링, 앱 Store/UI 연결은 없다. 설치 v0.3.0·설정·GPU 로그 2개는 변경하지 않았다.
+- 5시간·7일 창별 `utilization` 0–100을 잔여율로 바꾸고, 시각이 `null`/형식 오류면 `nil`을 유지한다. `true/null`은 `.noData`; 유효 창 하나 이상이면 부분 성공이다. 선택 모델은 직접 조회 실패 시 이전 성공값·시각을 보존하고 신선한 statusLine을 창별 대체하며 오래된 값은 stale로 분리한다. 401/403/429/타임아웃/SDK 변경은 runner 오류 종류로만 정의했으며 실제 매핑과 재시도는 미구현이다.
+- 이전 Node 정책 테스트 9개 통과. 새 Swift XCTest 8개 통과, 전체 XCTest **414개 통과**, Debug·Release 빌드 성공, `git diff --check` 통과. 최초 샌드박스 XCTest는 SwiftUI 매크로 서버 오류였고 동일 소스를 승격 Xcode 환경에서 통과했다. 직접 조회 stale 기준·자동 주기, SDK 오류 계약·서버 신선도·인증 영향·제품 UI는 미검증이다. 상세 내용은 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 있다.
+
+## Claude 독립 조회 설계·가상 응답 테스트 (2026-10-30)
+
+- `experiment/claude-usage-refresh` `176e381`에서 시작했다. 제품의 Claude statusLine 파일·15분 stale 경로와 SDK `0.3.169`의 nullable `get_usage` 타입을 대조했다. `experiments/claude-usage-refresh/`에 SDK·CLI·네트워크를 쓰지 않는 순수 변환·선택 정책과 Node 내장 테스트를 추가했다. **9개 통과**. 실제 계정 조회, 모델 요청, 인증 접근, 자동 폴링은 없었다. 제품 코드·설치 v0.3.0·설정은 변경하지 않았다.
+- 설계: 5시간·7일 창별 유효성·출처·수신 시각을 별도로 보존한다. `utilization` 0–100만 `100 - 사용률`로 변환하고 `resets_at`이 `null`/형식 오류면 잔여율만 표시하며 초기화 시각은 알 수 없음으로 둔다. `true/null`은 미지원이 아닌 데이터 미수신으로 취급한다. 유효한 창이 하나라도 있을 때만 직접 조회 성공 시각을 갱신하고, 실패 시 마지막 성공값과 statusLine 대체 표시를 유지한다. statusLine 파일 재읽기를 새 서버 조회로 기록하지 않는다.
+- 현재 앱의 Claude Provider/Store에는 이 병합 정책이 **연결되지 않았다**. 직접 조회 stale 기준·자동 주기와 401/403/429의 실제 SDK 오류 계약·서버 신선도·호출 제한·약관은 미확인이다. 제품 통합은 별도 승인·검증 뒤 판단한다. 실험 문서에 설계, 검증 한계, 블로그 소재를 기록했다. GPU 로그 2개를 보존한다.
+
+## Claude 비필수 트래픽 제한 변수 제거 후 단발성 조회 (2026-10-30)
+
+- `experiment/claude-usage-refresh` HEAD `08a5817`에서 시작. 기존 임시 helper의 Claude Code 자식 환경에서만 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`를 제거하고, 공식 SDK `0.3.169`·CLI `2.1.292`의 무프롬프트 usage 제어 요청을 승인된 범위에서 **정확히 1회** 실행했다. 부모의 주요 관련 환경 변수는 값 없이 존재 여부만 확인했고 설정되지 않았다. 제품 코드·설치 앱·사용자 설정은 변경하지 않았다.
+- initialize·usage 요청 성공, `rate_limits_available=true`, `rate_limits=object`; 5시간·7일 창 모두 객체와 0~100 범위의 숫자 `utilization`을 반환했다. 5시간 `resets_at`은 `null`, 7일은 문자열이며 ISO 8601 파싱 여부는 미확인이다. 약 802 ms. 사용자·assistant 메시지, 양의 세션 비용, 모델별 사용 기록은 관찰되지 않았다. 실제 수치·시각·원본 응답·계정 정보·인증 정보는 기록하지 않았다.
+- 이전 두 조회는 차단 변수가 설정된 조건에서 표시 가능한 값을 얻지 못했다(첫 조회는 컨테이너 형태 미분류, 둘째는 명시적 `true/null`). 이번 변화는 플래그 원인 가설을 강하게 지지하지만 시간·서버/캐시 변수를 통제한 반복 비교나 공식 보증은 아니다. 실험적 SDK, 5시간 초기화 시각 `null`, 응답 신선도·인증 영향·호출 제한·제3자 폴링 허용 범위 때문에 **제품 통합·자동 폴링은 보류**한다. 기존 Claude statusLine·stale 표시는 유지한다. 상세 근거와 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 있다. GPU 로그 2개 보존. 추가 실계정 조회는 새 승인 전까지 하지 않는다.
+
+## 이전 Claude `rate_limits=null` 원인 조사·당시 실험 보류 판단 (2026-10-30)
+
+- `experiment/claude-usage-refresh` `9064eb3`에서 시작해 실제 계정·인증 저장소를 다시 조회하지 않고 공식 SDK 타입·구현·문서와 공개 이슈를 조사했다. 두 실험 helper 모두 자식 환경에 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`을 넣은 것이 **확인된 로컬 조건**이다. 공식 문서는 이 변수가 비필수 네트워크 요청을 막는다고 설명한다. 별도 프로젝트의 A/B 보고에서는 같은 `true/null` 응답이 이 플래그 제거 후 채워졌으나 Anthropic의 공식 원인 판정은 아니다.
+- Pro·Max·Team 및 더 최신 CLI/SDK에서도 `true/null` 공개 사례가 있어 특정 플랜·버전만의 문제로 확정할 수 없다. 사용량 소진, 첫 모델 턴 부재, 내부 429 등도 로컬 증거가 없다. **가장 유력한 원인은 실험 환경 플래그지만 로컬 인과 검증은 없다.** 공식적으로 지원된 복구 절차는 확인하지 못했다.
+- 두 차례의 승인된 실계정 조회는 모두 표시 가능한 5시간·7일 한도를 확보하지 못했다. 제품 구현·자동 폴링은 보류하고 Claude statusLine·stale 표시를 유지한다. 재검토는 공식 안정 계약이 공개되거나, 향후 별도 승인된 단발성 무모델 조회에서 **자식 환경에만** 차단 변수를 넣지 않고 두 창과 안전성을 확인할 때만 한다. 자세한 근거·블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 기록했다. 제품 코드·설치 앱·사용자 설정은 변경하지 않았고 GPU 로그 2개를 보존했다.
+
+## Claude SDK 두 번째 단발성 필드 분류 (2026-10-30)
+
+- `experiment/claude-usage-refresh` `6ffa8c5`에서 시작했다. 공식 SDK `0.3.169`·Claude Code CLI `2.1.292`를 사용한 프롬프트 없는 `get_usage` 실계정 조회를 승인 범위 내에서 **1회만** 실행했다. 사전 분류 모의 응답 8종은 통과했다.
+- initialize와 usage 제어 요청은 성공했으나, 실제 응답은 `rate_limits_available=true`와 `rate_limits=null`이었다. 컨테이너가 `null`이므로 5시간·7일 창의 키·값·시각은 각각 부재 또는 `null`로 판정할 수 없다. 표시 가능한 한도 값은 확인되지 않았다. 사용자·assistant 메시지, 양의 세션 비용, 모델별 사용 기록, 401·403·429는 관찰되지 않았다. 응답까지 약 355 ms. 원본 응답·수치·인증 정보는 저장하지 않았다.
+- 이 조합의 원인은 미확정이다. 실험적 SDK를 제품 자동 폴링에 적용할 근거가 아직 없다. 제품 코드·설치 앱·사용자 설정은 변경하지 않았고 GPU 로그 2개를 보존했다. 결과와 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 기록했다. 추가 실계정 호출은 새 승인 없이는 하지 않는다.
+
+## Claude usage 1차 검사 정적 재분석 (2026-10-30)
+
+- `experiment/claude-usage-refresh` `1840733`에서 시작했다. **추가 실계정 조회·모델 요청·인증 저장소 접근 없이** 임시 helper와 공식 SDK `0.3.169` 타입·구현을 조사했다. `get_usage`는 응답을 검증·가공하지 않고 전달한다. `rate_limits_available=true`는 5시간·7일 숫자 존재의 보장이 아니다. 두 창은 선택적이며 창·내부 값은 `null`일 수 있다.
+- 1차 helper는 키 부재·`null`·비숫자를 모두 `false`로 압축했다. 그래서 첫 응답의 **정확한 형태를 판별할 수 없는 코드상 이유**는 확정됐지만, 실제 응답의 누락 형태·근본 데이터 원인은 미확정이다. 가상 데이터 7사례에서 이 판정과 100% 사용률 → 0% 잔여율을 확인했다. 추가 실제 조회는 제품 적용 가능성 확정 시에만 별도 승인으로 고려한다. 제안할 비민감 분류와 블로그 소재는 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 기록했다.
+- 제품 코드·설치 앱·사용자 설정·자동 폴링은 변경하지 않았다. 미추적 GPU 로그 2개를 유지했다. 문서만 변경해 XCTest·빌드는 실행하지 않았다.
+
+## Claude SDK 단발성 사용량 조회 (2026-10-30)
+
+- `experiment/claude-usage-refresh` `c934e7a`에서 시작해 설치 CLI `2.1.292`, 공식 SDK `0.3.169` 공개 타입·구현을 확인했다. `get_usage`는 사용자 메시지 없는 비동기 스트림에서 단독 제어 요청 가능하다. 임시 경로 helper로 승인된 실계정 요청을 **정확히 1회** 실행했다. initialize와 usage 응답은 성공했고 `rate_limits_available=true`였으나, 검사 기준에서 5시간·7일 숫자 사용률과 유효한 초기화 시각은 확인되지 않았다. 키 부재와 `null`을 구별하지 못했으므로 두 창 조회 성공으로 기록하지 않는다.
+- 사용자·assistant 메시지, 세션 모델별 사용 기록, 양의 세션 비용은 관찰되지 않았다. 응답까지 약 445 ms였고, 스크립트 타이머 때문에 총 프로세스 종료는 약 25초였다. 알려진 Claude 설정 파일 메타데이터는 불변, 파일 기반 인증 파일은 양 시점에 없었다. Keychain·기타 상태 저장소의 변경은 확인하지 않았다. 원본 응답·수치·인증 내용은 출력·저장하지 않았다.
+- 공식 SDK `0.3.292` 타입은 설치 CLI 버전과 대응하고 `skipBehaviors`를 지원하지만 실제 계정 조회는 재실행하지 않았다. 필드 미확인의 원인은 미정이다. 실험 과정·한계·블로그 소재 판단용 기술 기록은 [실험 문서](CLAUDE-USAGE-EXPERIMENT.md)에 남겼다. 제품 코드·설치 v0.3.0·사용자 설정은 변경하지 않았고 자동 폴링은 없다. 미추적 GPU 로그 2개 보존. 후속 실계정 조회에는 별도 승인 필요.
+
+## Claude 개인 구독 독립 조회 실험 조사 (2026-10-30)
+
+- `main` `649d1fd`에서 `experiment/claude-usage-refresh` 브랜치를 만들고 제품 코드·설치 앱·인증·사용자 설정은 변경하지 않았다. 미추적 GPU 로그 2개를 유지했다.
+- 기존 Claude statusLine → 필드 필터링·로컬 수신 시각 저장 → 5분 파일 재읽기·15분 stale 처리 구조를 확인했다. 5분 재읽기는 새 서버 조회가 아니다.
+- 설치 CLI `2.1.292` 도움말과 공식 문서에는 안정적인 독립 개인 구독 조회 명령이 없다. 공식 Agent SDK의 **실험적** `get_usage` 기능은 가장 유망한 무프롬프트 단발성 실험 후보이며, 비공식 OAuth 직접 호출은 토큰 취급·429·지원 계약 위험으로 제품 후보에서 제외했다. 근거와 미확정 사항, 401·403·429 정책, 별도 승인 후 1회 검증 계획은 [실험 조사](CLAUDE-USAGE-EXPERIMENT.md)에 기록했다.
+- 이번에는 OAuth·SDK 실제 조회, Keychain·인증 파일 읽기, 모델 호출, 자동 폴링, XCTest·빌드를 수행하지 않았다. 다음 단계는 공식 SDK 경로의 훅·세션 기록 차단 조건 확인과 사용자 승인 범위를 정한 뒤 단 1회 실제 계정 검증이다. 제품 반영 가능 여부는 미정이다.
+
+## v0.3.0 정식 Release 후 문서 보관·정리 (2026-10-30)
+
+- 사용자는 설치본 팝오버의 Codex·Claude·AGY 표시와 AGY Gemini UI를 직접 확인했다. GitHub `v0.3.0`은 같은 태그·ZIP·체크섬을 유지한 채 정식 Release로 전환했다. Claude 독립 자동 조회는 없고 이 계정의 Claude 5시간 한도 미표시 원인은 미확정이며 설치 후 장시간 자동 갱신 성공은 미검증이다.
+- `Doc/BLOG-NOTES.md` 전체를 프로젝트 밖 `TokenlyArchive.noindex/blog-notes-20261030/BLOG-NOTES.md`에 읽기 전용으로 백업했다. 원본·백업·`git show 81afae9:Doc/BLOG-NOTES.md`의 SHA-256은 모두 `b76d9847a55b935c62f538ddf113fba72ffaf562463c8712233550d1d2d21221`이었다. 백업 폴더에 `.sha256`도 보관했다. 확인 뒤 저장소의 원본을 삭제했다. 이전 절의 `BLOG-NOTES.md`·`Doc/BLOG-NOTES.md` 참조는 [커밋 81afae9의 Git 보관본](https://github.com/jbbdyee/Tokenly/blob/81afae9/Doc/BLOG-NOTES.md)을 가리키며, 새 기술 기록은 이 인수인계 문서에 남긴다.
+- 생성된 LLVM 커버리지 프로파일 `default.profraw`와 `src/Tokenly/default.profraw`만 추가로 삭제했다. `Preview/` 설계 자료, Xcode 개인 작업공간 데이터, 저장소 밖 `.noindex` 실험·릴리즈 폴더는 유지한다. 미추적 GPU 로그 2개와 v0.2.0 복구 백업·설치 앱·설정·Keychain은 변경하지 않았다. 제품 코드가 바뀌지 않아 이번 정리에서 XCTest·빌드는 다시 실행하지 않는다.
+
+## v0.3.0 설치·GitHub Pre-release (2026-10-30)
+
+- `main`의 `4b2c7ea` AGY UI 변경 뒤 릴리즈 설명을 `d8e5cf1`에 커밋했다. `Info.plist`는 `0.3.0 (5)`이며 제품 코드는 추가 변경하지 않았다. 기존 XCTest 406개 통과(실패·건너뜀 0), Debug·Release 빌드 성공, `git diff --check` 통과를 재사용했다.
+- 이전 fixture는 Codex 표시를 명시적으로 끄고 Store를 시작하지 않았으며 Claude에는 가상 성공값을 넣지 않았다. 따라서 메뉴 막대에 두 서비스 수치가 없던 것은 fixture 구성 때문이다. 실제 앱의 세 표시 설정은 설치 전후 모두 켜져 있었고 설정 키 22개가 동일했다. 설치본의 읽기 전용 상태 확인에서 Claude·AGY statusLine 연결이 유지됐다.
+- 깨끗한 임시 복제본에서 `release.sh --final 0.3.0`의 universal 빌드·ad-hoc 서명·압축 해제 동일성·체크섬 검사가 통과했다. ZIP SHA-256은 `3797d4f96f940ff751c818d9972e935551d4f801e82280de4fa1d8055e2d2efc`. 기존 v0.2.0(4) 앱과 설정을 소유자 전용 `TokenlyRelease.noindex/backup-0.2.0-before-final-install-20261030/`에 보존하고, 검증된 v0.3.0(5)을 같은 `/Applications/Tokenly.app` 경로에 설치했다. 설치 앱은 ZIP 해제본과 파일 단위로 일치하고 실행 중이다. 인증 파일·Keychain은 복사·초기화하지 않았다.
+- `main`과 주석 태그 `v0.3.0`을 GitHub에 Push하고 [v0.3.0 Pre-release](https://github.com/jbbdyee/Tokenly/releases/tag/v0.3.0)에 ZIP·`.sha256`을 게시했다. 공개 자산을 다시 받아 체크섬과 로컬 산출물 일치를 확인했다. 태그 대상은 `d8e5cf1`; 이후 문서 정리 커밋은 태그 다음에 위치한다.
+- **미검증:** macOS가 자동화 도구의 보조 접근을 거부해 설치본 팝오버의 Codex·Claude·AGY 행, Gemini 행·정보(i) 및 장시간 자동 갱신을 직접 확인하지 못했다. 설치본 실행·설정 보존·연결 상태는 확인했지만 실제 조회 성공으로 혼동하지 않는다. 사용자 화면 확인과 Codex 절전 복귀·AGY 두 번째 성공 응답은 남았다. GPU 로그 2개는 미추적으로 보존한다.
+
+## AGY 일반 표시와 정보(i) 분리 (2026-10-30)
+
+- 사용자 결정에 따라 AGY 헤더를 `Google Antigravity`만 표시하고, 일반 상세에는 `gemini-weekly`만 `Gemini` 그룹 이름으로 표시한다. `3p-weekly`와 두 원본 ID의 잔여율·초기화 시각은 정보(i)에 표시한다. 개별 모델 사용 가능 여부 및 ID의 정확한 뜻은 공식적으로 확인되지 않았다. Gemini 부재와 전체 데이터 부재를 구분한다. 제품의 원본 데이터·조회·인증·대체·stale·계산 로직은 변경하지 않는다.
+- 전체 XCTest 406개 통과(실패·건너뜀 0), Debug·Release 빌드와 `git diff --check` 통과. fixture 실제 화면은 별도 확인이 필요하다. 기존 `/Applications/Tokenly.app`, 설정·인증, GPU 로그 2개를 보존하고, 설치·Push·공개 Release는 하지 않는다.
+
+## AGY 항목 의미 조사로 v0.3.0 설치 보류 (2026-10-30)
+
+- 사용자 추가 관찰: AGY는 사용하지만 `3p-weekly`는 본 적 없고 해당 100%가 사용 가능 한도처럼 오해된다. 공식 모델 문서는 Gemini와 Claude/GPT 사용량 그룹을 구분하고 공식 statusLine 계약에는 선택적 `disabled`가 있으나 내부 ID의 정확한 의미·계정별 사용 가능 판정은 확인되지 않았다. 타사 구현은 `3p-weekly`를 Claude/GPT 공유 주간 그룹, `gemini-weekly`를 Gemini 주간 그룹으로 해석하지만 공식 계약으로 취급하지 않는다. Tokenly 파서는 현재 그룹 설명·사용 가능 상태를 반영하지 않아 100%만으로 접근 가능성을 판단할 수 없다. 개별 모델별 사용량 대응도 미확인이다. 근거 링크와 구분은 `BLOG-NOTES.md` 첫 절 참조.
+- 로컬 `main`은 기능 브랜치를 Fast-forward 병합한 `1b3b126`, 전체 XCTest 406개·Debug/Release·diff 검사 통과. `release.sh --final 0.3.0`의 로컬 ZIP·검사는 성공했지만 설치·태그·Push·공개 Release는 하지 않았다. 기존 `/Applications/Tokenly.app`은 0.2.0(4) 파일 그대로, 설정과 앱은 개인용 백업 폴더에 복사·검증했다. 설치 앱 프로세스가 검증 도중 사라진 이유는 미확정이다. 미추적 GPU 로그 2개는 보존한다.
+- **당시 제한:** 이 조사 시점에는 AGY UI 변경과 v0.3.0 설치·릴리즈를 중단했다. 이후 사용자가 CLI 전용 환경의 UI 표시 방식을 확정해 위 작업을 요청했다. 승인된 추가 실계정 조회 없이 AGY CLI를 재실행하지 않는다. 이 절은 조사 기록이며 릴리즈 완료 표시가 아니다.
+
+## v0.3.0 로컬 릴리즈 준비 (2026-10-30)
+
+- 사용자는 별도 Debug fixture에서 AGY·Claude 상태, 하단 문구, 정보(i), 전체 배치에 문제가 없다고 보고했다. fixture는 가상 데이터이며 실제 계정 조회나 설치본 검증은 아니다. 키보드·VoiceOver는 아직 확인되지 않았다.
+- 피드백으로 AGY 헤더를 한 항목 `N% 남음`, 여러 항목 `최저–최고% 남음`으로 단순화했다. 상세 정보·최소~최대 계산·조회/인증/갱신 로직은 유지한다. 소진 경고는 `일부 한도 소진`이다. `Info.plist`는 다음 기능 버전 `0.3.0 (5)`로 준비했다. 공개 태그·GitHub Release·Push는 별도 승인 전 금지다.
+- 수정 후 전체 XCTest 406개(실패·건너뜀 0), Debug·Release 빌드와 `git diff --check` 통과. 수정된 헤더의 실제 화면·VoiceOver는 아직 보지 않았으며 더 짧은 문구의 배치는 이전 사용자 fixture 관찰과 구분한다.
+- 다음 순서: Fast-forward 가능 여부·GPU 로그 2개 확인 → 로컬 `main` 병합 → 깨끗한 로컬 복제본에서 `release.sh --final 0.3.0` → 설치본·설정 비공개 백업 → 검증된 ZIP의 앱 설치 및 설정·Codex/AGY/Claude 확인. 위험 또는 화면 검증 실패 시 설치를 멈춘다.
+
+## AI 팝오버 갱신 상태 문구 정리 (2026-10-30)
+
+- `main` `8abafae`에서 `feature/usage-popover-status-copy`를 만들었고 기존 미추적 GPU 로그 2개를 보존했다. `UsageMenuView`의 하단 문구, 정보(i), AGY 출처별 단일 시각 행과 상태 문구, Claude 무수신·오래된 데이터 문구만 조정했다. 기존 조회 간격·인증·설정·Provider/Store 로직과 설치 앱은 그대로다.
+- AGY 직접 성공은 `자동 갱신` 및 `마지막 갱신`, 상태줄 대체/이전값은 `갱신 지연` 및 `마지막 수신` 또는 이전 직접 성공 시각을 표시한다. Claude는 사용 중 갱신 방식과 이전 데이터·마지막 수신 시각을 구분한다. 정보(i)에 기술적 주기·출처·만료 의미를 둔다.
+- 새 모의 상태 테스트 3개를 포함한 전체 XCTest 406개 통과, Debug·Release 빌드와 `git diff --check` 통과. 일반 샌드박스 XCTest는 기존 Xcode 매크로 서비스 접근 오류로 중단됐고 승인된 환경에서 통과했다. 실제 팝오버의 정보(i)·배치·접근성은 사용자 화면 검증이 남았다. 빌드·테스트 산출물은 저장소 밖 `/private/tmp/tokenly-usage-copy-*`이다.
+
+## Claude Code 독립 조회 2차 조사 (2026-10-30)
+
+- 시작 로컬 `main` `a2cd3bd`, 미추적 GPU 로그 2개만 있었다. 설치 Claude CLI 2.1.292의 버전, 공식 statusLine/CLI 문서, Anthropic 저장소 이슈 #82656·#84995·#59462 및 관련 유휴/429 보고를 읽었다. 이슈의 내부 구조와 동작은 작성자 분석·재현 사례이며 지원 API 보증이 아니다.
+- 공식 개인 구독 `rate_limits`는 5시간·7일 및 초기화 시각을 statusLine에 제공할 수 있으나 첫 API 응답 의존이다. 유휴 `refreshInterval`은 브리지 재실행만 보장한다. `captured_at`은 로컬 수신 시각이다. 내부 OAuth 경로는 모델 호출 없는 기술적 가능성이 있지만 토큰 추출 가능성, 인증 회전, 지속 429 보고, 지원 계약·약관 불확실성 때문에 채택하지 않는다. 공식 무모델 비대화형 구독 조회 CLI/SDK 메서드는 이번 조사에서 확인하지 못했다.
+- 제품 코드·설정·인증·앱 변경 및 실제 계정/모델 요청 없음. 테스트·빌드 실행 없음(문서 조사). 기존 statusLine과 만료 표시 유지. 다음은 공식 계약 감시 또는 사용자 승인 후 정상 Claude 세션의 창 존재·수신 시각과 `/usage` 화면 시점의 비민감 비교다. 상세 근거와 후보별 판단은 `BLOG-NOTES.md`.
+
+## Claude Code 개인 구독 독립 조회 조사 (2026-10-30)
+
+- 시작 `main` `a76a62e`, 미추적 GPU 로그 2개 보존. 설치 Claude Code 2.1.292의 도움말, 공식 문서, Tokenly Claude 브리지·Provider만 확인했다. 공식적으로 지원되는 무모델 비대화형 개인 구독 5시간·7일 최신 한도 조회 경로를 찾지 못했다. 발견 범위의 한계이며 비공개 구현의 부재를 단정하지 않는다.
+- statusLine은 해당 세션 첫 API 응답 후 5시간·7일 사용률과 초기화 시각을 줄 수 있다. 기존 `claude-quota.json`의 수신 시각과 Tokenly 5분 재읽기는 서버 최신 조회를 뜻하지 않는다. `/usage`는 세션 UI, `claude -p`는 모델 질문 경로, 조직 Usage/Cost API는 별도 제품의 데이터다. 비공식 API·토큰 추출·로그 역산을 자동 폴링 경로로 채택하지 않았다.
+- 코드·인증·설정·앱 변경과 실계정 조회 없음. 새 테스트·빌드도 실행하지 않았다(문서 조사). 다음은 공식 CLI 계약 변경 감시; 필요하면 사용자 승인 후 기존 정상 세션의 비민감 수신 시각과 `/usage` 표시 시점을 비교한다. 기존 statusLine과 오래된 데이터 처리는 유지한다. 상세 근거·후보별 위험은 `BLOG-NOTES.md`.
+
+## AGY 격리 개발 앱 자동 폴링 검증 (2026-10-30)
+
+- 시작 브랜치 `feature/agy-direct-usage-refresh`, HEAD `1705b93`, 미추적 GPU 로그 2개만 있었다. 별도 Debug 앱 `/private/tmp/tokenly-agy-liveverify-20261030/Build/Products/Debug/Tokenly.app`의 번들 ID `io.github.jbbdyee.tokenly.agyverify.20261030`을 설치 앱 ID와 대조했다. 개발 앱 UserDefaults 도메인에서만 AGY ON, Codex·Claude OFF로 설정했다.
+- 공식 CLI 자식 시작 2회: 개발 앱 시작 약 1.21초와 301.29초(간격 약 300.08초). 각 자식 관찰 시간 약 6.15초·6.36초, 중복/세 번째 없음. 두 번째 종료 후 개발 앱만 종료(전체 약 397.86초); `/Applications/Tokenly.app`은 계속 실행 중. 인증·Keychain·기존 앱 설정은 직접 조작하지 않았고 실제 계정값·원본 응답은 기록하지 않았다.
+- **사용자 화면 확인:** 제공된 개발 앱 팝오버 캡처에서 주간 버킷 2개의 잔여율·초기화 시각, `AGY 직접 조회` 출처와 `직접 조회 마지막 성공` 시각을 확인했다. 코드상 첫 직접 조회의 파싱·성공 스냅샷 반영을 뒷받침한다. 사용자는 약 5분 뒤 두 번째 자동 조회도 관찰했으나 두 번째 응답 성공은 독립적으로 확인되지 않았다. 5시간 부재·statusLine 폴백/우선순위는 모의 XCTest 근거이며 실사용에서는 미검증이다. 서버 데이터 신선도·인증 캐시 영향, Codex·Claude 화면 영향도 미확인이다. 이번 세션은 격리 Debug 빌드 성공, 새 XCTest/Release 실행 없음, 코드 수정 없음.
+- 두 번의 승인된 실제 자동 조회 기회를 사용했으므로 후속 실계정 재실행에는 별도 승인이 필요하다. `main`은 `1f14798`이고 기능 브랜치가 두 커밋 앞서 Fast-forward 병합은 기술적으로 가능하다. 첫 성공 표시까지 확인됐으나 두 번째 성공·데이터 신선도 등은 남은 위험으로 판단한다. GPU 로그·설치 앱 보존, Push·병합·릴리즈 없음.
+
+## AGY 공식 CLI 자동 갱신 구현 (2026-10-30, 기능 브랜치)
+
+- `main`의 `1f14798`에서 `feature/agy-direct-usage-refresh`를 만들었다. 기존 미추적 GPU 실측 로그 2개를 보존했다. 공식 AGY `/usage` 직접 Provider를 기존 statusLine과 결합하고 Store의 5분 조건부 갱신에 연결했다. AGY만 새 조회 경로를 쓰며 기존 Claude/Codex Provider와 설정 키는 유지한다.
+- 비동기 CLI 실행, 중복 방지, 20초 제한(종료 신호 뒤 1초 후 강제 종료), 2 MB 출력 제한, 비민감 오류 분류, 주간 버킷 두 종류의 엄격한 비율·ISO-8601 시각 파싱, 상태줄 폴백과 마지막 성공 보존을 구현했다. 출처별 마지막 성공 시각을 팝오버에 구분한다. 상태줄 수신 파일이 없어도 AGY 표시를 켤 수 있다. 로그에 원본 응답·인증·계정·사용량을 쓰지 않는다.
+- **검증:** 최종 소스에서 실제 AGY CLI를 호출하지 않은 모의 XCTest 403개 통과, Debug·Release 빌드 성공. 일반 샌드박스의 Xcode SwiftUI 매크로 서버 오류는 승인된 Xcode 실행에서 해결됐고, 새 Swift 구문·테스트 문자열 오류는 수정했다. 이 기능 브랜치 앱의 실제 계정 자동 폴링·표시·인증 캐시 영향은 미검증이다. 제품 설치·교체·Push·병합·릴리즈 없음.
+- **다음:** 별도 사용자 승인 후 기존 설치 앱과 다른 번들 ID의 개발 앱에서 AGY 첫 성공, 5분 후 재조회, statusLine 폴백, 출처·시각과 CLI 횟수·시간을 수동 검증한다. 다른 계정 버킷, 정상 인증 갱신, 장시간 비용도 후속 확인한다. 완료 전 실제 자동 갱신을 실사용 검증 완료로 표시하지 않는다.
+
+## AGY print `/usage` 구조 확인 (2026-10-30, 추가 단일 실행)
+
+- 시작 `main` HEAD `2278d5a`, 미추적 GPU 로그 2개 외 변경 없음. 공식 변경 기록의 모델 턴·쿼터 미소비 설명과 설정의 `disableSlashCommands` 부재(기본 false)를 확인하고, 승인된 CLI 명령을 임시 cwd에서 정확히 1회 실행했다. 종료 코드 0, 유효 JSON, 약 6.77초, stderr·추가 인증 요구 없음. `num_turns`와 `usage` 숫자 필드가 모두 0이라는 불리언 검사도 참이었다. 원본 JSON·실제 사용량·계정·토큰은 출력·저장하지 않았다.
+- `command.data` 아래 항목 배열의 각 항목에 `buckets` 배열이 있고, 버킷은 `name`·`description`·`window`·`reset_time` 문자열과 `remaining_fraction` 숫자를 갖는다. 검사한 식별자에서 기존 statusLine 주간 버킷 두 종류와 weekly 표식은 확인, 5시간 표식은 미확인이다. statusLine은 `quota` 맵의 `remaining_fraction`·`reset_time`을 사용하므로 직접 JSON의 해당 필드를 변환하면 관찰된 주간 버킷의 메뉴 막대 잔여값을 구성할 후보가 있다. 5시간 한도나 모든 계정의 동일 구조는 보장되지 않는다.
+- 다음 구현 단계는 별도 범위에서 버킷 선택·리셋 시각 파싱·계정별 구조 계약을 확인하고, 기존 statusLine을 유지한 채 직접 조회 Provider와 테스트를 설계하는 것이다. 초기 주기 후보는 5분, 중복 실행 방지·실패 시 마지막 성공 데이터 유지·5분 이상 재시도다. CLI 상태/인증 캐시 쓰기와 장시간 비용은 미측정이다. 이번에는 제품 코드·설치 앱·사용자 설정을 직접 변경하지 않았고 빌드·XCTest는 실행하지 않았다.
+
+## AGY print `/usage` 단일 실행 검증 (2026-10-30)
+
+- 이전 조사 문서 5개를 로컬 `main`에서 `c090954`로 커밋했다. GPU 실측 로그 2개는 미추적 상태로 보존했다. 설치 AGY CLI v1.4.10의 `--version`·`--help`에서 버전과 `-p`·JSON 출력 옵션을 확인했다.
+- 공식 변경 기록은 `/usage` print 모드가 모델 턴·쿼터·대화 기록을 만들지 않는다고 설명한다. 사용자는 공식 CLI의 정상적 인증 캐시·상태 파일 쓰기 가능성을 포함한 단일 실행을 승인했다. 임시 cwd에서 명령을 정확히 1회 실행한 결과 종료 코드 0, JSON 객체, 약 6.65초, stderr 없음이었다. 추가 로그인이나 오류는 관찰되지 않았다. 원본 응답·계정·사용량·토큰은 기록하지 않았다.
+- 비민감 구조는 `status`, `response`, `duration_seconds`, `num_turns`, `usage`(토큰 수치 필드), `data` 아래 배열 항목의 `name`·`buckets`까지 확인했다. 동적 키와 모든 값은 폐기해 5시간·7일 버킷, 잔여율·리셋 시각, 모델 턴 0을 실측으로 입증하지 못했다. 인증 캐시/설정/CLI 로그 쓰기와 대화 기록 영향도 미측정이다. 다음 개발은 실제 필드·버킷 매핑 계약을 별도 범위에서 확인한 뒤 결정한다. 제품 코드·설치 앱은 변경하지 않았고 빌드·XCTest는 실행하지 않았다.
 
 `Doc/logs/`의 원본 성능 로그와 Workspace의 `.noindex` 보관소는 로컬 전용 자료다. 아래 절의 과거 미커밋·실행 PID·임시 경로는 당시 상태를 기록한 것이며 현재 Git·앱 상태는 별도 확인한다.
 
-최종 갱신: 2026-10-29 (feature/ui-color-harmony 접근성 수동 검증 결과 반영, Codex)
+최종 갱신: 2026-10-30 (Codex 조건부 사용량 갱신 구현·검증, Codex)
+
+## Claude Code·AGY 독립 조회 조사 (2026-10-30)
+
+아래 AGY 미실행 기록은 위 단일 실행 **이전** 조사 상태다.
+
+- 시작 `main` HEAD `85856cc`, GPU 실측 로그 2개는 미추적 보존. 기존 외부 Provider는 300초마다 Claude·AGY 상태줄 로컬 파일만 재읽어, 서비스가 새 이벤트를 보내지 않으면 서버 최신값을 독립 조회하지 못한다. 회색 오래된 데이터 표시와 제품 코드는 변경하지 않았다.
+- 설치 CLI 도움말: Claude Code v2.1.292에는 개인 구독 한도 비대화형 명령이 보이지 않았다. 공식 `/usage`는 세션 화면, statusLine 한도는 첫 API 응답 뒤 조건부 제공된다. `claude -p`는 모델 질문 경로라 자동 폴링에 사용하지 않는다. 조직 Analytics/Admin API는 개인 Pro/Max 현재 5시간·7일 한도와 별개다.
+- AGY CLI v1.4.10. 공식 v1.1.10 변경 기록에서 `agy -p "/usage" --output-format json` 형태의 read-only 구조화 응답을 지원하고 agent turn·쿼터·대화 기록을 만들지 않는다고 확인했다. 실제 계정에서 명령을 실행하지 않아 출력 스키마·버킷 매핑·로그/설정/인증 쓰기 영향은 미검증이다. 이는 이전 대화형 `/usage`만 가능하다는 문서 판단의 후속 갱신이다.
+- 다음 순서: 사용자 인증 영향 범위를 먼저 검토하고 비민감 출력만 허용하는 별도 AGY 실측 → 결과가 안전하고 안정적일 때 기능 브랜치·테스트 설계. Claude는 공식 개인 구독 조회 경로가 확인될 때까지 상태줄 유지. 이번 조사에서는 버전·도움말과 공식 문서만 읽었고 모델 요청, 로그인·설정 변경, 제품 코드 수정, 새 빌드·XCTest, Push·릴리즈는 하지 않았다.
+
+## `main` 병합 전 최종 점검 (2026-10-30)
+
+- 점검 시작 HEAD `6f592f2`, 브랜치 `feature/usage-refresh-label-and-sources`. 로컬 `main`과 `feature/ui-color-harmony`는 모두 `192580f`를 가리키며 이 기능 브랜치는 해당 커밋의 직계 후손이다(앞선 브랜치에 없는 커밋 10개, 반대 방향 0개). 따라서 **현재 로컬 참조 기준** fast-forward가 가능하고 병합 충돌은 예상되지 않는다. 원격 `origin/main`은 별도로 뒤에 있으므로 병합 직전 대상 브랜치 위치를 다시 확인한다.
+- `main...HEAD` 변경은 Codex 조건부 갱신 관련 앱 소스 5개, 테스트 1개, 문서 6개(`SPEC`, `TODO`, `IMP-PLAN`, `HANDOFF`, `README`, `BLOG-NOTES`)다. UI 색상 브랜치 변경은 `main`에 이미 포함됐으며, 본 브랜치의 추가 10개 커밋 중 제품 코드·테스트 변경은 앞의 구현·검증 커밋에만 있다. 이후 문서 커밋들은 앱 소스와 테스트를 바꾸지 않았다. `git diff --check main...HEAD` 통과.
+- 이번 세션 새 검증: 전체 Debug XCTest 393개 통과·실패 0·건너뜀 0 (`/private/tmp/tokenly-merge-readiness-20261030/Tests.xcresult`). Debug·Release 빌드 모두 성공. 산출물·로그는 저장소 밖 임시 경로에 두었고 설치 앱은 교체하지 않았다. `xcresulttool` 요약의 일반 샌드박스 읽기는 권한 오류였지만 승인된 승격 읽기로 결과를 확인했다. 코드·설정·인증 변경 없음.
+- 남은 실사용 제약: 정확한 초 단위 자동 조회 간격, 절전 복귀, Codex app-server 응답의 서버 캐시 정책은 미검증. Codex 앱 팝오버 의존성 의심은 추가 사용자 관찰에서 재현 결함으로 확정되지 않았다. 기능 병합 검토는 가능하나 이 제약을 완료로 표시하지 않는다. GPU 실측 로그 2개는 미추적 상태로 보존하고 병합 대상에서 제외한다.
+
+## Codex 앱 팝오버 의존성 의심 재평가 (2026-10-30, 조사 중단)
+
+- 사용자는 Codex 앱의 사용량 팝오버를 열지 않으면 Tokenly 값이 갱신되지 않는 듯했고, Codex 팝오버를 연 뒤 Tokenly에도 변경값이 반영됐다고 보고했다. Tokenly 수동 버튼은 정상이다. 과거 닫힌 상태의 메뉴 막대 값 변화는 실제 사용자 관찰로 유지하지만, **Codex 앱과 독립적으로 서버 최신값을 가져온다는 결론은 철회**한다. 조회 시점 차이와 캐시 영향은 모두 미확정이다.
+- 코드상 타이머 조건 검사, CLI 자식 시작, initialize, RPC 응답 성공, 스냅샷 교체, 서버 최신성은 서로 다른 단계다. 공식 문서는 `account/rateLimits/read`가 rate limits를 가져온다고 설명하지만 매 호출의 캐시·네트워크 신선도를 보장한다고 적지 않는다. 조사 중단 전 개발 앱 CLI 자식 시작을 01:47:09·01:49:09 UTC에 관찰했으나 응답 성공은 측정하지 않았다.
+- **새 사용자 반증:** Codex 앱 사용량 팝오버를 전혀 열지 않았는데도 Tokenly 메뉴 막대 잔여량이 새 값으로 자동 변경됐다. 실제 수치는 기록하지 않는다. 팝오버 의존성은 재현 결함으로 확정하지 않고 추가 진단을 중단한다. 조회 시점 차이는 가설이다. 제품 코드 변경 없음. 이 의심만으로 `main` 병합을 보류할 근거는 현재 없지만 정확한 간격·절전 복귀는 미검증으로 남는다.
+
+## 백그라운드 화면 관찰 추가 (2026-10-30)
+
+- 사용자가 별도 개발 앱의 팝오버를 닫은 상태에서 메뉴 막대 Codex 잔여량이 새 값으로 바뀐 것을 직접 확인했다. 마지막 성공 갱신 시각을 초 단위로 확인했고, 사용량이 같아도 시각은 새로 갱신되는 것을 봤다. 수동 버튼도 정상 동작했다. 실제 계정 수치나 초 단위 시각은 기록하지 않았다. 연속 성공 조회 사이의 초 단위 간격을 측정한 것은 아니다.
+- 코드상 메뉴 막대 label은 팝오버와 별개로 `UsageStore.start()`를 시작하고, 메뉴 막대 값·갱신 시각은 성공 스냅샷에서 나온다. 사용자 관찰은 백그라운드 성공 스냅샷 반영의 직접 화면 증거이며, 과거 프로세스 재실행과 XCTest는 별도 근거다. 절전 복귀, 재열기 순간의 조건 적용, 정확한 자동 CLI 간격은 미검증. 제품 코드 변경 없음. 이번 문서 작업에서 새 테스트·빌드 없음.
+
+## 개발 앱 팝오버 수동 확인 (2026-10-30)
+
+- 추가 사용자 보고: 메뉴 막대 Codex 잔여량이 새 값으로 반영되고 수동 새로고침 버튼이 정상 작동했다. 실제 계정 수치는 기록하지 않는다. 아래의 수동 버튼 미검증 문구는 첫 화면 확인 당시 상태이며 현재는 사용자 수동 확인 완료다. 실패 전용 CLI의 300초 자동 재시도는 별도 실험에서 확인했다.
+- 당시 백그라운드 범위: `TokenlyApp` 메뉴 막대 label의 `.onAppear`가 `UsageStore.start()`를 호출하고 타이머는 팝오버 표시와 독립적으로 실행된다. 과거 팝오버 조작 없이 관찰한 CLI 자식 2회는 백그라운드 프로세스 실행의 간접 근거였다. 그 시점에는 닫힌 상태의 성공 응답과 화면값을 함께 관찰하지 못했으나, 이후 위 사용자 화면 관찰이 추가됐다. 정확한 자동 조회 간격·절전 복귀는 여전히 미검증이다. 현재 추가 제품 코드 수정 필요성을 입증한 문제 없음.
+- 사용자가 별도 개발 앱 팝오버 하단의 `Codex 1분 갱신`, 5시간·7일 사용량, `마지막 갱신 시간`의 10:24→10:25 변화를 직접 확인했다. 10:25 직후에는 변화가 없었고 약 20초 이상 지나 변경됐다고 보고했다. 화면 캡처와 초 단위 시각은 제공되지 않았다. 이는 사용자 화면 관찰이며 이전 세션의 프로세스 관찰과 구분한다.
+- 코드 경로: `CodexUsageProvider.fetchSynchronously()`가 `account/rateLimits/read` 응답을 파싱할 때 `fetchedAt = Date()`로 스냅샷을 만들고, `UsageStore.refresh()`는 `provider.fetch()` 성공 시에만 스냅샷을 교체한다. 실패 시 마지막 성공 스냅샷을 유지한다. 따라서 **해당 개발 앱에서 시각이 실제로 변경된 것**은 새 Codex CLI 조회 성공의 근거다. 5시간·7일 값이 보였으므로 두 창을 포함한 응답이 파싱됐다. 서버 응답 원문·사용량 수치는 수집하지 않았다.
+- 타이머는 앱 시작 기준 60초 간격으로 조건을 검사한다. 첫 조회가 타이머 등록 직전에 시작하고 성공 시각이 그보다 늦으면 첫 tick에서 성공 나이가 60초 미만이라 건너뛸 수 있다. 다음 tick은 약 120초 시점이다. 이전 관찰의 CLI 시작 120초 간격과 이번 사용자의 `10:25` 이후 지연 관찰은 이 구조와 양립한다. 정확한 최초·두 번째 조회 완료 시각이 없어 지연의 원인을 특정하거나 60초 경과 직후 실행 여부를 판정할 수 없다. 분 단위 표시는 초 단위 경과 측정에 사용할 수 없다.
+- 이 첫 화면 관찰 시점에는 팝오버 닫기·재열기 조건과 수동 새로고침, 절전 복귀가 미검증이었다. 이후 수동 새로고침은 사용자가 정상 동작을 추가 확인했다. 기존 설치 앱·설정·인증은 조작하지 않았다. 제품 코드 변경 없음.
+
+## 실계정 개발 앱 프로세스 검증 (2026-10-30, 조건부 승인 후)
+
+- `feature/usage-refresh-label-and-sources`, 시작 HEAD `348e179`. 승인된 별도 앱 `/private/tmp/tokenly-real-codex-verify-20261030/Build/Products/Debug/Tokenly.app`(ID `io.github.jbbdyee.tokenly.realverify.20261030`)만 PID 55867로 실행했다. 런처는 공식 Codex CLI를 우선 PATH로 찾고 `CODEX_SQLITE_HOME=/private/tmp/tokenly-real-codex-verify-20261030/sqlite`를 지정했다. stdout/stderr는 `/dev/null`로 버려 계정·사용량·인증 응답을 남기지 않았다. 해당 임시 상태 경로에 파일 12개가 생성된 것은 확인했으나 내용은 읽지 않았다. 설치 앱 PID 66468은 실행 상태로 유지했다.
+- 앱 시작 시각은 09:19:35 KST. 첫 CLI 실행은 프로세스 샘플링 시작 전에 끝나 직접 측정하지 못했다. 이후 개발 앱의 `codex` 자식 시작을 00:21:37·00:23:37 UTC에 2회 관찰했으며 간격은 120초다. 두 번째 관찰 자식 PID 56820은 0.25초 샘플링으로 약 0.92초 실행을 관찰했다(정확한 OS 실행 시간은 아님). 관찰한 두 프로세스는 겹치지 않았다. 60초 타이머의 검사와 CLI 실행은 같지 않다. `UsageStore`는 성공 직후 다음 tick의 나이가 60초 미만이면 건너뛰므로 120초 실행 간격은 구현과 양립한다. 이 실행 간격은 실패 후 타이머 300초 backoff가 적용되지 않은 상태임을 시사하지만 UI의 실제 사용량 성공값과 마지막 성공 시각은 직접 확인하지 못했다.
+- 약 135초간 440개 `ps` 표본에서 개발 앱 CPU 순간값 0.0~5.6%, RSS 86,080~86,560 KiB였다. 이어진 약 80초 관찰에서 앱 CPU 0.0~8.8%, RSS 86,352~86,464 KiB였다. 이는 앱 전체 표본이며 실제 CLI의 CPU·RSS는 수집하지 못했다. 초기 CLI 소요 시간도 미측정이다. 장시간 안정성 결론으로 확대하지 않는다.
+- macOS 컴퓨터 사용 도구는 `Sky Computer Use native pipe startup failed`로 연결되지 않았다. 따라서 팝오버 재열기·수동 새로고침·화면의 마지막 갱신 시각 및 실제 사용량, 절전 복귀는 미검증이다. 기존 XCTest는 조건 로직의 자동 테스트 증거로만 유지한다. 설정 변경 조작은 하지 않았으나 CLI 자동 토큰 갱신 여부와 UI 인증 오류 여부는 확인할 수 없었다. 개발 앱 PID 55867만 종료했고 설치 앱 PID 66468은 계속 실행 중이다. 제품 코드 변경 없음.
+
+## 실사용 환경 기반 1분 갱신 검증 준비 (2026-10-30, 실행 승인 대기)
+
+- 브랜치 `feature/usage-refresh-label-and-sources`, 시작 HEAD `4ffd3f2`. GPU 실측 로그 2개는 미추적 상태로 보존. 기존 `/Applications/Tokenly.app`을 종료·교체하지 않았고 root 진단과 기존 EPERM 재현은 중단했다.
+- Debug 개발 앱을 저장소 밖 `/private/tmp/tokenly-real-codex-verify-20261030/Build/Products/Debug/Tokenly.app`에 성공적으로 빌드했다. bundle ID는 `io.github.jbbdyee.tokenly.realverify.20261030`으로 설치본 `io.github.jbbdyee.tokenly`와 다르다. `/private/tmp/tokenly-real-codex-verify-20261030/launch-review.sh`는 **준비만** 했고 실행하지 않았다. 스크립트는 공식 CLI를 찾는 PATH와 공식 `CODEX_SQLITE_HOME`의 임시 DB 경로만 설정한다. 실제 `CODEX_HOME`·`HOME`은 유지한다.
+- 코드상 앱 시작의 `ProviderDisplaySettings`와 시스템 위젯 선택은 `.standard` UserDefaults를 읽는데 번들 ID가 달라 도메인이 분리된다. 새 도메인의 기본값에서 Claude·AGY 표시는 꺼져 있어 상태줄 파일 재읽기는 시작되지 않는다. 설정 화면을 열면 상태줄 파일 존재 여부를 확인할 수 있고, 버튼을 조작하면 로그인 항목·연결·Keychain 값이 바뀔 수 있으므로 테스트 중 설정 화면은 열지 않는다. `UsageStore.start()`는 앱 표시 시 Codex CLI `app-server`를 시작한다.
+- [공식 Codex 인증 문서](https://learn.chatgpt.com/docs/auth)에 따르면 CLI 로그인 캐시는 파일(`~/.codex/auth.json`) 또는 OS credential store에 있고, ChatGPT 로그인 토큰은 사용 중 자동 갱신될 수 있다. [공식 환경변수 문서](https://learn.chatgpt.com/docs/config-file/environment-variables)의 `CODEX_SQLITE_HOME`은 SQLite 상태만 임시 경로로 옮긴다. 따라서 실사용 환경에서 첫 조회를 실행하면 **기존 Codex 인증 캐시/Keychain이 CLI에 의해 갱신될 가능성은 남는다**. 인증 파일 복사·직접 읽기·로그 출력은 하지 않지만 불변성은 보장할 수 없다. 이 영향 때문에 앱을 아직 실행하지 않았다.
+- 이번 세션 검증: 격리 Debug 빌드 성공, 별도 ID·경로 확인, 실행 스크립트 `/bin/sh -n` 통과. 실제 app-server initialize·사용량 성공 조회·60초 자동 갱신·팝오버·수동·절전 복귀 및 실제 CLI 비용은 **미검증**이다. 이전 XCTest 393개 통과와 실패 전용 CLI 300초 재시도는 별도 세션의 결과다. 제품 코드 변경 없음. 다음 단계는 이 인증 캐시 자동 갱신 가능성을 사용자에게 제시하고 실행 승인을 받은 뒤, 응답 내용을 기록하지 않고 개발 앱만 실행·관찰하는 것이다.
+
+## 남은 EPERM 진단 경로 점검 (2026-10-30)
+
+- 이번 세션 시작: `feature/usage-refresh-label-and-sources`, HEAD `79311f4`; GPU 원본 로그 2개 미추적 상태 보존. 동일한 실계정 `app-server` 실패 실행은 반복하지 않았다. CLI 버전은 여전히 `0.164.0-alpha.11.1`이다.
+- Apple의 [파일 시스템 사용량 진단](https://developer.apple.com/library/archive/documentation/Performance/Conceptual/FileSystem/Articles/FileSystemCalls.html)에 따르면 `fs_usage`는 파일 syscall·오류를 보여 주지만 root 권한이 필요하다. 현재 `fs_usage`는 종료 코드 1로 실행되지 않았고 passwordless `sudo -n`도 사용할 수 없었다. 보안 설정이나 sudo 구성을 바꾸지 않았다.
+- Apple의 [샌드박스 위반 진단](https://developer.apple.com/documentation/security/discovering-and-diagnosing-app-sandbox-violations)에 따라 `log show --info --debug`에서 `Sandbox:` 이벤트를 검사했다. 처음 `codex` 문자열이 포함된 이벤트는 **Tokenly의 app-server가 아니라 `logd_helper`의 Codex 앱 자료 읽기 거부**였다. 진단 명령 자체의 검색 문자열도 로그에 나타나므로 필터 결과만으로 당사 프로세스 거부라고 판단하면 안 된다. 이번 app-server의 두 번째 EPERM에 대응하는 PID·syscall·경로는 통합 로그에서 확인하지 못했다.
+- 설치본 `/Applications/Tokenly.app`은 bundle ID `io.github.jbbdyee.tokenly`, 버전 `0.2.0`/빌드 4이며 실행 중이다. 검사한 서명 출력에는 App Sandbox entitlement가 나타나지 않았다. 이전 격리 Debug 앱은 별도 bundle ID와 `/private/tmp` 경로, 추가 `sandbox-exec` 홈 접근 제한 및 임시 CLI를 사용했다. 설치본에는 그 자식 제한을 적용하지 않았다. 설치본의 Codex 사용량 조회 성공 여부는 프로세스 실행 상태와 코드만으로 판정할 수 없고, 사용자 설정·화면을 읽거나 앱을 조작하지 않았다.
+- 현재 확인된 위치는 첫 번째 `~/.codex` SQLite 상태 DB 초기화뿐이다. `sqlite_home` 분리 후 남은 EPERM은 **경로·시스템 호출 미확정**. root 추적이나 추가 권한 없이 안전하게 확인할 수 있는 수단을 확보하지 못했으므로 실제 계정 조회·60초 갱신은 계속 미검증이다. 제품 코드·설치 앱·로그인 상태 변경 없음. 새 빌드·XCTest도 실행하지 않았다.
+
+## Codex app-server 권한 오류 조사 (2026-10-30, CLI 0.164.0-alpha.11.1)
+
+- 시작 상태: `feature/usage-refresh-label-and-sources`, HEAD `c62c874`; GPU 실측 로그 2개는 미추적 상태로 보존. 설치 앱·설정·Keychain·Codex 로그인 상태는 변경하지 않았다. CLI는 `/opt/homebrew/bin/codex`의 `0.164.0-alpha.11.1`로 앞선 기록의 `0.163.0-alpha.11`에서 달라졌다.
+- 실제 홈 쓰기 전부 차단, `.codex` 읽기 허용, 기본 SQLite 위치인 조건에서 `app-server --listen stdio://`는 initialize 응답 전 종료 코드 1로 실패했다. 민감한 줄을 제거한 stderr는 `~/.codex` 아래 SQLite state runtime 초기화 실패를 가리켰다. 따라서 **첫 번째 확인된 실패 위치는 SQLite 상태 DB 초기화**다. 로그인 유효성이나 네트워크 요청에는 도달하지 않았다.
+- [공식 설정 참조](https://learn.chatgpt.com/docs/config-file/config-reference)의 `sqlite_home`을 `/private/tmp/tokenly-codex-sqlite-20261030`으로 지정하면 이 구체적 오류는 없어졌지만, 다음 `Operation not permitted (os error 1)`로 여전히 initialize 전에 종료했다. `CODEX_HOME`을 실제 `.codex`로 명시하고 `HOME`·`TMPDIR`을 임시 경로로 바꾸면 `.codex` 정규화 단계가 거부됐다. 홈 상위 경로의 메타데이터 읽기만 허용해도 일반 EPERM이 남았다. **두 번째 실패의 정확한 syscall·경로는 미확정**이다. macOS 통합 로그는 Codex 거부 경로를 노출하지 않았고 `fs_usage`는 이 권한에서 실행되지 않았다.
+- 대조군: 실제 홈 접근을 차단한 채 빈 임시 `CODEX_HOME`, 임시 `HOME`·`TMPDIR`, 임시 `sqlite_home`을 쓰면 app-server `initialize`가 성공했다. 이는 app-server 실행 자체와 임시 SQLite 경로가 동작함을 보여주지만, 인증이 없는 홈이라 실제 사용량 조회 증거는 아니다. `log_dir`은 공식적으로 별도 지정 가능하나 plaintext 로그 가능성을 고려해 이번에는 사용하지 않았다.
+- 안전한 실계정 검증 환경은 **부분적으로만 준비**됐다. SQLite 쓰기는 임시 경로로 분리할 수 있지만 실제 `.codex`를 읽기 전용으로 사용하는 초기화는 성공하지 못했다. 인증 파일 복사·원본 수정·홈 쓰기 허용은 하지 않았다. 실제 사용량 최초 조회, 성공 후 60초 자동 재조회, 화면 시각·중복 요청은 미검증. 제품 코드 변경·새 빌드·XCTest 없음. 다음은 사용자 승인된 진단 환경에서 두 번째 EPERM의 경로를 비밀정보 없이 확인하는 일이다.
+
+## 실제 Codex 인증 재사용 안전성 점검 (2026-10-30)
+
+- 브랜치 `feature/usage-refresh-label-and-sources`, HEAD `4bebea2`. 앞선 세션의 문서 6개 미커밋 변경과 GPU 원본 로그 2개를 보존했다. `/Applications/Tokenly.app`은 변경하거나 종료하지 않았다.
+- 설치된 공식 Codex CLI는 `/opt/homebrew/bin/codex`, 버전 `0.163.0-alpha.11`이다. 자식 `sandbox-exec`에서 실제 홈 쓰기를 전부 거부하고 `.codex` 읽기만 허용한 뒤 `app-server --listen stdio://`의 `initialize`를 시도했다. CLI는 응답 전에 약 14~16ms 만에 종료 코드 1로 끝났고, stderr는 메모리에서 권한 오류 여부만 판정한 뒤 버렸다. 인증 파일과 RPC 원문은 읽거나 출력·저장하지 않았다. 같은 제약에서 `codex --version`은 실행됐다. 따라서 인증 성공/실패 자체보다 app-server 초기화 단계의 쓰기 제한이 우선 장애다. 정확한 쓰기 대상은 확인하지 않았다.
+- 이 제약을 풀면 기존 사용자 설정·로그인 상태의 쓰기 여부를 보장할 수 없어, 실제 인증을 사용하는 테스트 앱은 실행하지 않았다. 최초 성공 조회, 성공 후 60초 재조회, 마지막 성공 시각, 팝오버·수동·중복·절전 복귀 실제 동작과 실제 CLI 시간·CPU·메모리는 모두 미검증이다. 이전 실패 전용 임시 CLI의 300초 재시도 관찰과 XCTest 393개는 별도 증거다. 이번 세션에는 빌드·XCTest를 새로 실행하지 않았다.
+- 제품 코드 수정은 필요하다고 판정하지 않는다. 후속 실제 앱 검증은 Codex CLI가 기존 홈에 무엇을 쓰는지 비밀정보 없이 확인하고, 허용 가능한 임시 경로 전환 방법이 확인된 후 진행한다. 사용자에게 기존 앱·설정·인증 변경을 요구하지 않는다.
+
+## 격리 macOS 앱 실행 검증 (2026-10-30, 커밋 `4bebea2` 이후)
+
+- `Debug` 앱을 저장소 밖 `/private/tmp/tokenly-live-isolated-20261030/Build/Products/Debug/Tokenly.app`에 빌드했다. 번들 ID는 `io.github.jbbdyee.tokenly.livecheck.20261030`이다. `sandbox-exec` 자식 프로세스가 실제 사용자 홈의 읽기·쓰기를 거부함을 실행 전에 확인했고, 실패 전용 임시 `codex`를 PATH 앞에 뒀다. `HOME`만 바꿔도 `NSHomeDirectory()`는 실제 홈을 가리키므로 이 차단이 필요하다. 실제 인증·Keychain·Claude/AGY 상태줄 및 설정 변경 없음. 설치 앱 PID 66468은 실행 상태로 유지했다.
+- 테스트 앱 PID 48673은 실제 macOS 프로세스로 약 5분 51초 실행했다. 임시 CLI 시작은 2026-10-29 21:26:24 UTC와 21:31:24 UTC, 간격 300초였다. 첫 60초 tick에서는 CLI를 다시 실행하지 않았다. 로그의 21:27:56 UTC 실행(PID 48835)은 임시 CLI 자체 프로토콜을 단독 점검한 것으로 앱 실행 횟수에서 제외한다. 앱에서 시작된 CLI는 관찰 구간에 2회다. 실패 후 자동 재시도 제한의 실제 타이머 동작을 확인했지만 성공 뒤 60초 주기 조회는 확인하지 못했다.
+- 1분 동안 10초 간격 6회 `ps` 표본에서 앱 CPU 순간값은 0.0~0.3%, RSS는 85,840~86,224 KiB였다. 이후 5분 25초 표본 RSS는 83,072 KiB였다. 단발 CPU 4.5% 표본도 있어 장시간 안정성이나 Codex 실제 CLI 비용으로 일반화하지 않는다. 임시 CLI는 완료 로그를 남기지 않아 실행 시간은 측정 불가다. 초기 조회·5분 재시도 외 추가 CLI 시작은 관찰되지 않았다.
+- 컴퓨터 사용 도구가 이 메뉴 막대 전용 테스트 앱을 앱 목록에서 식별하지 못했다. 팝오버 열기·닫기·재열기, 수동 버튼, 화면의 마지막 성공값 유지, 절전 복귀는 실제 UI에서 미검증이다. 격리 환경에는 실제 Codex 인증이 없으므로 성공 조회와 실제 서버 사용량도 미검증이다. 관련 상태 전이는 이전 세션 XCTest 393개 통과 결과와 구분한다. 테스트 앱만 종료했고 설치 앱은 종료하지 않았다.
+- 이번 세션은 격리 Debug 빌드 성공. XCTest 전체 및 Release는 새로 실행하지 않았으며 직전 세션 결과를 재사용하지 않는다. 제품 코드 변경 없음. GPU 로그 2개 미추적 상태 보존. 다음에는 사용자가 새 빌드의 팝오버를 직접 조작할 수 있는 별도 격리 UI 경로를 마련하고 성공/실패 화면과 절전 복귀를 확인한다.
+
+## 현재 세션 재검증 및 Git 권한 (2026-10-30)
+
+- Codex 60초 조건, 실패 후 자동 300초 재시도, 수동 즉시 조회, 이전 성공값 유지, 중복 방지와 팝오버·절전 복귀 연결을 코드와 기존 테스트로 재확인했다. 제품 코드 변경은 없으며 기존 `UsageStore`·UI·테스트·문서의 미커밋 작업을 보존했다.
+- 샌드박스 내 `xcodebuild test`는 SwiftUI 매크로 서버의 malformed response로 컴파일 전에 중단됐고, `simctl`도 CoreSimulatorService 연결 거부와 로그 경로 권한 거부를 보고했다. 같은 소스를 승인된 승격 실행으로 다시 빌드·테스트했을 때 전체 393개 XCTest와 Debug·Release 빌드가 통과했다. 따라서 이번 재현에서 확인한 원인은 샌드박스의 Xcode 서비스 접근 제한이며 Xcode 설치 자체의 손상은 확인되지 않았다.
+- `git diff --check`는 통과했다. `.git/index.lock`은 없고 `.git`에 대한 샌드박스 쓰기 권한이 없어 일반 실행에서 lock을 만들 수 없다. 승인된 승격 실행으로 이번 작업 파일만 스테이징·로컬 커밋한다. GPU 원본 로그 2개는 미추적 상태로 유지한다.
+
+## Codex 1분 조건부 갱신과 공식 CLI 재조사 (2026-10-30)
+
+- Codex 타이머를 300초에서 60초로 줄이고, 팝오버 열림·절전 복귀와 같은 `refreshIfStale()` 조건을 사용한다. 마지막 성공 조회와 최근 시도가 모두 60초 이상 전이어야 시작한다. 실패 상태에서 타이머는 최근 시도 후 300초까지 재시도하지 않아 CLI 연속 실행을 제한한다. 팝오버·복귀의 60초 제한과 수동 즉시 조회는 유지한다. 진행 중 요청은 건너뛰고 실패해도 기존 성공 데이터·시각을 보존한다. 설치 앱·설정은 변경하지 않았다.
+- 설치된 `claude` 2.1.292와 `agy` 1.4.8의 도움말에는 구독 한도를 비대화형으로 출력하는 전용 옵션·명령이 확인되지 않았다. 공식 상태줄과 대화형 사용량 화면의 근거 및 구현 보류 이유는 `Doc/IMP-PLAN.md` 68절에 기록한다. Claude·AGY 조회 코드는 변경하지 않았다.
+- 현재 브랜치에는 앞선 Codex 조건부 갱신 커밋 `8048a45`와 `마지막 갱신 시간` 문구 변경 미커밋 작업이 함께 있다. GPU 실측 로그 2개는 미추적 상태로 보존한다. RAM-02는 조사 종료 상태를 유지한다.
+- 최종 자동 검증: 전체 393개 테스트 통과(이전 392개 + 타이머/팝오버 상호작용 테스트 1개), Debug·Release 빌드와 `git diff --check` 통과. 테스트 빌드의 `RAMPopoverTests.swift:47` 불필요한 `try` 경고는 기존 경고다. 실제 설치 앱의 화면·절전 복귀 동작과 CLI 장시간 비용은 미검증이다.
+
+## 갱신 시각 문구와 Claude·AGY 소스 조사 (2026-10-30, feature/usage-refresh-label-and-sources)
+
+- Codex 팝오버·설정의 `마지막 성공`을 `마지막 갱신 시간`으로 바꾼다. 기존 성공 조회 시각을 그대로 쓰며 실패해도 보존한다. 이는 서버 집계 시각이 아니다. Claude·AGY `마지막 수신`은 상태줄 이벤트 시각이므로 유지한다.
+- Claude·AGY의 5분 타이머·수동 갱신은 로컬 상태줄 파일 재읽기다. 공식 문서상 Claude Code는 상태줄 JSON에 구독 한도를 조건부 제공한다. AGY `/usage`는 대화형 TUI로 백엔드 갱신이 가능하지만, 안정적인 비대화형 출력 계약은 확인하지 못했다. 개인 계정 인증 재사용이나 비공식 API 접근은 구현하지 않는다. 관련 근거는 `Doc/IMP-PLAN.md` 67절에 기록했다.
+- Codex의 60초 조건부 조회와 300초 타이머는 앞선 `8048a45`에 구현됐다. 새 조회 경로의 실기기 팝오버·절전 복귀 검증은 아직 필요하다. RAM-02는 조사 종료·원인 미확정·제품 수정 보류 상태다. GPU 실측 로그 2개는 로컬에 남긴다.
+- 전체 자동 테스트 392개 통과, Debug·Release 빌드 및 `git diff --check` 통과. 이번 변경은 문구와 문서에 한정되고, 실제 설치 앱의 화면 확인은 수행하지 않았다. 기존 `RAMPopoverTests.swift:47`의 불필요한 `try` 경고가 테스트 빌드에서 다시 표시됐다.
+
+## Codex 사용량 확인 시 조건부 갱신 (2026-10-30, feature/codex-refresh-on-attention)
+
+- 기존 300초 자동 조회와 수동 새로고침은 유지한다. AI 팝오버 열림 및 `NSWorkspace.didWakeNotification`에서 마지막 성공 조회가 60초 이상 오래됐고 최근 조회 시도도 60초 이상 전일 때 Codex 조회를 시도한다. 진행 중 요청은 중복하지 않으며 실패해도 기존 snapshot·마지막 성공 시각은 보존한다.
+- `UsageStore`와 AI 팝오버 연결, 가짜 시계·절전 알림을 쓰는 테스트만 변경했다. `ExternalProviderStore`·Claude·AGY 상태줄 수신 경로는 변경하지 않았다. 설치본 v0.2.0과 사용자 설정은 그대로다.
+- 자동 검증: 관련 `TokenlyTests` 61개, 전체 392개 통과(기존 388개 + 신규 4개). Debug·Release 빌드와 `git diff --check` 통과. 실제 앱 팝오버 재열기·절전 복귀 조작은 미검증이다. GPU 원본 로그 2개는 미추적 로컬 자료로 보존한다. RAM-02는 조사 종료·원인 미확정·제품 수정 보류 상태를 유지한다.
 
 ## feature/ui-color-harmony 접근성 마무리 점검 (2026-10-29, Codex)
 
@@ -1088,3 +1864,48 @@ CPU·RAM·Battery의 계산 기준과 출처, Battery 실시간 상태, Store �
 - UI 연결 단계에서 위젯 표시 설정을 `SystemMonitorStore.setEnabled`에 연결한다. Store는 앱 수명 동안 하나만 둔다.
 - 새 Swift 파일마다 `project.pbxproj` 파일 참조·그룹·Sources 등록을 확인한다.
 - 3단계·3-1·3-2·4단계 변경과 기획 문서는 커밋·Push 하지 않았다. 다음 작업자는 Git 상태를 확인하고 미커밋 변경을 보존한다.
+
+## Claude 이식형 개발 앱 배포 전 검증 (2026-11-01)
+
+- 브랜치 `experiment/claude-usage-refresh`의 `bdc6046`에서 시작했고 미추적 GPU 로그 2개를 보존했다. 정식 v0.3.0, 사용자 설정·인증, 실제 Claude 계정에는 접근하지 않았다.
+- 개발 앱 `/private/tmp/tokenly-claude-portable-app-final-20261101/DerivedData/Build/Products/Debug/Tokenly.app`(ID `io.github.jbbdyee.tokenly.claudebundle.20261101`)은 번들 Node 24.22.1의 arm64 실행, x86_64 슬라이스, 시스템 라이브러리만 연결, SDK 0.3.169, helper 원본과 동일한 SHA-256, 실행 권한, ad-hoc 서명 검증을 통과했다. 이 Mac의 x86_64 실행은 `Bad CPU type in executable`이므로 Intel 실기기 검증이 아니다.
+- CLI 미설치/비실행, Node 누락/비실행, helper 누락, manifest 손상/SDK 버전 불일치는 SDK 경로를 열지 않고 statusLine으로 대체하도록 코드와 Mock으로 검증했다. 가상 helper를 사용해 개발 앱을 실행했고 최초 조회 경로 호출 1회를 기록했다. 네이티브 UI 자동화 파이프가 시작되지 않아 팝오버와 1·2차 성공 시각의 실제 화면 표시는 미검증이다. Swift Store의 Mock 연속 성공/300초 게이트는 XCTest로 확인했다.
+- 기본 개발 플래그 비활성, 실제 SDK 300초 후보, 60초 상시 조회 보류는 그대로다. Developer ID 서명, Hardened Runtime, notarization, Gatekeeper 및 클린 Mac/Intel/외부 Claude CLI 검증이 남았다. 실제 SDK 사용량 조회와 모델 요청은 이번 단계에서 0회다.
+- 검증: Node 정책 9개, 전체 XCTest 448개 통과, Debug·Release 빌드 및 `git diff --check` 통과. 추가 XCTest는 손상된 SDK manifest 차단과 Mock 연속 성공의 300초 시각 반영을 검사한다. 실제 개발 앱의 화면은 확인하지 못했다.
+
+## Claude Mock UI 검증 시도 (2026-11-01)
+
+- 시작 `experiment/claude-usage-refresh` / `af6c2a1`, GPU 로그 2개만 미추적. 별도 이식형 앱 ID `io.github.jbbdyee.tokenly.claudebundle.20261101`을 격리 HOME·가상 shell helper·가짜 statusLine 파일로 실행했다. 공식 SDK, Claude CLI, 실계정·모델 요청은 호출하지 않았고 개발 앱은 300초 반복 타이머 전에 종료했다.
+- macOS 접근성은 앱 PID와 상태 항목을 식별했지만 `click`/`AXPress` 후 창 수가 0이었다. 네이티브 CUA 파이프도 시작되지 않았다. 제한 화면 캡처에는 팝오버가 없어 실제 UI 결과로 채택하지 않았다. 성공 시각 두 번의 Store 반영은 기존 Mock Clock XCTest 근거이며 화면 변화는 미검증이다. statusLine 대체 화면도 미검증이다.
+- 수동 확인용 임시 스크립트 `/private/tmp/tokenly-claude-ui-mock-20261101/run-mock-ui.sh`는 `success|fallback`만 받으며 Mock 앱을 4분 안에 종료한다. 첫 성공·별도 재실행의 새 시각·fallback을 각각 캡처할 수 있다. 재실행은 동일 실행 내 두 번째 성공을 입증하지 않는다. 📸 캡처 추천: `success` 팝오버의 가상 5시간·7일과 성공 시각, 재실행 후 성공 시각, `fallback`의 `마지막 수신` 문구.
+- 이번 전체 XCTest 449개 통과, Debug·Release 빌드와 `git diff --check` 통과. 제품 코드 변경은 없다. 다른 Mac, 실제 팝오버, 서명·공증 등 이전 배포 게이트는 그대로 남았다.
+
+## Claude Mock UI fixture 오류 수정 (2026-11-01)
+
+- 사용자는 이전 Mock 개발 앱에서 `조회 실패`, Claude `데이터 없음`, `사용량 응답을 해석하지 못했습니다`를 확인했다. 원인은 임시 스크립트의 helper 경로가 `ClaudeDevelopmentConfiguration.makeProvider`의 허용 접두사와 달라 `.statusLineOnly`로 안전하게 후퇴한 것이다. fallback feed `{}`는 `ClaudeQuotaParser`에서 invalidResponse였다. 기존 직접 응답의 필드명·자료형은 SDK helper와 Swift 파서 계약에 맞았으며 제품 파서는 수정하지 않았다.
+- 버전 관리용 `experiments/claude-usage-refresh/run-mock-ui.sh`와 가상 JSON fixture를 추가하고 임시 스크립트는 새 파일 링크로 교체했다. 새 스크립트는 허용 경로, 유효한 가상 상태줄 feed, 4분 watchdog을 사용한다. 성공·fallback의 가상 비율을 달리해 UI 출처를 구별한다.
+- 수정 후 별도 개발 앱에서 가상 helper 호출 1회, 메뉴 막대 `Claude 5시간 80%, 7일 65%` 표시를 접근성으로 확인했다. 실제 SDK/Claude CLI/모델 요청·반복 조회는 0회다. fallback을 별도 실행해 가상 helper 1회 및 메뉴 막대 5시간 73%·7일 58% 표시도 확인했다. 팝오버의 두 값·마지막 성공 시각·fallback 출처 문구는 사용자 캡처 대기이며 같은 프로세스 두 번째 시각은 Mock Store 테스트만 확인했다. 전체 개발 플래그 XCTest 453개, Node 정책 테스트 11개, Debug·Release 빌드 및 `git diff --check` 통과. 📸 캡처 추천: 새 스크립트 `success`에서 가상 두 값과 성공 시각, `fallback`에서 `마지막 수신`.
+
+## Claude 60초 개발 옵션 구현과 검증 (2026-11-01)
+
+- 출발점 `experiment/claude-usage-refresh` / `8ff97e0`, 미추적 GPU 로그 2개 보존. 제품 설치본 v0.3.0, main, 인증·설정, 실제 SDK 계정은 건드리지 않았다.
+- 별도 개발 앱 설정 도메인에 300초 기본/60초 실험 선택을 추가했다. 실제 60초 SDK는 명시적 환경 플래그와 최대 2회 제한이 있어야 하며 체크포인트·중복 차단·백오프·중단 상태를 재사용한다. 기존 시도는 설정 변경으로 초기화하지 않는다. Mock UI fixture는 첫 가상 조회만 실행하고 타이머/절전 자동 조회를 설치하지 않는다. 설정 변경은 개발 앱 재실행 후 반영된다.
+- 사용자 직접 화면 확인: Mock Success 80%·65%, 두 막대, `가상 SDK 조회 마지막 성공 오늘 오후 4:31`, 가상 안내. Fallback 73%·58%, 두 막대, `마지막 수신 오늘 오후 4:32`, 가상 안내. 동일 프로세스 두 번째 성공 시각 변화는 미검증이다.
+- 격리 Mock 개발 앱의 설정 접근성 트리에서 `5분 · 기본`(선택됨), `1분 · 최대 2회`, 현재 실행 조건 300초를 확인했다. 1분을 선택한 실제 화면은 확인하지 않았다. Node 정책 11개, 전체 개발 플래그 XCTest 456개, Debug·Release 빌드 및 `git diff --check` 통과. Mock 앱은 검증 후 종료했다. 실제 SDK·모델 요청은 0회다.
+- 출시 필수: 동일 실행 두 번째 시각의 UI 변화, 1분 선택 후 UI, 클린 Mac·Intel·CLI/인증 오류 대체, Developer ID/Hardened Runtime/notarization/Gatekeeper 및 장시간 호출 안정성 검증. 후속 개선: 공식 제한·서버 신선도·비용 관찰과 60초 기본값 채택 여부. 블로그 소재는 안전한 개발 옵션과 출처별 성공 시각 구분이며 본문은 작성하지 않는다. 📸 캡처 추천: Mock 개발 앱의 설정 `SDK 조회 간격 · 실험`과 팝오버 성공 시각. 실계정 값이 보이는 화면은 캡처하지 않는다.
+
+## Claude Mock 60초 동일 실행 확인 (2026-11-01)
+
+- 별도 번들 ID `io.github.jbbdyee.tokenly.claudemock60.20261101`의 Debug 앱을 `/private/tmp/tokenly-claude-mock-sixty-app-20261101/Build/Products/Debug/Tokenly.app`에 빌드했다. `run-mock-sixty-ui.sh`는 `/bin/sh` 가상 helper·`/usr/bin/true` CLI 자리표시자·격리 HOME만 사용한다. 각 수동 실행은 새 임시 디렉터리에 checkpoint/호출 기록을 남기며 이전 기록을 지우지 않는다. 같은 앱을 재시작할 때 해당 임시 디렉터리 환경을 유지하면 두 회 제한이 보존된다.
+- 한 프로세스에서 helper 시작 2회, 60.049초 간격을 확인했다. 메뉴 막대 가상 두 한도는 두 번째 뒤에도 표시됐다. 팝오버 자동 열기는 클릭/AXPress와 네이티브 화면 도구 연결 실패로 확인하지 못했다. 사용자 캡처 전에는 첫째·둘째 UI 성공 시각 변경을 미검증으로 둔다.
+- 실제 SDK 조회·모델 요청은 0회. 기존 설치본과 설정, main, GPU 로그는 변경하지 않았다. 📸 캡처 추천: 같은 앱 프로세스의 첫째와 둘째 `가상 SDK 조회 마지막 성공` 표시. 사용량이 아닌 가상 데이터임을 함께 보이게 한다.
+- 둘째 시작 후 60초 이상 지난 시점에도 helper 호출은 2회였다. Node 정책 11개, 전체 개발 플래그 XCTest 457개, Debug·Release 빌드 통과. 설정·팝오버를 열어도 추가 조회가 생기지 않는지 사용자 화면 조작과 함께 확인하는 항목은 아직 남았다.
+
+**사용자 직접 UI 검증(2026-11-02):** 동일 개발 앱 실행 중 두 팝오버 캡처의 `가상 SDK 조회 마지막 성공`은 오전 1:04 → 1:05였다. 두 화면 모두 가상 5시간 80%·7일 65%, 진행 막대와 `가상 Claude 데이터 · 실제 계정 조회 없음` 안내가 정상이었다. Mock 60초 자동 갱신의 Swift Store 및 실제 팝오버 UI 시각 변경은 검증 완료로 판정한다. 앞선 자동화 실패는 결함 증거가 아니다. 남은 필수 조건은 실제 계정 1분 상시 조회의 제한·비용·장기 안정성 및 서버 신선도, 클린 Mac/Intel 검증, Developer ID 서명·Hardened Runtime·공증·Gatekeeper다. 이식형 개발 앱의 1분 선택 화면과 팝오버 열기·닫기 중 호출 수는 별도 확인이 필요하다.
+
+## Claude 실계정 3회·60초 개발 앱 검증 (2026-11-02)
+
+- 출발점 `experiment/claude-usage-refresh` / `679a7d2`, 기존 미추적 GPU 로그 2개만 보존. 새 ID `io.github.jbbdyee.tokenly.claudereal3.20261102`, 앱 `/private/tmp/tokenly-claude-real-three-20261102/DerivedData/Build/Products/Debug/Tokenly.app`. 이전 2회 예약·체크포인트와 분리했다. helper는 SDK 0.3.169, Node 24.22.1, CLI 2.1.292 경로를 사용하며 인증 파일을 직접 다루지 않았다.
+- 실계정 usage 조회 3회 모두 성공. 실행 시간 2.418초·2.284초·2.219초, 성공 완료→다음 시작 60.017초·60.019초. 각 응답의 5시간·7일 필드 유효, Store의 직접 조회·마지막 성공 시각 존재를 비민감 진단으로 확인했다. 3개 예약 뒤 4번째는 없고 감독 스크립트가 개발 앱을 종료했다. 실제 사용량 수치·원본 응답·계정/인증 정보는 기록하지 않았다.
+- helper가 모델 메시지 또는 양의 세션 비용을 감지했다면 실패하도록 설계되어 있으며, 이번 세 성공에서 해당 징후는 기록되지 않았다. 무과금·공식 최소 호출 간격·인증 캐시의 정확한 갱신 여부와 서버 신선도는 확정할 수 없다. 실제 팝오버 세 시각은 사용자 화면 확인 전까지 미검증이다. 클린 Mac/Intel·서명/공증·장시간 안정성은 출시 게이트다. 📸 캡처 추천: 별도 개발 앱의 첫째·둘째·셋째 마지막 성공 시각만 보이게 자르고 실제 잔여율·초기화 시각·계정 정보는 가린다.
+- 검증: Node 정책 테스트 11개, 개발 플래그 전체 XCTest 459개, Debug·Release 빌드, `git diff --check` 통과. 3회 예산을 재사용하거나 재실행하지 않는다.

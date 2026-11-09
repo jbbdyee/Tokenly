@@ -17,10 +17,16 @@ struct NumericGaugeItem: Equatable {
         value.map { "\(Int(min(max($0, 0), 100).rounded()))" } ?? "—"
     }
 
+    /// A shown value is in the low (≤ 20 %) band, marked in the menu bar with a small star.
+    var isLow: Bool {
+        [primary, secondary].contains { $0.map { RemainingLevel(percent: $0) == .low } ?? false }
+    }
+
     var accessibilityText: String {
         let state = stale ? " 이전 데이터" : ""
-        guard hasSecondarySlot else { return "\(provider.fullTitle)\(state) 최저 잔여 \(Self.text(primary))%" }
-        return "\(provider.fullTitle)\(state) 5시간 \(Self.text(primary))%, 7일 \(Self.text(secondary))%"
+        let low = isLow ? ", 한도 부족" : ""
+        guard hasSecondarySlot else { return "\(provider.fullTitle)\(state) 최저 잔여 \(Self.text(primary))%\(low)" }
+        return "\(provider.fullTitle)\(state) 5시간 \(Self.text(primary))%, 7일 \(Self.text(secondary))%\(low)"
     }
 }
 

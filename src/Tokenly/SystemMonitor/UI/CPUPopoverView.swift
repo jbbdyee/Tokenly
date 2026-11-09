@@ -25,6 +25,25 @@ final class PopoverWindowHandle {
     weak var window: NSWindow?
 }
 
+/// SwiftUI creates a separate window for every MenuBarExtra. It does not dismiss an already open
+/// window when a different status item opens, so keep the last Tokenly popover window in one place.
+@MainActor
+final class PopoverWindowCoordinator {
+    static let shared = PopoverWindowCoordinator()
+    private(set) weak var activeWindow: NSWindow?
+
+    func activate(_ window: NSWindow) {
+        guard activeWindow !== window else { return }
+        let previous = activeWindow
+        activeWindow = window
+        if let previous, previous.isVisible { previous.orderOut(nil) }
+    }
+
+    func closed(_ window: NSWindow) {
+        if activeWindow === window { activeWindow = nil }
+    }
+}
+
 /// Reports whether the hosting window is on screen: ordered out or fully covered counts as not visible.
 /// (Appearance is not set here: the app applies its setting app-wide, see `AppAppearanceApplier`.)
 struct WindowVisibilityReporter: NSViewRepresentable {
@@ -61,13 +80,19 @@ struct WindowVisibilityReporter: NSViewRepresentable {
                 self?.report()
             })
             observers.append(center.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+                PopoverWindowCoordinator.shared.closed(window)
                 self?.onChange(false)
+            })
+            observers.append(center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { _ in
+                PopoverWindowCoordinator.shared.activate(window)
             })
             report()
         }
 
         private func report() {
             guard let window else { return }
+            if window.isKeyWindow { PopoverWindowCoordinator.shared.activate(window) }
+            if !window.isVisible { PopoverWindowCoordinator.shared.closed(window) }
             onChange(window.isVisible && window.occlusionState.contains(.visible))
         }
 

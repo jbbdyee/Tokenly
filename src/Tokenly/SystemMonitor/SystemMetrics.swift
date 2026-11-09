@@ -91,13 +91,19 @@ struct VMPageCounters: Equatable {
     var compressed: UInt32
     /// File-backed cache pages.
     var external: UInt32
+    /// free_count, which already includes speculative pages (XNU `vm_statistics.h`).
+    var free: UInt32
 }
 
 /// System-wide physical memory usage.
 ///
-/// used = app + wired + compressed, where app = anonymous (internal) − purgeable. File cache (external + purgeable) is reclaimable
-/// and excluded. This follows Activity Monitor's "Memory Used" breakdown, but Activity Monitor samples at its own time
-/// and may round differently, so the numbers can differ slightly. Swap is not included.
+/// used = physical − free − file cache (external pages), i.e. every page that is neither free nor file-backed cache
+/// (v0.4.1, RAM-02). The parts app (anonymous − purgeable), wired and compressed do not cover all of it: some pages are
+/// not reported in any of those counters (about 0.44–0.59 GiB on a 16 GiB M4, including purgeable), shown as "other".
+/// Activity Monitor's "Memory Used" behaves the same way (its total exceeds its own three parts); on 2026-11-04 seven
+/// paired reads on one Mac matched it within 0.07 GiB, while the old app + wired + compressed sum was 0.58–0.69 GiB
+/// lower. Apple does not publish its formula, so this is a reproduced match, not a guarantee. Swap is not included.
+/// used is never below the three parts, so a slightly non-atomic counter read cannot make "other" negative.
 /// macOS memory pressure, as the kernel reports it in `kern.memorystatus_vm_pressure_level`. The values are the
 /// public `DispatchSource.MemoryPressureEvent` levels (1 normal, 2 warning, 4 critical). Pressure is not usage: a
 /// Mac can be at 80 % used with normal pressure, or under pressure at lower use.
@@ -132,10 +138,16 @@ struct MemoryUsage: Equatable {
     let appBytes: UInt64
     let wiredBytes: UInt64
     let compressedBytes: UInt64
+    /// File-backed cache (external pages); with free memory it makes up total − used.
     let cachedFilesBytes: UInt64
 
     /// used / total, within 0...1 (guaranteed by `calculate`).
     var usedFraction: Double { Double(usedBytes) / Double(totalBytes) }
+    /// In use but not app, wired or compressed: pages the VM counters leave unattributed, plus purgeable pages.
+    var otherBytes: UInt64 {
+        let parts = appBytes &+ wiredBytes &+ compressedBytes
+        return usedBytes > parts ? usedBytes - parts : 0
+    }
 
     static func calculate(totalBytes: UInt64, pageSize: UInt64, pages: VMPageCounters) -> SystemMetric<MemoryUsage> {
         guard totalBytes > 0, pageSize > 0, pages.anonymous >= pages.purgeable else {
@@ -148,12 +160,17 @@ struct MemoryUsage: Equatable {
         guard let app = bytes(UInt64(pages.anonymous - pages.purgeable)),
               let wired = bytes(UInt64(pages.wired)),
               let compressed = bytes(UInt64(pages.compressed)),
-              let cachedFiles = bytes(UInt64(pages.external) + UInt64(pages.purgeable)) else {
+              let cachedFiles = bytes(UInt64(pages.external)),
+              let free = bytes(UInt64(pages.free)) else {
             return .unavailable(.inconsistentValues)
         }
         let (partial, overflow1) = app.addingReportingOverflow(wired)
-        let (used, overflow2) = partial.addingReportingOverflow(compressed)
-        guard !overflow1, !overflow2, used <= totalBytes else { return .unavailable(.inconsistentValues) }
+        let (parts, overflow2) = partial.addingReportingOverflow(compressed)
+        let (reclaimable, overflow3) = free.addingReportingOverflow(cachedFiles)
+        guard !overflow1, !overflow2, !overflow3, parts <= totalBytes, reclaimable <= totalBytes else {
+            return .unavailable(.inconsistentValues)
+        }
+        let used = max(totalBytes - reclaimable, parts)
         return .available(MemoryUsage(totalBytes: totalBytes, usedBytes: used, appBytes: app, wiredBytes: wired,
                                       compressedBytes: compressed, cachedFilesBytes: cachedFiles))
     }
