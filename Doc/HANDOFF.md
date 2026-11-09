@@ -1,6 +1,12 @@
-## 작업 폴더·저장소 정리 (2026-11-09, 미커밋)
+## 작업 폴더·저장소 정리 (2026-11-09)
 
 사용자 요청: 앱 구성 외 파일(시안 등) 삭제, 폴더 구조 정리. 기능 코드는 변경하지 않았다.
+
+**Git 반영(사용자 승인):**
+- 커밋 `c789fde`(`chore/repo-cleanup`, 당시 `main` `4fb4a59`에서 분기). 로컬 `test`가 `main`보다 72커밋 뒤라 `test`가 아닌 `main`에서 분기했다. 작업 전부터 미커밋이던 이 문서의 사건 A·B 기록도 같은 커밋에 들어갔다.
+- `test`에 `--no-ff` 병합(`7d6fb42`). `test`에서 `git diff --check`, 전체 XCTest 478개, helper Node 테스트 15개, Debug·Release 빌드 모두 통과.
+- `main`을 `test`로 fast-forward하고 `main`·`test`를 Push(`origin/main`·`origin/test` = `7d6fb42`). 로컬 `test`에만 있던 미Push 커밋 6개도 함께 올라갔다.
+- 병합한 `chore/repo-cleanup`는 로컬에서 삭제(원격에는 올린 적 없음). 이 기록은 `docs/handoff-repo-cleanup` 브랜치로 같은 절차를 거쳐 반영했다.
 
 **저장소 안(삭제는 Git 이력 `4fb4a59`에서 복구 가능):**
 - 삭제: `Preview/` 전체(디자인 시안, 곰돌이·하트·아이콘 콘셉트, CPU 측정. README 이미지 생성기 `ReadmeImages/run.sh`도 이미 없는 `Resources/BearGauge`를 참조해 동작하지 않았음), `Doc/screenshots/`(Stage 6 시안 캡처), 미추적 `Doc/logs/`(10-27 GPU 측정 로그), `default.profraw`, `.DS_Store`, 빈 `src/Tokenly/Resources/`(프로젝트 참조 없음).
