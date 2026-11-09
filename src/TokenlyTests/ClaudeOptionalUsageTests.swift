@@ -982,7 +982,7 @@ final class ClaudeOptionalUsageTests: XCTestCase {
     func testMockUIFixtureMatchesSDKContractAndStatusLineFallback() async throws {
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("experiments/claude-usage-refresh/fixtures/mock-ui-success.json")
+            .appendingPathComponent("ClaudeUsageHelper/fixtures/mock-ui-success.json")
         let data = try Data(contentsOf: fixture)
         let parsed = try ClaudeDirectUsageParser.parse(data, receivedAt: Date())
         XCTAssertEqual(parsed.windows[.fiveHour]?.quota.remainingPercent, 80)

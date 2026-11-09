@@ -1,3 +1,104 @@
+## 작업 폴더·저장소 정리 (2026-11-09, 미커밋)
+
+사용자 요청: 앱 구성 외 파일(시안 등) 삭제, 폴더 구조 정리. 기능 코드는 변경하지 않았다.
+
+**저장소 안(삭제는 Git 이력 `4fb4a59`에서 복구 가능):**
+- 삭제: `Preview/` 전체(디자인 시안, 곰돌이·하트·아이콘 콘셉트, CPU 측정. README 이미지 생성기 `ReadmeImages/run.sh`도 이미 없는 `Resources/BearGauge`를 참조해 동작하지 않았음), `Doc/screenshots/`(Stage 6 시안 캡처), 미추적 `Doc/logs/`(10-27 GPU 측정 로그), `default.profraw`, `.DS_Store`, 빈 `src/Tokenly/Resources/`(프로젝트 참조 없음).
+- 삭제: 날짜 고정 `/private/tmp` 경로를 쓰는 일회성 실험 스크립트 `scripts/build-claude-{dev,portable-dev,product-candidate,real-once,real-two,real-three,real-sixty}.sh`, `prepare-claude-real-*.sh`, `run-claude-real-*.sh`, `run-mock-ui.sh`, `run-mock-sixty-ui.sh`. 0.1.0용 옛 설정 스크립트 `enable_agy_statusline.py`, `scripts/enable_claude_statusline.py`, `scripts/check_claude_statusline.py`(현재는 `Tokenly --connect`).
+- 구조: 앱 번들에 들어가는 helper가 `experiments/claude-usage-refresh/`에 있던 것을 `src/ClaudeUsageHelper/`로 옮겼다. `package-claude-helper-dev.sh` → `package-claude-helper.sh`. 참조 수정: `release.sh`, 패키징 스크립트, `ClaudeOptionalUsageTests.swift`의 fixture 경로, README·AGENTS.md.
+- 유지: 0.1.0 Python 브리지 `src/Tokenly/*StatusLineBridge.py`(앱 리소스·해제 복원용), `scripts/build-popover-fixture.sh`.
+- 과거 기록 문서(IMP-PLAN·SPEC·TODO·이 문서 아래 절)의 옛 경로는 당시 기록이라 고치지 않았다.
+
+**바깥 Workspace(휴지통 `~/.Trash/Tokenly-Workspace-cleanup-20261109/`, 2.9GB, 비우기 전까지 복구 가능):**
+- 이동: `Tokenly-backup`·`TokenlyAppListExperiment`·`TokenlyBridgeProbe`·`TokenlyDesignArchive`·`TokenlyResearchArchive`·`TokenlyStage2`(.noindex), `.migration-records`, `TokenlyRelease.noindex`의 0.1~0.4.0 dev·RC·install-staging·옛 백업·`preserved-from-tmp-20261102`·`ui-check-v041-20261104`·`ram02-measurements`, `0.4.1/`의 stage·unzipped·Node 추출본·xcodebuild.log.
+- 남김: `TokenlyArchive.noindex`(블로그 원문), `TokenlyRelease.noindex/{claude-node-archives, 0.4.1(ZIP·sha256·노트·build-info), backup-0.4.0-before-0.4.1-20261104, blog-tokenly-04}`. 0.4.1 ZIP 체크섬 OK.
+- 실행 중 앱(`/Applications`)과 Claude·AGY 상태줄 설정은 이 폴더들을 참조하지 않음을 확인했다.
+
+**검증:** helper `node --test` 15개 통과, `package-claude-helper.sh` 패키징(SDK 0.3.169) 성공, `release.sh` 문법·`--print-node-archives` 정상. Debug 전체 XCTest 478개 통과(실패 0), Release 빌드 성공(`/private/tmp/tokenly-cleanup-20261109`).
+- 경로를 바꾼 `testMockUIFixtureMatchesSDKContractAndStatusLineFallback`은 `#if TOKENLY_CLAUDE_DEV` 안에 있어 일반 테스트에서는 컴파일되지 않는다. fixture 파일이 새 경로에서 열리는 것만 확인했다.
+- **기존 문제(정리와 무관):** `TOKENLY_CLAUDE_DEV` 플래그로 테스트를 빌드하면 `ClaudeOptionalUsageTests.swift:1221` 부근의 `handleSystemDidWake`/`handleSystemWillSleep`가 없다는 컴파일 오류가 난다(해당 메서드가 dev 플래그에서 빠짐). 이 플래그를 쓰던 개발 스크립트는 이번에 삭제했다.
+
+## Claude 직접 조회 장애 기록 (사건 A·B, 2026-11-04~06)
+
+Claude 직접 조회 장애는 이 절에만 모아 기록한다. v0.4.0 원인 분석은 아래 "v0.4.0 Claude 자동 조회 영구 중단 진단", 복구 정책은 "v0.4.1 Claude 직접 조회 복구 수정"과 `Doc/SPEC.md` 상단에 있다. 시각은 KST.
+
+### 사건 A — v0.4.0 정지와 v0.4.1 복구, 11-05 `unknown` (2026-11-04~05)
+
+**확인된 사실(기록 근거):**
+- 11-04 v0.4.0: 07:07:56 마지막 성공 → 08:40:20 DarkWake → 08:40:22 절전 → 08:40:23 시도 → `isPaused=true`(attempts 946). 근거는 설치 전 백업 체크포인트와 `pmset -g log`. 오류 종류는 v0.4.0 구조상 남지 않았다.
+- 11-04 17:42:33 v0.4.1 설치 직후 legacyPause 복구 시도 → 17:42:36 성공, 이후 60초 간격으로 성공. 17:53:56이 밤 전 마지막 성공이다.
+- 11-05 09:00:19 완전 복귀. 09:02:39 시도(Codex·AGY 갱신과 같은 시각이라 수동 새로고침으로 판단) → 09:02:40 `lastErrorKind: "unknown"`, cooldownCycles 2, 다음 시도 09:32:40(09:06 체크포인트).
+  - cooldownCycles 2는 밤사이 미분류 실패가 한 번 더 있었다는 뜻이지만, 시각은 기록에 없다.
+- `unknown`은 helper가 정상 종료했지만 쓸 수 있는 사용량 데이터가 없었다는 뜻이다(`rate_limits_available`이 true 아님, 한도 정보 없음, JSON 아님). 네트워크·시간 초과·SDK 오류·429·401·403이 아니다.
+- 09:05:49 Claude Code에서 `/login` → "Login successful". 자격 증명 키체인 항목의 수정 시각 09:05:38(메타데이터만 확인).
+- 09:32:40 이후 절전 기록 없음. 12:09 체크포인트는 오류 필드 없이 12:09:20 성공, attempts 1116이다.
+  - 09:32 이후 약 157분 동안 156회 시도해 60초 연속 성공과 산술적으로 맞는다.
+
+**기록과 다른 점:** "`/login` 직후 수동 재시도 실패"는 기록으로 확인되지 않는다.
+- 확인된 수동 재시도 실패는 `/login` **이전**인 09:02:39 한 번이다. 09:06까지 그 뒤의 시도는 없었다.
+- `/login` 뒤 다시 실패했다면 쿨다운 3회째로 `repeatedFailures` 정지가 됐어야 하는데, 12:09까지의 시도 수는 그런 정지와 맞지 않는다.
+- 다만 화면 조작 기록은 없어 완전히 배제하지는 않는다.
+
+**추정(미확정):**
+- 08:40 실패는 DarkWake 중 네트워크 문제였을 가능성이 크다.
+- 09:02 `unknown` 원인 후보는 둘이다.
+  - ① CLI 로그인 만료
+  - ② CLI의 usage 엔드포인트 조회 실패가 이어지면서 저장 스냅샷이 1시간을 넘겨 `rate_limits: null`을 돌려받은 경우(사건 B에서 확인한 CLI 동작)
+- SDK 응답은 설계상 저장하지 않아 둘 중 무엇인지, 또는 `/login`과 복구가 인과관계인지 확정할 수 없다.
+
+### 사건 B — 5시간 사용량 0%·초기화 시각 미제공 (2026-11-06)
+
+**확인된 사실:**
+- 09:43~44: 공식 앱은 5시간 약 5%·14:30 초기화, Tokenly는 0.0% 사용·`초기화 시각 미제공`·마지막 갱신 09:43. 7일은 약 60%와 59%(사용자 관찰).
+- 같은 시간 Tokenly 체크포인트는 오류 없이 60초마다 성공했다(09:53 attempts 1499).
+- Claude CLI 설정 파일(`~/.claude.json`)의 `cachedUsageUtilization`(시각과 5시간·7일 필드만 읽음):
+  - 09:30:19 저장분: five_hour `utilization 0, resets_at null`, seven_day 59. Tokenly 표시와 같고, 09:54까지 바뀌지 않았다.
+- CLI 2.1.292 실행 파일 안의 코드:
+  - usage 엔드포인트 응답이 실패·429·빈 본문이면, 1시간 이내 저장 스냅샷을 대신 돌려준다(내부 상태 `seeded`).
+  - 스냅샷은 조회가 성공했을 때만 새로 쓴다.
+  - 저장된 지 60초 안이면 엔드포인트를 묻지 않고 스냅샷으로 답한다.
+  - SDK get_usage 응답에는 이 신선도·출처 정보와 429 여부가 **없다**.
+- Tokenly 변환: `utilization 0` → 100% 남음, `resets_at null` → "초기화 시각 미제공"(`ClaudeDirectUsageProvider.swift:76–85`). 받은 값을 그대로 변환했다.
+- 같은 시각 Claude Code 상태줄 피드(09:53)는 5시간 12%·14:30이었지만, 직접값이 900초 이내면 직접값이 우선이라(`ClaudeDirectUsageProvider.swift:138`) 쓰이지 않았다.
+- 복귀: 사용자 관찰로는 10:13 Tokenly 5시간 21%·14:30 초기화. 10:19 확인 기록:
+  - CLI 스냅샷 10:18:50 저장, five_hour 23%·`2026-11-06T05:30:00Z`(14:30)
+  - 체크포인트 오류 없음(attempts 1524)
+  - 코드 변경은 없었다.
+
+**원인 판단:**
+- Tokenly 변환 오류는 아니다(확인).
+- 09:30:19 스냅샷이 계속 전달된 것도 확인됐다.
+- 그 스냅샷이 계속 쓰인 이유는 미확정이다. 엔드포인트 실패·429·집계 지연 중 무엇인지는 CLI 로그가 없어 구분할 수 없다.
+- 09:30:19 값 자체(0%·초기화 없음)는 새 5시간 창(14:30 초기화 = 09:30 시작) 직전이나 직후의 값으로 보인다(추정).
+- 엔드포인트가 언제 회복됐는지(09:54~10:13 사이)는 기록이 없다.
+
+**참고:** 같은 시점에도 출처별 5시간 값이 몇 %씩 다르다(공식 앱 09:44 약 5%, 상태줄 09:53 12%, 스냅샷 10:18 23%, 상태줄 10:19 19%). 출처 간 몇 % 차이는 정상 범위로 보고, "0%·초기화 없음"처럼 창 자체가 비는 경우만 이상으로 본다.
+
+**개선 후보(보류, 기능 추가 중단 기간이라 미구현):**
+- 5시간 창이 "0%·초기화 없음"이고 15분 이내 상태줄 값에 앞으로의 초기화 시각이 있으면 상태줄 값을 표시한다.
+- `unknown`을 "데이터 없음"과 "형식 오류"로 나눠 기록한다.
+- "마지막 갱신"을 "마지막 조회"로 바꾸고, 수동 재시도가 실패하면 화면에 표시한다.
+- 조회 간격을 60초에서 늘리는 것을 검토한다.
+
+### 재발 시 확인할 증거와 순서 (모두 읽기 전용, 조회 실행 없음)
+
+1. **Tokenly 체크포인트** `~/Library/Application Support/io.github.jbbdyee.tokenly/Claude Direct Refresh/refresh-checkpoint.json`: `lastErrorKind`·`cooldownCycles`·`isPaused`·`pauseReason`·각 시각.
+   - 날짜는 2001-01-01 UTC 기준 초다: `date -r $((값 + 978307200))`.
+2. **CLI 스냅샷:** `~/.claude.json`의 `cachedUsageUtilization`에서 `fetchedAtMs`와 `five_hour`·`seven_day`의 `utilization`·`resets_at`**만** 출력한다. 계정 ID와 다른 필드는 출력하지 않는다.
+   - 저장 시각이 오래돼 있고 Tokenly 값과 같으면 CLI 저장값 전달(사건 B 유형)이다.
+   - 1시간을 넘으면 `unknown`(사건 A 유형 후보)이 이어진다.
+3. **상태줄 피드** `~/Library/Application Support/Tokenly/claude-quota.json`의 `captured_at`과 5시간 값을 함께 비교한다.
+4. **절전 기록:** `pmset -g log | grep -E "Sleep  |Wake  |DarkWake"`로 실패 시각 전후를 본다.
+5. **로그인:** 문제 시각 전후의 `/login` 실행 여부와 자격 증명 항목 수정 시각(`security find-generic-password -s "Claude Code-credentials"`의 속성만, `-w` 금지).
+6. 위 기록만으로 엔드포인트 실패 종류(429 등)는 알 수 없다. 확정하려면 별도 승인 후 개발용 빌드에서 CLI 디버그 로그의 "Failed to load usage data"·"answered from a snapshot" 줄만 남겨 관찰해야 한다.
+
+## 블로그 #4 자료 수집 (2026-11-05, 자료 전용)
+
+- `TokenlyRelease.noindex/blog-tokenly-04/`에 정리했다. 구성: PNG 16장(추천 8장), 코드 원문 스니펫 16개(v0.4.0 `a59eedd`·v0.4.1 `acaa74b` 태그에서 추출, 원문과 동일함 확인), `BLOG-MATERIALS.md`, `sources/`.
+- ZIP `tokenly-blog-04-materials.zip`(36항목, SHA-256 `a39f8043…26f9`): 무결성 OK, 민감 패턴 0건.
+- 11-05 Claude 직접 조회 진단은 위 "Claude 직접 조회 장애 기록"의 사건 A로 옮겼다.
+- 소스·설치 앱·체크포인트·설정 변경 없음. 실제 SDK 조회 0회, 커밋·Push 없음.
+
 ## v0.4.1(7) 정식 릴리즈 (2026-11-04)
 
 **Git·Release:**

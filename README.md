@@ -233,8 +233,8 @@ AGY CLI ─statusLine─▶ Tokenly --statusline agy ─▶ agy-quota.json ─(�
 | 상태줄 브리지·연결 | `src/Tokenly/BridgeCommand.swift`, `StatusLineBridge.swift`, `StatusLineConnector.swift`(호환용 0.1.0 Python 브리지 `ClaudeStatusLineBridge.py`, `AGYStatusLineBridge.py`) |
 | 표시 규칙 | `src/Tokenly/Models/HeartGauge.swift`(이름은 초기 하트 시안에서 유래, 숫자형의 표시·숨김 규칙에서 사용), `NumericGauge.swift` |
 | 렌더링 | `src/Tokenly/Views/MenuBarNumericRow.swift`, `UsageMenuView.swift`, `src/Tokenly/SystemMonitor/UI/`의 메뉴 막대·팝오버 뷰 |
-| 과거 곰돌이 시안 | `Preview/Heart3D/`에 제작·비교 자료 보존. 전용 앱 코드·에셋은 Stage 6-6B에서 삭제 |
-| 앱 아이콘 | `src/Tokenly/Assets.xcassets/AppIcon.appiconset/` ← 콘셉트 보드 D안에서 추출한 `Preview/AppIconConcepts/D-original-extracted/`(추출·검증 스크립트 `source/`) |
+| Claude 사용량 helper(번들용 Node) | `src/ClaudeUsageHelper/`(`claude-usage-helper.mjs`, 고정 SDK lockfile, Node 테스트·fixture). `scripts/package-claude-helper.sh`가 패키징 |
+| 앱 아이콘 | `src/Tokenly/Assets.xcassets/AppIcon.appiconset/`(콘셉트 보드 D안에서 추출) |
 
 ## 서비스별 연동 방식
 
@@ -255,7 +255,7 @@ AGY CLI ─statusLine─▶ Tokenly --statusline agy ─▶ agy-quota.json ─(�
 - statusLine 브리지는 한도 수치·초기화 시각·수신 시각만 `~/Library/Application Support/Tokenly/`에 권한 0600으로 저장합니다. 세션·계정·경로·대화·인증정보와 원본 JSON은 저장하지 않습니다.
 - Codex CLI 출력의 진단 메시지(stderr)는 버립니다. 수집한 데이터를 외부 서버로 보내지 않습니다.
 - CLI 설정 백업과 연결 기록은 `~/Library/Application Support/Tokenly/backups/`, `…/statusline/`에 0600으로 저장됩니다.
-- 저장소의 옛 설정 스크립트(`scripts/enable_claude_statusline.py`, 최상위 `enable_agy_statusline.py`)는 0.1.0 개발 빌드용으로 남겨 둔 것입니다. 새 설치에서는 `Tokenly --connect`를 쓰세요.
+- 상태줄 연결은 `Tokenly --connect`를 쓰세요. 0.1.0 개발 빌드용 옛 설정 스크립트는 2026-11-09 저장소 정리 때 삭제했습니다(Git 이력에 보존).
 
 ## 빌드와 테스트
 
@@ -315,7 +315,7 @@ xcodebuild가 자동으로 만드는 스킴은 테스트 커버리지를 수집�
 - `Doc/SPEC.md`(제품 사양), `Doc/IMP-PLAN.md`(구현 계획과 결정 기록), `Doc/TODO.md`(진행 상황), `Doc/SYSTEM-MONITOR.md`(시스템 모니터 사양·검증)
 - [`Doc/BRANCHING.md`](Doc/BRANCHING.md): 브랜치 운영 규칙(`feature/*` → `test` → `main`)과 릴리즈 태그 규칙
 - 기술 블로그 원문은 프로젝트 밖 `TokenlyArchive.noindex/blog-notes-20261030/BLOG-NOTES.md`와 [커밋 81afae9의 BLOG-NOTES](https://github.com/jbbdyee/Tokenly/blob/81afae9/Doc/BLOG-NOTES.md)에 보존했습니다. 이후 작업 기록은 `Doc/HANDOFF.md`에 남깁니다.
-- `Preview/`: 디자인 시안과 측정 스크립트·이미지(`Preview/README.md` 참고). 일부 과거 스크립트는 현재 코드로 실행되지 않으며 결과 이미지만 보존합니다.
+- 디자인 시안(`Preview/`)·단계별 스크린샷·일회성 실험 스크립트는 2026-11-09 저장소 정리 때 삭제했습니다. 필요하면 커밋 `4fb4a59` 이전 이력에서 확인할 수 있습니다.
 
 ## 개발 방식
 

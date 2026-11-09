@@ -3,8 +3,10 @@
 ## 프로젝트 기준 경로
 
 - Git 저장소: 이 `AGENTS.md`가 있는 디렉터리(프로젝트 루트)
-- Xcode 프로젝트: `src/Tokenly.xcodeproj`; 앱 소스: `src/Tokenly/`; 테스트: `src/TokenlyTests/`; 문서: `Doc/`
-- 백업·릴리스·실험용 `.noindex` 폴더는 앱 소스가 아니다. 별도 요청 없이 이동하거나 정리하지 않는다.
+- Xcode 프로젝트: `src/Tokenly.xcodeproj`; 앱 소스: `src/Tokenly/`; 테스트: `src/TokenlyTests/`; 문서: `Doc/`(README 이미지는 `Doc/images/`)
+- 앱 번들에 들어가는 Claude 사용량 helper(Node): `src/ClaudeUsageHelper/`. 릴리스·패키징 스크립트: `scripts/`(`release.sh`, `package-claude-helper.sh`, `build-popover-fixture.sh`).
+- 시안·일회성 실험 스크립트·단계별 스크린샷은 저장소에 두지 않는다(2026-11-09 정리, 이전 자료는 Git 이력 `4fb4a59`). 실험 산출물은 저장소 밖 임시 경로에 만든다.
+- 백업·릴리스용 `.noindex` 폴더는 앱 소스가 아니다. 별도 요청 없이 이동하거나 정리하지 않는다. `TokenlyRelease.noindex/claude-node-archives/`는 `release.sh`가 읽으므로 지우지 않는다.
 
 ## 기능과 모듈 경계
 

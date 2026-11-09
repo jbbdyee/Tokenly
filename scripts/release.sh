@@ -268,7 +268,7 @@ package_claude_runtime() {
     package_work="$(mktemp -d /private/tmp/tokenly-claude-release-package.XXXXXX)" \
         || fail "Claude SDK temporary packaging directory unavailable"
     TOKENLY_CLAUDE_PACKAGE_OUT="$package_work/payload" TOKENLY_CLAUDE_OMIT_OPTIONAL=1 \
-        bash "$ROOT/scripts/package-claude-helper-dev.sh" > "$OUT/claude-package-info.txt" \
+        bash "$ROOT/scripts/package-claude-helper.sh" > "$OUT/claude-package-info.txt" \
         || fail "Claude SDK packaging failed"
     node="$APP/Contents/MacOS/TokenlyClaudeNode"
     resources="$APP/Contents/Resources/ClaudeUsageSDK"

@@ -1,10 +1,10 @@
 #!/bin/bash
-# Build a development-only, account-free helper payload outside the repository.
+# Build the account-free Claude usage helper payload (src/ClaudeUsageHelper) outside the repository.
 # This does not run the helper, Claude CLI, or Tokenly app.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-source_dir="$root/experiments/claude-usage-refresh"
+source_dir="$root/src/ClaudeUsageHelper"
 output="${TOKENLY_CLAUDE_PACKAGE_OUT:-/private/tmp/tokenly-claude-helper-package}"
 case "$output" in /private/tmp/*) ;; *) echo 'output must be under /private/tmp' >&2; exit 64 ;; esac
 [[ ! -e "$output" && ! -L "$output" ]] || { echo 'output already exists' >&2; exit 64; }
