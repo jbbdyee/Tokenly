@@ -24,6 +24,14 @@
 
 **휴지통 영구 삭제(사용자 승인):** 위에서 휴지통으로 옮긴 `~/.Trash/Tokenly-Workspace-cleanup-20261109/`(2.9GB)를 영구 삭제했다. 더는 복구할 수 없다. 휴지통의 다른 항목은 권한상 목록을 볼 수 없어 건드리지 않았다. 정리 후 Workspace는 536MB이며 `Tokenly`, `TokenlyArchive.noindex`, `TokenlyRelease.noindex`만 남았다.
 
+**`TokenlyRelease.noindex` 앱 사본 정리(사용자 승인):**
+- 휴지통 `~/.Trash/TokenlyRelease-app-copies-20261109/`(397MB, 비우기 전까지 복구 가능)로 옮겼다:
+  - `backup-0.4.0-before-0.4.1-20261104/Tokenly.app`(v0.4.0 앱)
+  - `0.4.1/Tokenly-0.4.1-macOS-universal.zip`
+- 두 ZIP은 GitHub Release v0.4.0·v0.4.1 자산으로 남아 있다(이동 전 `gh release view`로 확인, v0.4.1은 로컬과 크기 96,085,785바이트 일치).
+- 유지: `claude-node-archives/v24.22.1`(release.sh 필수), 0.4.0 설정 백업(settings.plist·Application Support 2곳), `0.4.1/`의 `.sha256`·릴리스 노트·build-info·claude-package-info, `blog-tokenly-04/`. 폴더는 512MB → 115MB.
+- 위 v0.4.1 설치 절의 "복구 방법"을 GitHub Release ZIP 기준으로 고쳤다.
+
 **저장소 안(삭제는 Git 이력 `4fb4a59`에서 복구 가능):**
 - 삭제: `Preview/` 전체(디자인 시안, 곰돌이·하트·아이콘 콘셉트, CPU 측정. README 이미지 생성기 `ReadmeImages/run.sh`도 이미 없는 `Resources/BearGauge`를 참조해 동작하지 않았음), `Doc/screenshots/`(Stage 6 시안 캡처), 미추적 `Doc/logs/`(10-27 GPU 측정 로그), `default.profraw`, `.DS_Store`, 빈 `src/Tokenly/Resources/`(프로젝트 참조 없음).
 - 삭제: 날짜 고정 `/private/tmp` 경로를 쓰는 일회성 실험 스크립트 `scripts/build-claude-{dev,portable-dev,product-candidate,real-once,real-two,real-three,real-sixty}.sh`, `prepare-claude-real-*.sh`, `run-claude-real-*.sh`, `run-mock-ui.sh`, `run-mock-sixty-ui.sh`. 0.1.0용 옛 설정 스크립트 `enable_agy_statusline.py`, `scripts/enable_claude_statusline.py`, `scripts/check_claude_statusline.py`(현재는 `Tokenly --connect`).
@@ -149,7 +157,7 @@ Claude 직접 조회 장애는 이 절에만 모아 기록한다. v0.4.0 원인 
 
 **참고:** 설치본 팝오버를 닫은 뒤 앱 CPU 2.7~4.0%(실제 Codex·AGY 조회, Claude Node 60초, 시스템 위젯 4개 포함). v0.4.0 동일 조건 값이 없어 비교하지 못했다.
 
-**복구 방법:** Tokenly 종료 → `/Applications/Tokenly.app` 삭제 → 백업 폴더의 `Tokenly.app` ditto. 필요하면 settings.plist와 Application Support도 복원한다.
+**복구 방법:** Tokenly 종료 → `/Applications/Tokenly.app` 삭제 → [GitHub Release v0.4.0](https://github.com/jbbdyee/Tokenly/releases/tag/v0.4.0) ZIP을 받아 `.sha256` 확인 후 `/Applications`에 풀기(백업 폴더의 앱 사본은 2026-11-09 정리에서 삭제). 필요하면 백업 폴더에 남은 settings.plist와 Application Support도 복원한다.
 
 ## v0.4.1 반짝임 CPU 최적화 (2026-11-04)
 
