@@ -32,6 +32,13 @@
 - 유지: `claude-node-archives/v24.22.1`(release.sh 필수), 0.4.0 설정 백업(settings.plist·Application Support 2곳), `0.4.1/`의 `.sha256`·릴리스 노트·build-info·claude-package-info, `blog-tokenly-04/`. 폴더는 512MB → 115MB.
 - 위 v0.4.1 설치 절의 "복구 방법"을 GitHub Release ZIP 기준으로 고쳤다.
 
+**블로그 자료 정리(사용자: 블로그 작성 완료, 관련 자료 삭제 승인):**
+- 휴지통 `~/.Trash/Tokenly-blog-materials-20261109/`(12MB, 비우기 전까지 복구 가능)로 옮겼다:
+  - `TokenlyArchive.noindex/`(v0.3.0까지 블로그 원문 사본). 커밋 `81afae9`의 `Doc/BLOG-NOTES.md`와 바이트 단위로 같음을 확인해 원문은 Git에 남는다.
+  - `TokenlyRelease.noindex/blog-tokenly-04/`(블로그 #4 캡처·스니펫·ZIP). 아래 "블로그 #4 자료 수집" 절의 경로는 이제 없다.
+- AGENTS.md·README의 원문 위치를 커밋 `81afae9`만 가리키도록 고쳤다. 앞으로 블로그용 기록·`📸 캡처 추천` 규칙은 그대로다.
+- Workspace는 이제 `Tokenly`, `TokenlyRelease.noindex`(Node 압축 파일, 0.4.1 체크섬·노트, 0.4.0 설정 백업)만 남았고 127MB다.
+
 **저장소 안(삭제는 Git 이력 `4fb4a59`에서 복구 가능):**
 - 삭제: `Preview/` 전체(디자인 시안, 곰돌이·하트·아이콘 콘셉트, CPU 측정. README 이미지 생성기 `ReadmeImages/run.sh`도 이미 없는 `Resources/BearGauge`를 참조해 동작하지 않았음), `Doc/screenshots/`(Stage 6 시안 캡처), 미추적 `Doc/logs/`(10-27 GPU 측정 로그), `default.profraw`, `.DS_Store`, 빈 `src/Tokenly/Resources/`(프로젝트 참조 없음).
 - 삭제: 날짜 고정 `/private/tmp` 경로를 쓰는 일회성 실험 스크립트 `scripts/build-claude-{dev,portable-dev,product-candidate,real-once,real-two,real-three,real-sixty}.sh`, `prepare-claude-real-*.sh`, `run-claude-real-*.sh`, `run-mock-ui.sh`, `run-mock-sixty-ui.sh`. 0.1.0용 옛 설정 스크립트 `enable_agy_statusline.py`, `scripts/enable_claude_statusline.py`, `scripts/check_claude_statusline.py`(현재는 `Tokenly --connect`).
